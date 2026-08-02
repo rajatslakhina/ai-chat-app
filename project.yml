@@ -112,8 +112,13 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-    resources:
+      # Under `sources`, not `resources`: XcodeGen has no `resources` target key — that is Tuist's
+      # — so it was silently ignored and the asset catalog never reached the target at all. It went
+      # unnoticed because the catalog held nothing but an empty Contents.json.
       - path: Resources
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     configFiles:
       Debug: Config/Debug.xcconfig
       Release: Config/Release.xcconfig

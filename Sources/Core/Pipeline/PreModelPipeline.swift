@@ -7,6 +7,7 @@ import ProviderGatewayKit
 import ResponseCacheKit
 import RetrievalKit
 import SemanticRouterKit
+import SpotlightRAG
 
 /// Knobs the Settings screen owns.
 struct PipelineSettings: Sendable, Equatable {
@@ -45,6 +46,8 @@ actor PreModelPipeline {
     let cache: ResponseCache
     private let memory: MemoryStore
     private let retriever: Retriever
+    /// Nil keeps the dense-only behaviour, and the lexical stage records itself as skipped.
+    private let lexical: LexicalIndex?
     private let compactor: ContextCompactor
     var settings: PipelineSettings
 
@@ -55,6 +58,7 @@ actor PreModelPipeline {
         cache: ResponseCache,
         memory: MemoryStore,
         retriever: Retriever,
+        lexical: LexicalIndex? = nil,
         compactor: ContextCompactor,
         settings: PipelineSettings = PipelineSettings()
     ) {
@@ -64,6 +68,7 @@ actor PreModelPipeline {
         self.cache = cache
         self.memory = memory
         self.retriever = retriever
+        self.lexical = lexical
         self.compactor = compactor
         self.settings = settings
     }
@@ -246,31 +251,6 @@ actor PreModelPipeline {
         }
     }
 
-    private func retrievePassages(
-        for outbound: String,
-        trace: inout PipelineTrace
-    ) async -> ([RetrievedSource], String) {
-        guard settings.retrievalEnabled else {
-            trace.record(.retrieval, .skipped(reason: "retrieval disabled in Settings"))
-            return ([], "")
-        }
-        do {
-            let scored = try await retriever.retrieve(query: outbound, topK: settings.retrievalTopK)
-            guard !scored.isEmpty else {
-                trace.record(.retrieval, .noOp(reason: "no indexed passages matched"))
-                return ([], "")
-            }
-            trace.record(.retrieval, .ran(detail: "\(scored.count) passage(s) injected"))
-            return (
-                scored.map(RetrievedSource.init),
-                scored.map(\.chunk.text).joined(separator: "\n---\n")
-            )
-        } catch {
-            trace.record(.retrieval, .failed(message: "\(error)"))
-            return ([], "")
-        }
-    }
-
     /// Runs LAST, so retrieved and recalled text is inside the same budget as the conversation
     /// rather than bolted on after the budget was already satisfied.
     private func compactIfNeeded(
@@ -300,5 +280,116 @@ actor PreModelPipeline {
             trace.record(.contextCompaction, .failed(message: "\(error)"))
             return (assembled, false)
         }
+    }
+}
+
+// MARK: - Retrieval
+
+/// An extension rather than more actor body: these three are the only members that reconcile two
+/// independent rankings, and `type_body_length` is a fair signal that they had outgrown sitting
+/// among the single-stage methods.
+extension PreModelPipeline {
+    private func retrievePassages(
+        for outbound: String,
+        trace: inout PipelineTrace
+    ) async -> ([RetrievedSource], String) {
+        guard settings.retrievalEnabled else {
+            trace.record(.retrieval, .skipped(reason: "retrieval disabled in Settings"))
+            return ([], "")
+        }
+        var dense: [ScoredChunk] = []
+        do {
+            dense = try await retriever.retrieve(query: outbound, topK: settings.retrievalTopK)
+            if dense.isEmpty {
+                trace.record(.retrieval, .noOp(reason: "no indexed passages matched"))
+            } else {
+                trace.record(.retrieval, .ran(detail: "\(dense.count) passage(s) matched"))
+            }
+        } catch {
+            trace.record(.retrieval, .failed(message: "\(error)"))
+        }
+
+        let lexicalHits = await lexicalRanking(for: outbound, trace: &trace)
+        let fused = fuseRankings(dense: dense, lexical: lexicalHits, trace: &trace)
+        guard !fused.isEmpty else { return ([], "") }
+        return (fused, fused.map(\.snippet).joined(separator: "\n---\n"))
+    }
+
+    /// The lexical half. Absent when no index was composed, which stays a legitimate configuration.
+    private func lexicalRanking(
+        for outbound: String,
+        trace: inout PipelineTrace
+    ) async -> [IndexHit] {
+        guard let lexical else {
+            trace.record(.lexicalRetrieval, .skipped(reason: "no lexical index is configured"))
+            return []
+        }
+        do {
+            let hits = try await lexical.ranking(for: outbound, limit: settings.retrievalTopK)
+            guard !hits.isEmpty else {
+                trace.record(.lexicalRetrieval, .noOp(reason: "no passage carried those terms"))
+                return []
+            }
+            trace.record(.lexicalRetrieval, .ran(detail: "\(hits.count) passage(s) matched"))
+            return hits
+        } catch {
+            trace.record(.lexicalRetrieval, .failed(message: "\(error)"))
+            return []
+        }
+    }
+
+    /// Reciprocal-rank fusion over whichever halves produced anything.
+    ///
+    /// Rank rather than score, which is the point of RRF: a cosine similarity and a lexical score
+    /// are not on the same scale and averaging them is meaningless. Ordering is comparable even
+    /// when the numbers are not.
+    private func fuseRankings(
+        dense: [ScoredChunk],
+        lexical: [IndexHit],
+        trace: inout PipelineTrace
+    ) -> [RetrievedSource] {
+        let denseIDs = dense.map { DocumentID($0.chunk.documentID) }
+        let lexicalIDs = lexical.map(\.id)
+        let rankings = [denseIDs, lexicalIDs].filter { !$0.isEmpty }
+        guard !rankings.isEmpty else {
+            trace.record(.rankFusion, .noOp(reason: "neither half returned a passage"))
+            return []
+        }
+
+        // Described from what was actually fused, never from a fixed corpus: a lookup that only
+        // knew the bundled documents would silently drop every passage indexed by anything else,
+        // and the dropped ones would look like a retrieval miss rather than a bug here.
+        var described: [DocumentID: RetrievedSource] = [:]
+        for scored in dense {
+            described[DocumentID(scored.chunk.documentID)] = RetrievedSource(scored)
+        }
+        for hit in lexical where described[hit.id] == nil {
+            described[hit.id] = RetrievedSource(
+                id: hit.id.rawValue,
+                title: hit.title,
+                snippet: String(hit.body.prefix(160)),
+                relevancePercent: 0
+            )
+        }
+
+        let fused = RankFusion().fuse(rankings).prefix(settings.retrievalTopK)
+        let best = fused.first?.score ?? 1
+        let sources: [RetrievedSource] = fused.compactMap { result in
+            guard let source = described[result.id] else { return nil }
+            return RetrievedSource(
+                id: source.id,
+                title: source.title,
+                snippet: source.snippet,
+                // Relative to the best hit: an RRF score is a sum of 1/(k+rank) terms with no
+                // upper bound anyone would recognise, so showing it raw would put "0.03" under a
+                // passage that is in fact the strongest match there is.
+                relevancePercent: best > 0 ? Int((result.score / best * 100).rounded()) : 0
+            )
+        }
+        let detail = "\(rankings.count) ranking(s) → \(sources.count) passage(s) injected"
+        trace.record(.rankFusion, sources.isEmpty
+            ? .noOp(reason: "fusion matched no known document")
+            : .ran(detail: detail))
+        return sources
     }
 }

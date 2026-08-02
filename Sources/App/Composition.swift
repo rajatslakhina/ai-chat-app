@@ -166,7 +166,6 @@ struct Composition: Sendable {
         )
     }
 
-    /// The pre-model half of the graph, with its prompt and routing table seeded.
     /// Which embedder retrieval and routing run on, decided once here.
     ///
     /// Once, and never per call: `HashingEmbeddingProvider` and `OpenRouterEmbeddingProvider`
@@ -187,9 +186,34 @@ struct Composition: Sendable {
         return OpenRouterEmbeddingProvider(configuration: configuration)
     }
 
+    /// Loads the corpus into both halves of retrieval.
+    ///
+    /// Both, from one source, deliberately: reciprocal-rank fusion combines *orderings*, so two
+    /// halves indexing different document sets would still produce a confident-looking ranking
+    /// over a corpus neither of them actually holds.
+    static func makeLexicalIndex() async -> LexicalIndex? {
+        let index = LexicalIndex()
+        do {
+            try await index.seed()
+            return index
+        } catch {
+            // Retrieval degrades to dense-only, and the lexical stage records itself as skipped.
+            // Refusing to launch a chat app because a help corpus did not load would be worse.
+            return nil
+        }
+    }
+
+    /// The pre-model half of the graph, with its corpus, prompt and routing table seeded.
     private static func makePipeline(
         configuration: OpenRouterConfiguration? = nil
     ) async -> PreModelPipeline {
+        let retriever = Retriever(embedder: makeEmbedder(configuration: configuration))
+        for document in AppKnowledge.retrievalDocuments {
+            // A passage that fails to embed is dropped rather than fatal: the lexical half still
+            // finds it, which is most of why there are two halves.
+            try? await retriever.index(document)
+        }
+        let lexical = await makeLexicalIndex()
         let prompts = PromptRegistry()
         // Both registrations return a value this call site has no use for. Discarding it
         // explicitly rather than leaving `try?` unused keeps the build warning-free, and a
@@ -207,7 +231,8 @@ struct Composition: Sendable {
             router: router,
             cache: ResponseCache(capacity: 200),
             memory: MemoryStore(),
-            retriever: Retriever(embedder: makeEmbedder(configuration: configuration)),
+            retriever: retriever,
+            lexical: lexical,
             compactor: ContextCompactor(strategies: [SlidingWindowCompactionStrategy()])
         )
     }

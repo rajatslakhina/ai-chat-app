@@ -330,7 +330,10 @@ struct PreModelContextTests {
         #expect(source.title == "concurrency.md")
         #expect((0...100).contains(source.relevancePercent))
         #expect(!source.snippet.isEmpty)
-        #expect(trace.outcome(for: .retrieval)?.summary.contains("injected") == true)
+        // Retrieval now reports what it *matched*; fusion reports what it *injected*. The dense
+        // half is one of two rankings, and only the fusion knows what actually reached the prompt.
+        #expect(trace.outcome(for: .retrieval)?.summary.contains("matched") == true)
+        #expect(trace.outcome(for: .rankFusion)?.summary.contains("injected") == true)
         #expect(
             turn.messages.first?.content.contains("Relevant excerpts") == true,
             "retrieved text must reach the system block"

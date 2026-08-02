@@ -15,6 +15,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case cacheLookup
     case memoryRecall
     case retrieval
+    /// The lexical half of retrieval, and the fusion that reconciles it with the dense half.
+    case lexicalRetrieval
+    case rankFusion
     case contextCompaction
 
     // Deciding whether the turn is allowed to happen at all
@@ -52,6 +55,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     var package: String {
         switch self {
         case .promptTemplate: return "PromptTemplateKit"
+        case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .guardrailInput, .guardrailOutput: return "GuardrailKit"
         case .semanticRoute: return "SemanticRouterKit"
         case .idempotencyGuard: return "IdempotencyKit"
@@ -89,6 +93,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .cacheLookup: return "Cache lookup"
         case .memoryRecall: return "Memory recall"
         case .retrieval: return "Retrieval"
+        case .lexicalRetrieval: return "Lexical retrieval"
+        case .rankFusion: return "Rank fusion"
         case .contextCompaction: return "Context compaction"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"

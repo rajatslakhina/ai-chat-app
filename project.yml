@@ -21,6 +21,9 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
 
 packages:
+  SpotlightRAGKit:
+    url: https://github.com/rajatslakhina/spotlight-rag-kit
+    from: 1.0.0
   ProviderGatewayKit:
     url: https://github.com/rajatslakhina/foundation-model-provider-gateway
     from: 1.0.0
@@ -183,6 +186,8 @@ targets:
         product: CostEstimatorKit
       - package: WorkloadProfilerKit
         product: WorkloadProfilerKit
+      - package: SpotlightRAGKit
+        product: SpotlightRAG
 
   AIChatAppTests:
     type: bundle.unit-test

@@ -36,7 +36,7 @@ struct ChatScaffold: View {
                 NavigationStack {
                     ChatListView(openConversationID: opening)
                         .navigationDestination(item: opening) { id in
-                            ConversationScreen(conversationID: id)
+                            ConversationScreen(conversationID: id, effortBox: composition.effort)
                         }
                         .navigationDestination(for: AppDestination.self, destination: destination)
                 }
@@ -115,13 +115,22 @@ struct ChatScaffold: View {
 /// destinations need it too and only the stack can give it to them.
 struct ConversationScreen: View {
     let conversationID: UUID
+    /// Nil in the render suites, which have no provider to configure.
+    var effortBox: ReasoningEffortBox?
 
     @Environment(ConversationStore.self) private var conversations
     @Environment(AppSettingsStore.self) private var settings
 
+    private var effort: ReasoningEffort {
+        conversations.conversation(conversationID)?.resolvedEffort ?? .fallback
+    }
+
     var body: some View {
         ChatView()
             .toolbar { toolbar }
+            // Pushed on open as well as on change: the provider is shared, so whichever thread is
+            // on screen has to claim it before the next send rather than inheriting the last one.
+            .task(id: conversationID) { effortBox?.set(effort) }
             // The picker writes the app-wide default; a thread also remembers what it was last
             // answered with, so reopening an old chat does not silently answer it on a new model.
             .onChange(of: settings.defaultModelID) { _, newValue in
@@ -129,9 +138,34 @@ struct ConversationScreen: View {
             }
     }
 
+    private var effortBinding: Binding<ReasoningEffort> {
+        Binding(
+            get: { effort },
+            set: { chosen in
+                conversations.setEffort(chosen, for: conversationID)
+                effortBox?.set(chosen)
+            }
+        )
+    }
+
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
+            Menu {
+                Picker("Effort", selection: effortBinding) {
+                    // `allCases` is ordered fastest to smartest, which is the order the list reads
+                    // in — reversing it here would put "Extra" first and bury the cheap option.
+                    ForEach(ReasoningEffort.allCases) { level in
+                        Label("\(level.title) · \(level.detail)", systemImage: level.symbol)
+                            .tag(level)
+                    }
+                }
+            } label: {
+                Image(systemName: effort.symbol)
+            }
+            .accessibilityIdentifier("effortButton")
+            .accessibilityLabel("Effort")
+
             NavigationLink(value: AppDestination.models) {
                 Image(systemName: "cpu")
             }

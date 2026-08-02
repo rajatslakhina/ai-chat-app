@@ -32,6 +32,9 @@ struct Composition: Sendable {
     let catalog: any ModelCatalogProviding
     let tools: ToolRoundTrip
     let metadata: MetadataPipeline
+    /// The reasoning effort the next request carries. Written when a conversation opens and when
+    /// the user changes it; read by the provider as it builds the body.
+    let effort: ReasoningEffortBox
 
     /// Builds the graph.
     ///
@@ -54,6 +57,7 @@ struct Composition: Sendable {
             appName: secrets.appName
         )
 
+        let effort = ReasoningEffortBox()
         let pipeline = await makePipeline(configuration: configuration)
         let scopes = BudgetScopes(
             account: ScopeID("account"),
@@ -66,7 +70,8 @@ struct Composition: Sendable {
             provider: OpenRouterProvider(
                 configuration: configuration,
                 session: .shared,
-                usageObserver: usage
+                usageObserver: usage,
+                effort: effort
             ),
             idempotency: IdempotencyGuard(),
             profiler: WorkloadProfiler(),
@@ -90,7 +95,8 @@ struct Composition: Sendable {
             registry: registry,
             catalog: makeCatalog(configuration: configuration, arguments: arguments),
             tools: tools,
-            metadata: await makeMetadata(configuration: configuration)
+            metadata: await makeMetadata(configuration: configuration),
+            effort: effort
         )
     }
 
@@ -111,7 +117,16 @@ struct Composition: Sendable {
             review: review,
             metadata: metadata,
             tools: tools,
-            seed: conversation.messages,
+            // A message with no recorded time is dated to the thread's own start rather than to
+            // now: it is approximate, but it never claims a two-year-old message arrived today.
+            seed: conversation.messages.map {
+                StoredMessage(
+                    id: $0.id,
+                    role: $0.role,
+                    text: $0.text,
+                    createdAt: $0.createdAt ?? conversation.createdAt
+                )
+            },
             title: conversation.title == Conversation.untitled
                 ? ChatViewModel.untitled
                 : conversation.title,

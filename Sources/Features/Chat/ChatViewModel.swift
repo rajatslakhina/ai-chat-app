@@ -81,7 +81,11 @@ final class ChatViewModel {
                 id: $0.id,
                 role: $0.role == .user ? .user : .assistant,
                 text: $0.text,
-                delivery: .delivered
+                delivery: .delivered,
+                // Filled in by the composition root from the thread's own start date when the
+                // message predates timestamps. `Date()` here would date every restored message to
+                // the moment the app launched, which is worse than approximate.
+                createdAt: $0.createdAt ?? Date()
             )
         }
     }

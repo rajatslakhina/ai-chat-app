@@ -315,3 +315,74 @@ struct ToolApprovalSheetRenderTests {
         render(ToolApprovalSheet(prompt: empty, onApprove: {}, onDecline: {}))
     }
 }
+
+/// The screens added with profiles and history, plus the sheet the bubble's "More" opens.
+///
+/// These had no render test when they landed, which is how `ProfileView` reached 0% coverage
+/// while every other screen sat above 98%: a SwiftUI `body` only runs when something lays it out.
+@MainActor
+@Suite("Profile and list screens render")
+struct ProfileAndListRenderTests {
+    private func stores() -> (ProfileStore, ConversationStore) {
+        let profiles = ProfileStore(persistence: InMemoryProfiles())
+        let conversations = ConversationStore(
+            profileID: profiles.activeID,
+            persistence: InMemoryConversations()
+        )
+        return (profiles, conversations)
+    }
+
+    @Test("the chat list renders empty and populated, in both schemes")
+    func chatList() {
+        let (profiles, conversations) = stores()
+        render(
+            NavigationStack { ChatListView(openConversationID: .constant(nil)) }
+                .environment(profiles)
+                .environment(conversations)
+                .environment(AppSettingsStore(persistence: InMemorySettings()))
+        )
+
+        let started = conversations.startConversation(modelID: "openai/gpt-4o")
+        conversations.replaceMessages(
+            [StoredMessage(role: .user, text: "What is the capital of France?")],
+            in: started.id
+        )
+        for scheme in [ColorScheme.light, .dark] {
+            render(
+                NavigationStack { ChatListView(openConversationID: .constant(nil)) }
+                    .environment(profiles)
+                    .environment(conversations)
+                    .environment(AppSettingsStore(persistence: InMemorySettings())),
+                scheme: scheme
+            )
+        }
+    }
+
+    @Test("the profile screen renders, with one profile and with several")
+    func profile() {
+        let (profiles, _) = stores()
+        let auth = AuthStore(isSignedIn: true, biometrics: UnavailableBiometrics())
+        render(NavigationStack { ProfileView() }.environment(profiles).environment(auth))
+
+        // The switch section only appears once there is somewhere to switch to, so both shapes
+        // have to be laid out or half the screen never executes.
+        profiles.addProfile(displayName: "Sam Rivera", email: "sam@example.test")
+        for scheme in [ColorScheme.light, .dark] {
+            render(
+                NavigationStack { ProfileView() }.environment(profiles).environment(auth),
+                scheme: scheme
+            )
+        }
+    }
+
+    @Test("editing a profile renders its form")
+    func editProfile() {
+        render(EditProfileView(profile: UserProfile(displayName: "Ada Lovelace")) { _ in })
+    }
+
+    @Test("the details sheet renders for a bare message and a fully-annotated one")
+    func details() {
+        render(MessageDetailsSheet(bubble: ChatBubble(role: .user, text: "hello")))
+        render(MessageDetailsSheet(bubble: ChatBubble(role: .assistant, text: "hi")), scheme: .dark)
+    }
+}

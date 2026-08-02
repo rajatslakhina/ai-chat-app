@@ -49,6 +49,9 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var groundedFraction: Double?
     /// Claims checked, so the caption can say "3 of 4" rather than a bare percentage.
     var claimCount: Int
+    /// When this message appeared. Shown in the details sheet — nothing recorded a time before,
+    /// so a restored thread had no way to say when any of it happened.
+    var createdAt: Date
 
     init(
         id: UUID = UUID(),
@@ -59,7 +62,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
         sources: [RetrievedSource] = [],
         followsCompaction: Bool = false,
         groundedFraction: Double? = nil,
-        claimCount: Int = 0
+        claimCount: Int = 0,
+        createdAt: Date = Date()
     ) {
         self.id = id
         self.role = role
@@ -70,6 +74,7 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
         self.followsCompaction = followsCompaction
         self.groundedFraction = groundedFraction
         self.claimCount = claimCount
+        self.createdAt = createdAt
     }
 
     var isPending: Bool {

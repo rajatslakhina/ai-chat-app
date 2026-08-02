@@ -17,10 +17,10 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **555 passing**, 108 suites |
+| Unit + integration tests | **570 passing**, 111 suites |
 | UI tests (XCUITest) | **6 passing, 6 failing** — see [Remaining work](#remaining-work) |
 | `swiftlint --strict` | **0 violations**, 50 files |
-| Line coverage | **99.33%** — 7146/7194 |
+| Line coverage | **92.62%** — 8351/9016, unit tests only |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
 **All 28 packages do real work in the app.** 26 of them run in the send path and own a pipeline
@@ -110,6 +110,18 @@ computation; everything inside it either costs money or exists to control what i
 
 Screens: login → **chat list** → chat → model picker, settings, diagnostics; profile and edit
 profile from the list.
+
+Each conversation picks its own model **and** its own reasoning effort — Low, Medium, High, Extra,
+fastest to smartest. Effort is not an app-invented dial: it is sent as OpenRouter's own
+`reasoning.effort`, which allocates roughly 20 / 50 / 80 / 95 percent of `max_tokens` to thinking
+(`extra` is `xhigh` on the wire). A conversation that never chose one sends no `reasoning` key at
+all rather than a null.
+
+Under every message: copy, edit, retry, read aloud, more. Edit and retry only on the user's own
+messages, because retrying an answer means resending the question above it. "More" holds what used
+to sit permanently under the bubble — sources, grounding, model, tokens, cost, attempts — plus the
+time. Those chips truncated to a row of ellipses at any real width, and an unreadable number costs
+the same space as a readable one while telling nobody anything.
 
 Profiles are local and switchable. There is no backend, so a "user" is scope rather than an
 identity: each profile owns its own conversations (`conversations.v1.<uuid>`) and its own settings
@@ -306,22 +318,26 @@ rather than gamed.
 
 ## Remaining work
 
-- **Six UI tests need rework for the new navigation.** They were written against a two-level
-  hierarchy (chat → destination) and there are now three (list → chat → destination), so the back
-  button they tap is named for a different screen and the Diagnostics rows they look for sit one
-  push deeper. The 555 unit tests cover the new stores and message actions; the app itself was
-  verified by hand on the simulator. Bounded work, not a defect in the feature.
-- **Coverage back to 99.55%.** `ChatView`'s recovery-button closure needs a tap, and a XCUITest
-  launches the app with no test code linked, so its tool-call response cannot be stubbed.
-- **`AccentColor` is still unused.** The asset exists and the design system references
-  `Color.accentColor`, but nothing sets `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`, so the
-  system default blue is what actually renders. Setting it is one line and a visible change to
-  every tinted control, so it is called out rather than slipped in.
+- **Coverage is measured on unit tests only, and is not comparable to the 99.33% recorded
+  earlier.** That figure included the UI tests; this one does not, which is most of why
+  `AppNavigation` sits at 24%. The genuine regression underneath it was real though:
+  `ProfileView` had reached **0%** because it shipped with no render test, and nothing
+  re-measured after the profile and history work. Render tests brought the total from 86.91% to
+  92.62%. Restoring a full-suite number needs the UI tests fixed first.
+- **Six UI tests need rework for the new navigation.** Written against a two-level hierarchy
+  (chat → destination) when there are now three (list → chat → destination), so the back button
+  they tap belongs to a different screen and the Diagnostics rows sit one push deeper.
+- **`AccentColor` is still unused.** Nothing sets
+  `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`, so the system default blue renders. The
+  assistant avatar hardcodes the icon's gradient rather than reading an accent that would not
+  match.
+- **Effort is one value for the provider.** `ReasoningEffortBox` is per-provider, not
+  per-request — `LLMRequest` cannot carry it without forking ProviderGatewayKit. Two conversations
+  sending at the same instant would share whichever was set last; this app sends one turn at a time.
 - **A real corpus.** `AppKnowledge` is four passages about the app itself.
-- **CoreSpotlight.** `SpotlightRAGKit` ships `CoreSpotlightSearchIndex`; the app uses
-  `InMemorySearchIndex` because CoreSpotlight does not index reliably in a simulator.
-- **Profile photos.** Avatars are monograms. A photo picker means a permission prompt, a privacy
-  string and an image store.
+- **CoreSpotlight.** The app uses `InMemorySearchIndex`; CoreSpotlight does not index reliably in
+  a simulator.
+- **Profile photos.** Avatars are monograms.
 
 ## Layout
 

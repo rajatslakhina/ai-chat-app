@@ -14,6 +14,8 @@ struct ChatView: View {
     /// sheet is handed the text it must start from — reading it back out of the model as the sheet
     /// presents would race the truncation that editing performs.
     @State private var editingMessage: EditTarget?
+    @State private var detailsBubble: ChatBubble?
+    @State private var speech = SpeechReader()
 
     struct EditTarget: Identifiable, Equatable {
         let id: UUID
@@ -36,6 +38,9 @@ struct ChatView: View {
         // being read is a distraction for a caption nobody asked for.
         .navigationTitle(model.conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $detailsBubble) { bubble in
+            MessageDetailsSheet(bubble: bubble)
+        }
         .sheet(item: $editingMessage) { target in
             EditMessageSheet(original: target.text) { edited in
                 model.edit(target.id, to: edited)
@@ -94,8 +99,12 @@ struct ChatView: View {
                         if bubble.followsCompaction {
                             CompactionDivider()
                         }
-                        BubbleRow(bubble: bubble, profile: profiles?.active)
-                            .id(bubble.id)
+                        BubbleRow(
+                            bubble: bubble,
+                            profile: profiles?.active,
+                            actions: actions(for: bubble)
+                        )
+                        .id(bubble.id)
                             .contextMenu { menu(for: bubble) }
                     }
                     if let refusal = model.activeRefusal {
@@ -121,6 +130,18 @@ struct ChatView: View {
                 }
             }
         }
+    }
+
+    private func actions(for bubble: ChatBubble) -> BubbleActions {
+        BubbleActions(
+            isSpeaking: speech.speakingID == bubble.id,
+            canRevise: bubble.role == .user && model.canRevise(bubble.id),
+            onCopy: { UIPasteboard.general.string = bubble.text },
+            onEdit: { editingMessage = EditTarget(id: bubble.id, text: bubble.text) },
+            onRetry: { model.retry(bubble.id) },
+            onSpeak: { speech.toggle(bubble.text, id: bubble.id) },
+            onMore: { detailsBubble = bubble }
+        )
     }
 
     /// Copy always; edit and retry only where they mean something.
@@ -213,6 +234,9 @@ struct BubbleRow: View {
     /// Whose message this is, when the app knows. Defaulted so a snapshot can build a row without
     /// a profile store; `nil` falls back to the anonymous glyph rather than to a blank circle.
     var profile: UserProfile?
+    /// The row of controls under the bubble. Nil renders no row, which is what a component
+    /// snapshot of the bubble itself wants.
+    var actions: BubbleActions?
 
     private var alignment: HorizontalAlignment {
         bubble.role == .user ? .trailing : .leading
@@ -302,7 +326,11 @@ struct BubbleRow: View {
         case .sending:
             Text("Sending…").font(Theme.Typeface.metric).foregroundStyle(.tertiary)
         case .streaming, .delivered:
-            metricsRow
+            // The chips that used to live here — sources, grounding, model, tokens, cost, retries
+            // — moved into the details sheet. At any real width they truncated to a row of
+            // ellipses, and an unreadable number costs the same space and attention as a
+            // readable one while telling nobody anything.
+            if let actions { MessageActionsRow(actions: actions) }
         }
     }
 
@@ -340,49 +368,6 @@ struct BubbleRow: View {
         }
     }
 
-    @ViewBuilder
-    private var metricsRow: some View {
-        toolChip
-        if !bubble.sources.isEmpty {
-            HStack(spacing: Theme.Spacing.tight) {
-                ForEach(bubble.sources) { source in
-                    MetricChip(
-                        "\(source.title) \(source.relevancePercent)%",
-                        icon: "doc.text",
-                        tint: Theme.Palette.success
-                    )
-                }
-            }
-        }
-        if let fraction = bubble.groundedFraction, bubble.claimCount > 0 {
-            let supported = Int((fraction * Double(bubble.claimCount)).rounded())
-            MetricChip(
-                "\(supported) of \(bubble.claimCount) verified",
-                icon: supported == bubble.claimCount ? "checkmark.seal" : "exclamationmark.triangle",
-                tint: supported == bubble.claimCount ? Theme.Palette.success : Theme.Palette.refusal
-            )
-            .accessibilityIdentifier("groundingChip")
-        }
-        if let metrics = bubble.metrics {
-            HStack(spacing: Theme.Spacing.tight) {
-                MetricChip(metrics.providerID, icon: "cpu")
-                if metrics.promptTokens + metrics.completionTokens > 0 {
-                    MetricChip("\(metrics.promptTokens) in / \(metrics.completionTokens) out")
-                }
-                if let cost = metrics.reportedCostUSD, cost > 0 {
-                    MetricChip(String(format: "$%.6f", cost), icon: "creditcard")
-                }
-                if metrics.attempts > 1 {
-                    MetricChip(
-                        "Retried \(metrics.attempts)×",
-                        icon: "arrow.clockwise",
-                        tint: Theme.Palette.refusal
-                    )
-                }
-            }
-            .accessibilityIdentifier("bubbleMetrics")
-        }
-    }
 }
 
 /// The divider shown where compaction dropped earlier turns.

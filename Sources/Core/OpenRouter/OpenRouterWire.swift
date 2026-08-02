@@ -16,10 +16,20 @@ struct OpenRouterChatRequest: Encodable, Equatable {
     let stream: Bool
     let tools: [Tool]?
     let usage: UsageOption?
+    /// Omitted entirely for a model that does not reason, and for the conversations that never
+    /// chose an effort. OpenRouter ignores it on non-reasoning models, but sending `null` is not
+    /// the same as omitting it, and this app omits.
+    let reasoning: Reasoning?
 
     enum CodingKeys: String, CodingKey {
-        case model, messages, temperature, stream, tools, usage
+        case model, messages, temperature, stream, tools, usage, reasoning
         case maxTokens = "max_tokens"
+    }
+
+    /// How much of `max_tokens` OpenRouter should spend on thinking: roughly 95 / 80 / 50 / 20
+    /// percent for xhigh / high / medium / low.
+    struct Reasoning: Encodable, Equatable {
+        let effort: String
     }
 
     /// Asks OpenRouter to include real accounting in the response.

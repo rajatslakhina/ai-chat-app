@@ -35,7 +35,8 @@ extension ChatViewModel {
             return StoredMessage(
                 id: bubble.id,
                 role: bubble.role == .user ? .user : .assistant,
-                text: bubble.text
+                text: bubble.text,
+                createdAt: bubble.createdAt
             )
         }
     }

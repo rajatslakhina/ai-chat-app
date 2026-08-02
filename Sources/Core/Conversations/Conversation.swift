@@ -12,11 +12,16 @@ struct StoredMessage: Codable, Identifiable, Sendable, Equatable {
     let id: UUID
     var role: Role
     var text: String
+    /// Optional for the same reason every other added field is: a non-optional one makes every
+    /// thread written by an earlier build fail to decode. Absent means the message predates
+    /// timestamps, and the details sheet falls back to the thread's own creation date.
+    var createdAt: Date?
 
-    init(id: UUID = UUID(), role: Role, text: String) {
+    init(id: UUID = UUID(), role: Role, text: String, createdAt: Date? = nil) {
         self.id = id
         self.role = role
         self.text = text
+        self.createdAt = createdAt
     }
 }
 
@@ -26,6 +31,12 @@ struct Conversation: Codable, Identifiable, Sendable, Equatable {
     var title: String
     /// The model this thread last used, so reopening it does not silently switch models.
     var modelID: String
+    /// How hard this thread asks the model to think.
+    ///
+    /// Optional, and for the same reason `toolApprovalRequired` is: a non-optional field added to
+    /// `conversations.v1` makes every thread written by an earlier build fail to decode, and the
+    /// store's fallback would then present that as "no chats yet". Absent reads as the default.
+    var effort: ReasoningEffort?
     var messages: [StoredMessage]
     let createdAt: Date
     var updatedAt: Date
@@ -34,6 +45,7 @@ struct Conversation: Codable, Identifiable, Sendable, Equatable {
         id: UUID = UUID(),
         title: String = Conversation.untitled,
         modelID: String,
+        effort: ReasoningEffort? = nil,
         messages: [StoredMessage] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -41,12 +53,16 @@ struct Conversation: Codable, Identifiable, Sendable, Equatable {
         self.id = id
         self.title = title
         self.modelID = modelID
+        self.effort = effort
         self.messages = messages
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
 
     static let untitled = "New chat"
+
+    /// The effort actually used, so callers never repeat the fallback.
+    var resolvedEffort: ReasoningEffort { effort ?? .fallback }
 
     /// The second line of a row: the last thing said, whoever said it.
     ///
@@ -175,6 +191,13 @@ final class ConversationStore {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, conversations[index].title != trimmed else { return }
         conversations[index].title = trimmed
+        persist()
+    }
+
+    func setEffort(_ effort: ReasoningEffort, for id: UUID) {
+        guard let index = conversations.firstIndex(where: { $0.id == id }),
+              conversations[index].effort != effort else { return }
+        conversations[index].effort = effort
         persist()
     }
 

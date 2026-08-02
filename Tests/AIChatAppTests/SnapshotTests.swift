@@ -147,6 +147,11 @@ private func assertComponent(
 /// Driving them would mean a network stub per variant and a settled turn per variant, and the
 /// thing under test here is the row, not the send. Every field set below is one a real turn writes.
 enum BubbleFixture {
+    /// A fixed instant. The details sheet renders a timestamp, so a `Date()` default would put
+    /// today's date into a reference image and the suite would go red every midnight — exactly the
+    /// non-determinism the device and traits are pinned to avoid.
+    static let epoch = Date(timeIntervalSince1970: 1_700_000_000)
+
     static let refusal = Refusal(
         stage: .budgetReserve,
         headline: "Out of budget",
@@ -212,7 +217,8 @@ enum BubbleFixture {
         ChatBubble(
             role: .assistant,
             text: "Paris is the capital of France.",
-            metrics: metrics
+            metrics: metrics,
+            createdAt: epoch
         )
     }
 
@@ -224,7 +230,8 @@ enum BubbleFixture {
             sources: sources,
             followsCompaction: true,
             groundedFraction: 0.75,
-            claimCount: 4
+            claimCount: 4,
+            createdAt: epoch
         )
     }
 
@@ -400,27 +407,36 @@ struct ComponentSnapshotTests {
         assertComponent(BubbleRow(bubble: BubbleFixture.failed), .dark, named: "failed-dark")
     }
 
-    @Test("a bubble carrying model, tokens, cost and a retry count")
+    /// Aimed at the details sheet, not at the bubble.
+    ///
+    /// These facts used to sit under the bubble as chips and now live behind "More", so pointing
+    /// the reference at `BubbleRow` would have recorded an empty bubble and quietly stopped
+    /// asserting the thing the test is named for.
+    @Test("the details sheet carries model, tokens, cost and a retry count")
     func withMetrics() {
-        assertComponent(BubbleRow(bubble: BubbleFixture.withMetrics), .light, named: "light")
-        assertComponent(BubbleRow(bubble: BubbleFixture.withMetrics), .dark, named: "dark")
-        assertComponent(
-            BubbleRow(bubble: BubbleFixture.withMetrics),
-            .light,
-            size: .accessibilityExtraExtraExtraLarge,
-            named: "xxxl"
-        )
+        // `assertScreen`, not `assertComponent`: a `NavigationStack` wrapping a `List` has no
+        // intrinsic height, so `.sizeThatFits` collapses it to a blank strip.
+        assertScreen(MessageDetailsSheet(bubble: BubbleFixture.withMetrics), .light, named: "light")
+        assertScreen(MessageDetailsSheet(bubble: BubbleFixture.withMetrics), .dark, named: "dark")
     }
 
-    @Test("a bubble with source chips and a grounding score")
+    @Test("the details sheet lists sources and the grounding score")
     func withSources() {
-        assertComponent(BubbleRow(bubble: BubbleFixture.withSources), .light, named: "light")
-        assertComponent(BubbleRow(bubble: BubbleFixture.withSources), .dark, named: "dark")
+        assertScreen(MessageDetailsSheet(bubble: BubbleFixture.withSources), .light, named: "light")
+        assertScreen(MessageDetailsSheet(bubble: BubbleFixture.withSources), .dark, named: "dark")
+    }
+
+    /// The row itself, which is what replaced the chips under a bubble.
+    @Test("the action row, with and without the controls only a user message gets")
+    func actionRow() {
+        let mine = BubbleActions(canRevise: true)
+        let theirs = BubbleActions(canRevise: false)
+        assertComponent(MessageActionsRow(actions: mine), .light, named: "user")
+        assertComponent(MessageActionsRow(actions: theirs), .light, named: "assistant")
         assertComponent(
-            BubbleRow(bubble: BubbleFixture.withSources),
+            MessageActionsRow(actions: BubbleActions(isSpeaking: true, canRevise: true)),
             .light,
-            size: .accessibilityExtraExtraExtraLarge,
-            named: "xxxl"
+            named: "speaking"
         )
     }
 

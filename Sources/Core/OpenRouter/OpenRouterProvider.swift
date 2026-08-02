@@ -67,17 +67,22 @@ struct OpenRouterProvider: LLMProvider {
     private let configuration: OpenRouterConfiguration
     private let session: URLSession
     private let usageObserver: any UsageObserving
+    /// Read at request-build time rather than captured, so the conversation the user is actually
+    /// in decides the effort. See `ReasoningEffortBox` for why this is a reference.
+    private let effort: ReasoningEffortBox
 
     init(
         configuration: OpenRouterConfiguration,
         session: URLSession = .shared,
         usageObserver: any UsageObserving = NullUsageObserver(),
+        effort: ReasoningEffortBox = ReasoningEffortBox(),
         identifier: ProviderIdentifier = .openRouter,
         capabilities: ProviderCapabilities = .openRouterDefault
     ) {
         self.configuration = configuration
         self.session = session
         self.usageObserver = usageObserver
+        self.effort = effort
         self.identifier = identifier
         self.capabilities = capabilities
     }
@@ -276,7 +281,8 @@ struct OpenRouterProvider: LLMProvider {
             maxTokens: request.maxOutputTokens,
             stream: stream,
             tools: request.tools.isEmpty ? nil : request.tools.map(OpenRouterChatRequest.Tool.init),
-            usage: .init(include: true)
+            usage: .init(include: true),
+            reasoning: effort.current.map { .init(effort: $0.wireValue) }
         )
 
         var urlRequest = URLRequest(

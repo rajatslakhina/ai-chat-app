@@ -282,5 +282,8 @@ extension Composition: SettingsApplying {
         await pipeline.update(settings: snapshot.pipeline)
         await executor.update(snapshot.turn)
         await executor.setBudget(snapshot.budget)
+        // Revokes and re-issues every open grant when it changes, because capabilities are frozen
+        // into a `Grant` at issue time — so this has to reach the gate, not just the settings blob.
+        await tools.setApprovalRequired(snapshot.pipeline.toolApprovalRequired)
     }
 }

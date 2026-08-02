@@ -20,6 +20,11 @@ struct PipelineSettings: Sendable, Equatable {
     var memoryEnabled: Bool = true
     var cacheEnabled: Bool = true
     var routingEnabled: Bool = true
+    /// When true, a tool call stops the turn and waits for the user to sign for it.
+    ///
+    /// Off by default. A demo that asks permission before its first calculator call teaches that
+    /// the prompt is noise, which is exactly the habit the authority layer exists to avoid forming.
+    var toolApprovalRequired: Bool = false
 }
 
 /// Runs everything that happens before the model is called.

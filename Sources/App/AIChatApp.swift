@@ -149,7 +149,8 @@ struct RootView: View {
             pipeline: built.pipeline,
             executor: built.executor,
             review: built.review,
-            metadata: built.metadata
+            metadata: built.metadata,
+            tools: built.tools
         )
         // The saved settings reach the actors before the first send, not on the first change: a
         // graph built from defaults would answer one turn with the wrong model and the wrong

@@ -94,6 +94,29 @@ actor ToolRoundTrip {
         await gate.close(conversationID: conversationID)
     }
 
+    // MARK: - Approval
+
+    /// Whether a tool call needs a human signature before it runs. Written by Settings.
+    func setApprovalRequired(_ required: Bool) async {
+        await gate.setRequiresApproval(required)
+    }
+
+    /// The call waiting on a human, if one is. Read by the chat screen when the user taps the
+    /// refusal banner's "Approve <tool>" button.
+    func pendingApproval() async -> ToolApprovalPrompt? {
+        await gate.pendingApproval()
+    }
+
+    /// Signs the pending call. False when nothing was pending, so the caller does not resend into
+    /// the same refusal.
+    func approvePending(approver: String) async -> Bool {
+        await gate.approvePending(approver: approver)
+    }
+
+    func declinePending() async {
+        await gate.declinePending()
+    }
+
     func resolve(
         id: String,
         toolName: String,

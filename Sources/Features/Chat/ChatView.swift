@@ -21,6 +21,21 @@ struct ChatView: View {
         // being read is a distraction for a caption nobody asked for.
         .navigationTitle(model.conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        // Bound through the model rather than to a local `@State`: the gate is what the broker
+        // consults, so a swipe-to-dismiss has to reach it too — otherwise the sheet closes while
+        // the gate still holds a request, and the next approval signs a call the user never saw.
+        .sheet(
+            item: Binding(
+                get: { model.pendingApproval },
+                set: { if $0 == nil { model.declinePending() } }
+            )
+        ) { prompt in
+            ToolApprovalSheet(
+                prompt: prompt,
+                onApprove: { model.approvePending() },
+                onDecline: { model.declinePending() }
+            )
+        }
     }
 
     /// The tappable suggestions.
@@ -63,7 +78,17 @@ struct ChatView: View {
                             .id(bubble.id)
                     }
                     if let refusal = model.activeRefusal {
-                        RefusalBanner(refusal: refusal) { model.retryLast() }
+                        // Every other recovery action is resolved by resending — the user changed
+                        // a setting, waited out a rate limit, picked another model. Approval is
+                        // the one that cannot be: resending without a signature walks straight
+                        // back into the same refusal, which is what made this button a dead end.
+                        RefusalBanner(refusal: refusal) {
+                            if case .approveTool = refusal.recovery {
+                                model.beginApproval()
+                            } else {
+                                model.retryLast()
+                            }
+                        }
                     }
                 }
                 .padding(Theme.Spacing.regular)

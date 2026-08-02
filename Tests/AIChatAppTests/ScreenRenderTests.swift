@@ -14,6 +14,7 @@ import SemanticRouterKit
 import SwiftUI
 import Testing
 import TokenMeterKit
+import ToolAuthorityKit
 import UIKit
 import WorkloadProfilerKit
 @testable import AIChatApp
@@ -242,5 +243,65 @@ struct ScreenRenderTests {
             .environment(environment)
             .environment(settings)
         )
+    }
+}
+
+/// The approval sheet, in both provenance states and both colour schemes.
+///
+/// Rendered rather than only unit-tested because the untrusted banner is a branch in `body`, and a
+/// branch in `body` that nothing lays out has never run — which is exactly how a force-unwrap or a
+/// bad `Label` composition ships in the one screen whose entire job is to be read carefully.
+@MainActor
+@Suite("Tool approval sheet renders")
+struct ToolApprovalSheetRenderTests {
+    private func prompt(untrusted: Bool) -> ToolApprovalPrompt {
+        ToolApprovalPrompt(
+            request: ApprovalRequest(
+                proposal: ToolProposal(
+                    id: "p-1",
+                    principal: "conv-1",
+                    tool: ToolName("calculator"),
+                    action: .read,
+                    resource: ResourcePath("tools/calculator"),
+                    arguments: #"{"expression":"2+2"}"#,
+                    provenance: untrusted ? .untrusted(source: "doc-1") : .modelAuthored
+                ),
+                grantID: "conv-conv-1"
+            )
+        )
+    }
+
+    @Test("a model-authored call renders without the warning")
+    func modelAuthored() {
+        render(ToolApprovalSheet(prompt: prompt(untrusted: false), onApprove: {}, onDecline: {}))
+    }
+
+    @Test("an untrusted call renders the warning that makes it worth refusing")
+    func untrusted() {
+        render(ToolApprovalSheet(prompt: prompt(untrusted: true), onApprove: {}, onDecline: {}))
+        render(
+            ToolApprovalSheet(prompt: prompt(untrusted: true), onApprove: {}, onDecline: {}),
+            scheme: .dark
+        )
+    }
+
+    @Test("an argument-less call still shows something rather than an empty box")
+    func emptyArguments() {
+        let empty = ToolApprovalPrompt(
+            request: ApprovalRequest(
+                proposal: ToolProposal(
+                    id: "p-2",
+                    principal: "conv-1",
+                    tool: ToolName("current_time"),
+                    action: .read,
+                    resource: ResourcePath("tools/current_time"),
+                    arguments: "",
+                    provenance: .modelAuthored
+                ),
+                grantID: "conv-conv-1"
+            )
+        )
+        #expect(empty.arguments.isEmpty)
+        render(ToolApprovalSheet(prompt: empty, onApprove: {}, onDecline: {}))
     }
 }

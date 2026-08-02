@@ -102,10 +102,19 @@ final class ChatViewModel {
 
     static let untitled = "AI Chat"
 
+    /// The tool call waiting on the user's signature, if the approval sheet is up.
+    ///
+    /// Mirrored from the gate rather than owned here: the gate is what the broker will actually
+    /// consult, and a copy that drifted from it would show the user one call and sign another.
+    private(set) var pendingApproval: ToolApprovalPrompt?
+
     let conversationID: String
     private let pipeline: PreModelPipeline
     private let executor: TurnExecutor
     private let review: PostModelPipeline
+    /// Nil when no tool registry is wired, which is a legitimate configuration — the chat works,
+    /// it just never proposes a tool call and so never asks for one to be approved.
+    private let tools: ToolRoundTrip?
     /// Nil means this conversation is not named at all, which is a legitimate configuration —
     /// the chat works identically, it just keeps the default title.
     private let metadata: MetadataPipeline?
@@ -123,14 +132,20 @@ final class ChatViewModel {
         pipeline: PreModelPipeline,
         executor: TurnExecutor,
         review: PostModelPipeline,
-        metadata: MetadataPipeline? = nil
+        metadata: MetadataPipeline? = nil,
+        tools: ToolRoundTrip? = nil
     ) {
         self.conversationID = conversationID
         self.pipeline = pipeline
         self.executor = executor
         self.review = review
         self.metadata = metadata
+        self.tools = tools
     }
+
+    /// There is no account system, so the signature records the device's user as "you" rather than
+    /// inventing an identity. `Authorization.approvedBy` carries it into the audit trail.
+    static let approver = "you"
 
     var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
@@ -406,5 +421,43 @@ final class ChatViewModel {
     private func update(_ id: UUID, _ mutate: (inout ChatBubble) -> Void) {
         guard let index = bubbles.firstIndex(where: { $0.id == id }) else { return }
         mutate(&bubbles[index])
+    }
+}
+
+// MARK: - Tool approval
+
+/// An extension rather than more class body, and not only to satisfy `type_body_length`: these
+/// four members are the only ones that talk to the authority gate rather than to the turn
+/// pipeline, and they read better grouped than interleaved with sending.
+extension ChatViewModel {
+    /// Fetches the call the gate is holding and raises the sheet.
+    ///
+    /// Asked for on demand rather than pushed up with the refusal, because a refusal reaches the
+    /// UI as a `StageRecord` full of strings while the signature has to bind to the gate's own
+    /// digest. Nothing pending means the turn was refused for some other reason and the sheet
+    /// would have nothing truthful to show, so it does not open.
+    func beginApproval() {
+        guard let tools else { return }
+        Task { pendingApproval = await tools.pendingApproval() }
+    }
+
+    /// Signs the pending call and resends, which is the only way the tool actually runs: the
+    /// signature authorizes a digest, and only a fresh proposal of the same call presents it.
+    func approvePending() {
+        guard let tools else { return }
+        pendingApproval = nil
+        Task {
+            // False means the gate had nothing to sign — a stale sheet, or a second tap. Resending
+            // then would walk straight back into the same refusal and look like the button failed.
+            guard await tools.approvePending(approver: Self.approver) else { return }
+            retryLast()
+        }
+    }
+
+    /// Dismisses the sheet without signing. The turn stays refused, which is the honest outcome.
+    func declinePending() {
+        pendingApproval = nil
+        guard let tools else { return }
+        Task { await tools.declinePending() }
     }
 }

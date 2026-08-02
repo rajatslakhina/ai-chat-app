@@ -186,12 +186,16 @@ struct PipelineSection: View {
                 .accessibilityIdentifier("memoryToggle")
             Toggle("Retrieval", isOn: $settings.retrievalEnabled)
                 .accessibilityIdentifier("retrievalToggle")
+            Toggle("Ask before running tools", isOn: $settings.toolApprovalRequired)
+                .accessibilityIdentifier("toolApprovalToggle")
         } header: {
             Text("Pipeline")
         } footer: {
             Text(
                 "A stage switched off here records as skipped rather than vanishing, so "
-                    + "Diagnostics still shows it and says why it did not run."
+                    + "Diagnostics still shows it and says why it did not run. Asking before "
+                    + "running tools stops the turn and shows you the exact call — the tool, the "
+                    + "arguments, and where those arguments came from — before anything runs."
             )
         }
     }

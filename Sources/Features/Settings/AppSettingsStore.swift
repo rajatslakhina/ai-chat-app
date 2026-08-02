@@ -82,6 +82,11 @@ private struct PersistedSettings: Codable {
     var memoryEnabled: Bool
     var cacheEnabled: Bool
     var routingEnabled: Bool
+    /// Optional, unlike every field above it, and that is the point: a non-optional field added to
+    /// `settings.v1` makes every blob written by an earlier build fail to decode — and the
+    /// fallback in `init` then silently resets the user's model, budget and temperature along with
+    /// it. An absent key reads as "off", which is also the default.
+    var toolApprovalRequired: Bool?
 
     init(_ snapshot: SettingsSnapshot) {
         defaultModelID = snapshot.pipeline.defaultModelID
@@ -94,6 +99,7 @@ private struct PersistedSettings: Codable {
         memoryEnabled = snapshot.pipeline.memoryEnabled
         cacheEnabled = snapshot.pipeline.cacheEnabled
         routingEnabled = snapshot.pipeline.routingEnabled
+        toolApprovalRequired = snapshot.pipeline.toolApprovalRequired
     }
 
     func snapshot(month: String) -> SettingsSnapshot {
@@ -103,6 +109,7 @@ private struct PersistedSettings: Codable {
         pipeline.memoryEnabled = memoryEnabled
         pipeline.cacheEnabled = cacheEnabled
         pipeline.routingEnabled = routingEnabled
+        pipeline.toolApprovalRequired = toolApprovalRequired ?? false
         return SettingsSnapshot(
             pipeline: pipeline,
             turn: TurnSettings(temperature: temperature, maxOutputTokens: maxOutputTokens),
@@ -209,6 +216,11 @@ final class AppSettingsStore {
     var routingEnabled: Bool {
         get { snapshot.pipeline.routingEnabled }
         set { mutate { $0.pipeline.routingEnabled = newValue } }
+    }
+
+    var toolApprovalRequired: Bool {
+        get { snapshot.pipeline.toolApprovalRequired }
+        set { mutate { $0.pipeline.toolApprovalRequired = newValue } }
     }
 
     var budget: MonthlyBudget { snapshot.budget }

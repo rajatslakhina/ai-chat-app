@@ -1,0 +1,17 @@
+// Base build settings shared by Debug and Release.
+//
+// Secrets.xcconfig is gitignored and holds the real OpenRouter key. It is included
+// with `#include?` — the optional form — so that a fresh clone without it still
+// BUILDS. The app then starts with an empty key and routes the user to Settings
+// rather than crashing, which is what keeps CI and other contributors unblocked.
+#include? "../Secrets.xcconfig"
+
+// Fallbacks when Secrets.xcconfig is absent. An empty key is a valid state the
+// app handles; it is not a placeholder that silently reaches the network.
+OPENROUTER_API_KEY = $(OPENROUTER_API_KEY)
+OPENROUTER_SITE_URL = $(OPENROUTER_SITE_URL)
+OPENROUTER_APP_NAME = $(OPENROUTER_APP_NAME)
+
+// `//` inside an xcconfig value starts a comment, so a bare https:// URL would be
+// truncated. Everything that carries a URL is assembled from this token instead.
+SLASH = /

@@ -1,0 +1,231 @@
+name: AIChatApp
+options:
+  bundleIdPrefix: com.rajatslakhina
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+
+packages:
+  ProviderGatewayKit:
+    url: https://github.com/rajatslakhina/foundation-model-provider-gateway
+    from: 1.0.0
+  TokenMeterKit:
+    url: https://github.com/rajatslakhina/token-meter-kit
+    from: 1.0.0
+  StructuredOutputKit:
+    url: https://github.com/rajatslakhina/structured-output-kit
+    from: 1.0.0
+  ResponseCacheKit:
+    url: https://github.com/rajatslakhina/response-cache-kit
+    from: 1.0.0
+  ToolRegistryKit:
+    url: https://github.com/rajatslakhina/tool-registry-kit
+    from: 1.0.0
+  AgentLoopKit:
+    url: https://github.com/rajatslakhina/agent-loop-kit
+    from: 1.0.0
+  GuardrailKit:
+    url: https://github.com/rajatslakhina/guardrail-kit
+    from: 1.0.0
+  TraceKit:
+    url: https://github.com/rajatslakhina/trace-kit
+    from: 1.0.0
+  RetrievalKit:
+    url: https://github.com/rajatslakhina/retrieval-kit
+    from: 1.0.0
+  PromptTemplateKit:
+    url: https://github.com/rajatslakhina/prompt-template-kit
+    from: 1.0.0
+  RetryPolicyKit:
+    url: https://github.com/rajatslakhina/retry-policy-kit
+    from: 1.0.0
+  ContextCompactionKit:
+    url: https://github.com/rajatslakhina/context-compaction-kit
+    from: 1.0.0
+  AgentMemoryKit:
+    url: https://github.com/rajatslakhina/agent-memory-kit
+    from: 1.0.0
+  SemanticRouterKit:
+    url: https://github.com/rajatslakhina/semantic-router-kit
+    from: 1.0.0
+  OutputRepairKit:
+    url: https://github.com/rajatslakhina/output-repair-kit
+    from: 1.0.0
+  StreamAggregatorKit:
+    url: https://github.com/rajatslakhina/stream-aggregator-kit
+    from: 1.0.0
+  BatchInferenceKit:
+    url: https://github.com/rajatslakhina/batch-inference-kit
+    from: 1.0.0
+  RealtimeSessionKit:
+    url: https://github.com/rajatslakhina/realtime-session-kit
+    from: 1.0.0
+  IdempotencyKit:
+    url: https://github.com/rajatslakhina/idempotency-kit
+    from: 1.0.0
+  SchemaMigrationKit:
+    url: https://github.com/rajatslakhina/schema-migration-kit
+    from: 1.0.0
+  ToolAuthorityKit:
+    url: https://github.com/rajatslakhina/tool-authority-kit
+    from: 1.0.0
+  GroundingKit:
+    url: https://github.com/rajatslakhina/grounding-kit
+    from: 1.0.0
+  QuotaGovernorKit:
+    url: https://github.com/rajatslakhina/quota-governor-kit
+    from: 1.0.0
+  CostEstimatorKit:
+    url: https://github.com/rajatslakhina/cost-estimator-kit
+    from: 1.0.0
+  WorkloadProfilerKit:
+    url: https://github.com/rajatslakhina/workload-profiler-kit
+    from: 1.0.0
+  SnapshotTesting:
+    url: https://github.com/pointfreeco/swift-snapshot-testing
+    from: 1.17.0
+
+targets:
+  AIChatApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    resources:
+      - path: Resources
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
+    info:
+      path: Sources/App/Info.plist
+      properties:
+        CFBundleDisplayName: AI Chat
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSFaceIDUsageDescription: Unlock AI Chat with Face ID instead of retyping your demo passphrase.
+        ITSAppUsesNonExemptEncryption: false
+        OpenRouterAPIKey: $(OPENROUTER_API_KEY)
+        OpenRouterSiteURL: $(OPENROUTER_SITE_URL)
+        OpenRouterAppName: $(OPENROUTER_APP_NAME)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rajatslakhina.aichatapp
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - package: ProviderGatewayKit
+        product: ProviderGatewayKit
+      - package: TokenMeterKit
+        product: TokenMeterKit
+      - package: StructuredOutputKit
+        product: StructuredOutputKit
+      - package: ResponseCacheKit
+        product: ResponseCacheKit
+      - package: ToolRegistryKit
+        product: ToolRegistryKit
+      - package: AgentLoopKit
+        product: AgentLoopKit
+      - package: GuardrailKit
+        product: GuardrailKit
+      - package: TraceKit
+        product: TraceKit
+      - package: RetrievalKit
+        product: RetrievalKit
+      - package: PromptTemplateKit
+        product: PromptTemplateKit
+      - package: RetryPolicyKit
+        product: RetryPolicyKit
+      - package: ContextCompactionKit
+        product: ContextCompactionKit
+      - package: AgentMemoryKit
+        product: AgentMemoryKit
+      - package: SemanticRouterKit
+        product: SemanticRouterKit
+      - package: OutputRepairKit
+        product: OutputRepairKit
+      - package: StreamAggregatorKit
+        product: StreamAggregatorKit
+      - package: BatchInferenceKit
+        product: BatchInferenceKit
+      - package: RealtimeSessionKit
+        product: RealtimeSessionKit
+      - package: IdempotencyKit
+        product: IdempotencyKit
+      - package: SchemaMigrationKit
+        product: SchemaMigrationKit
+      - package: ToolAuthorityKit
+        product: ToolAuthorityKit
+      - package: GroundingKit
+        product: GroundingKit
+      - package: QuotaGovernorKit
+        product: QuotaGovernorKit
+      - package: CostEstimatorKit
+        product: CostEstimatorKit
+      - package: WorkloadProfilerKit
+        product: WorkloadProfilerKit
+
+  AIChatAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/AIChatAppTests
+    dependencies:
+      - target: AIChatApp
+      - package: SnapshotTesting
+        product: SnapshotTesting
+      - package: SnapshotTesting
+        product: InlineSnapshotTesting
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rajatslakhina.aichatapp.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  AIChatAppUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Tests/AIChatAppUITests
+    dependencies:
+      - target: AIChatApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rajatslakhina.aichatapp.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  AIChatApp:
+    build:
+      targets:
+        AIChatApp: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      coverageTargets:
+        - AIChatApp
+      targets:
+        - AIChatAppTests
+        - AIChatAppUITests
+    archive:
+      config: Release

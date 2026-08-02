@@ -1,0 +1,26 @@
+# --- secrets: never commit ---
+Secrets.xcconfig
+
+# --- Xcode ---
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# --- SwiftPM ---
+.build/
+.swiftpm/
+Package.resolved
+
+# --- macOS ---
+.DS_Store
+
+# --- snapshot test failures (recorded snapshots ARE committed) ---
+**/__Snapshots__/**/*.failure.png

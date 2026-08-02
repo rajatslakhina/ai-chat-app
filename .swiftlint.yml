@@ -1,0 +1,42 @@
+disabled_rules:
+  - todo
+
+opt_in_rules:
+  - empty_count
+  - closure_spacing
+  - collection_alignment
+  - contains_over_first_not_nil
+  - explicit_init
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - unneeded_parentheses_in_closure_argument
+
+excluded:
+  - .build
+  - Tests
+  - AIChatApp.xcodeproj
+
+line_length:
+  warning: 110
+  error: 120
+
+identifier_name:
+  min_length: 1
+  allowed_symbols: ["_"]
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+file_length:
+  warning: 500
+  error: 700
+
+# Wire types mirror a nested JSON envelope — `Response.Choice.Message.ToolCall.Function` is the
+# shape OpenRouter actually sends. Flattening them to satisfy a depth limit would decouple the
+# Swift names from the structure they exist to describe, which costs more than it saves.
+nesting:
+  type_level: 5

@@ -11,7 +11,7 @@ Last updated: 2026-08-02.
 
 - **Repo:** <https://github.com/rajatslakhina/ai-chat-app>, branch `main`, everything pushed.
 - **Local:** `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/DevKnowledge/iOS Tasks/Portfolio Projects/AIChatApp`
-- A SwiftUI iOS chat client for OpenRouter, built on 28 Swift packages from the
+- A SwiftUI iOS chat client for OpenRouter, built on 27 Swift packages from the
   [`llm-ecosystem-demo`](https://github.com/rajatslakhina/llm-ecosystem-demo) series.
 
 **Read the README before changing anything.** It documents seven package symbol collisions that

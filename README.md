@@ -1,6 +1,6 @@
 # AI Chat
 
-A SwiftUI iOS chat client for [OpenRouter](https://openrouter.ai), built on the 28-package Swift
+A SwiftUI iOS chat client for [OpenRouter](https://openrouter.ai), built on the 27-package Swift
 LLM ecosystem from [`llm-ecosystem-demo`](https://github.com/rajatslakhina/llm-ecosystem-demo).
 
 Every message runs through a real pipeline — prompt templating, PII guardrails, semantic routing,
@@ -23,7 +23,7 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Line coverage | **92.62%** — 8351/9016, unit tests only |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 28 packages do real work in the app.** 26 of them run in the send path and own a pipeline
+**All 27 packages do real work in the app.** 26 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. 48 lines remain uncovered; see [Coverage](#coverage).
 
@@ -350,7 +350,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 28 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 27 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

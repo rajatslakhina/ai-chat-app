@@ -1,4 +1,5 @@
 import BatchInferenceKit
+import EvalHarness
 import Foundation
 import OutputRepairKit
 import SchemaMigrationKit
@@ -63,6 +64,8 @@ actor MetadataPipeline {
     let contracts: SchemaRegistry
     let decoder: StructuredOutputDecoder
     let recorder: (any BatchEventRecording)?
+    /// Where finished turns are kept as golden-case candidates. Nil disables capture entirely.
+    let transcripts: (any TranscriptStore)?
 
     init(
         completer: any MetadataCompleting,
@@ -72,7 +75,8 @@ actor MetadataPipeline {
         sleeper: any RepairSleeper = SystemRepairSleeper(),
         decoder: StructuredOutputDecoder = StructuredOutputDecoder(),
         concurrency: ConcurrencyLimit = ConcurrencyLimit(2),
-        recorder: (any BatchEventRecording)? = nil
+        recorder: (any BatchEventRecording)? = nil,
+        transcripts: (any TranscriptStore)? = InMemoryTranscriptStore()
     ) {
         self.completer = completer
         self.contracts = contracts
@@ -80,6 +84,7 @@ actor MetadataPipeline {
         self.decoder = decoder
         self.concurrency = concurrency
         self.recorder = recorder
+        self.transcripts = transcripts
         // One loop per ask, held for the life of the pipeline so `RepairStats` accumulate. They
         // can share a dictionary only because `MetadataContract` is one type parameterised by a
         // schema rather than one type per ask — two contract *types* would be two loop types.
@@ -108,9 +113,73 @@ actor MetadataPipeline {
             recordNothingToSummarise(trace: &trace)
             return nil
         }
+        await capture(userText: userText, assistantText: assistantText, trace: &trace)
         let answers = await runAsks(userText: userText, assistantText: assistantText, trace: &trace)
         let drafts = await decodeDrafts(answers, trace: &trace)
         return await assemble(drafts, userText: userText, trace: &trace)
+    }
+
+    /// Records the finished turn as a golden-case candidate.
+    ///
+    /// The hard part of an eval suite is not the scoring, it is having real cases to score. This
+    /// app is the only thing that sees real prompts against real answers, so it is the only thing
+    /// that can produce them — `InMemoryTranscriptStore.snapshotData()` writes the fixture the
+    /// suite replays with `ReplayingModel`, and replayed cases cost nothing and cannot flake.
+    ///
+    /// It lives here, in the pipeline that already runs after the turn is paid for, because
+    /// capture must never delay an answer or change what the user sees.
+    private func capture(
+        userText: String,
+        assistantText: String,
+        trace: inout PipelineTrace
+    ) async {
+        guard let transcripts else {
+            trace.record(.transcriptCapture, .skipped(reason: "transcript capture is off"))
+            return
+        }
+        // Greedy decoding is asserted rather than described: a transcript recorded under sampling
+        // is not reproducible, and a golden case that cannot be reproduced is not golden.
+        let decoding = DecodingParameters.deterministic
+        let model = ModelDescriptor(
+            identifier: MetadataPipeline.defaultModelID,
+            build: "live",
+            tier: .cloud
+        )
+        let promptVersion = PromptVersion(templateID: "chat.turn", revision: 1)
+        let key = TranscriptKey(
+            promptVersion: promptVersion,
+            renderedPrompt: userText,
+            model: model,
+            decoding: decoding
+        )
+        // Already-seen prompts are left alone. Overwriting would let a later, worse answer quietly
+        // replace the recorded one, which is how a regression becomes the baseline.
+        if await transcripts.record(for: key) != nil {
+            trace.record(.transcriptCapture, .noOp(reason: "this prompt is already recorded"))
+            return
+        }
+        await transcripts.store(
+            TranscriptRecord(
+                key: key,
+                caseID: "chat-\(key.value.prefix(12))",
+                promptVersion: promptVersion,
+                model: model,
+                response: ModelResponse(
+                    text: assistantText,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    latencySeconds: 0,
+                    costUSD: 0
+                ),
+                recordedAt: Date()
+            )
+        )
+        trace.record(.transcriptCapture, .ran(detail: "recorded as a golden-case candidate"))
+    }
+
+    /// Every candidate captured so far, for the eval suite to snapshot.
+    func capturedTranscripts() async -> [TranscriptRecord] {
+        await transcripts?.allRecords() ?? []
     }
 
     /// Fans the asks out concurrently and records what the fan-out and the repair loops did.

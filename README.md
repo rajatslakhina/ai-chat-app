@@ -1,6 +1,6 @@
 # AI Chat
 
-A SwiftUI iOS chat client for [OpenRouter](https://openrouter.ai), built on the 26-package Swift
+A SwiftUI iOS chat client for [OpenRouter](https://openrouter.ai), built on the 28-package Swift
 LLM ecosystem from [`llm-ecosystem-demo`](https://github.com/rajatslakhina/llm-ecosystem-demo).
 
 Every message runs through a real pipeline — prompt templating, PII guardrails, semantic routing,
@@ -17,14 +17,15 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **501 passing**, 100 suites |
+| Unit + integration tests | **537 passing**, 105 suites |
 | UI tests (XCUITest) | **24 passing** |
-| `swiftlint --strict` | **0 violations**, 48 files |
-| Line coverage | **98.93%** — 6826/6900 |
+| `swiftlint --strict` | **0 violations**, 50 files |
+| Line coverage | **99.33%** — 7146/7194 |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 26 packages do real work in the send path.** All 27 pipeline stages have a live recording call
-site. 74 lines remain uncovered; see [Coverage](#coverage).
+**All 28 packages do real work in the app.** 26 of them run in the send path and own a pipeline
+stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
+`Tests/`. 48 lines remain uncovered; see [Coverage](#coverage).
 
 ---
 
@@ -88,7 +89,8 @@ sits in an iCloud-synced folder, and iCloud's extended attributes make codesign 
 ChatViewModel (@MainActor)
       │
       ├─ PreModelPipeline (actor) ──── 8 stages, all free
-      │     template → guardrail(in) → route → cache → memory → retrieval → compaction
+      │     template → guardrail(in) → route → cache → memory
+      │     → retrieval (dense ∥ lexical → rank fusion) → compaction
       │
       ├─ TurnExecutor (actor) ───────── everything that costs money
       │     profile → forecast → reserve → idempotency → retry → route → stream
@@ -100,7 +102,7 @@ ChatViewModel (@MainActor)
       │     guardrail(out) → grounding → tracing
       │
       └─ MetadataPipeline (actor) ───── after the turn, off the critical path
-            batch(title ∥ follow-ups) → decode → repair → migrate
+            transcript capture → batch(title ∥ follow-ups) → decode → repair → migrate
 ```
 
 The split is at the point the turn stops being free. Everything before `TurnExecutor` is local
@@ -224,6 +226,15 @@ Things that cost real debugging and are not obvious from any documentation.
   transcript it will resend, wrong for a chat log. The view model owns its own `[ChatBubble]`.
 - `LLMRequest.init` has `precondition`s on temperature and `maxOutputTokens` — these **trap in
   release**. Settings clamps before constructing.
+- **Two untagged repos broke `xcodegen`/SPM resolution**, both with the same message: "no versions
+  of X match the requirement 1.0.0..<2.0.0". `spotlight-rag-kit` and `llm-eval-harness-kit` were
+  both pushed without a tag, and `from:` cannot resolve against a repo that has none.
+- **`swift test`'s tail lies about an XCTest-only package.** It prints `Test run with 0 tests in 0
+  suites` — that line belongs to the swift-testing runner, and the XCTest tally sits above it.
+  Reading the tail alone reports a healthy package as broken.
+- **A test asserting concurrent call *ordering* passes until it doesn't.** `MetadataPipelineTests`
+  documented in a comment that interleaving is a scheduling outcome and switched to counting, then
+  kept one `calls.last ==` assertion anyway. Adding an `await` earlier in `generate` flipped it.
 - **`AuthorityBroker` throws rather than returns for host mistakes**, and three of those throws are
   reachable from ordinary use: re-presenting a spent `Approval`, presenting an expired one, and
   presenting one for a capability that needs none. All three surface as `.failed` — "the system
@@ -287,24 +298,22 @@ rather than gamed.
 
 ## Remaining work
 
-- **A real embedder.** `HashingEmbeddingProvider` and `HashingRouteEmbedder` are bag-of-words;
-  routing and retrieval both improve materially with a hosted embeddings endpoint behind the same
-  protocols. OpenRouter does expose one — `POST /api/v1/embeddings`, OpenAI-shaped, same key, no
-  streaming — so this needs no second provider. The trap to avoid: do **not** fall back between the
-  hashing and hosted embedders per call. Their dimensions differ, so one index would mix vector
-  widths and cosine similarity would return confident nonsense rather than a degraded result.
-  Choose one embedder at composition time from whether a key is present, and throw on failure.
-- **Coverage back to 99.55%.** The approval feature landed at 98.93%: `ChatViewModel`'s approval
-  extension (29 lines) and `ChatView`'s sheet wiring (18) need a test that settles the `Task`
-  behind `beginApproval`, which the existing `settle(_:)` helper does not cover.
-
----
+- **Coverage back to 99.55%.** Currently 99.33%. The residual is `ChatView`'s recovery-button
+  closure, which needs a tap: a XCUITest launches the app with no test code linked, so the
+  tool-call response it would need cannot be stubbed from the test process.
+- **A real corpus.** `AppKnowledge` is four passages about the app itself — enough to make hybrid
+  retrieval demonstrably work, not enough to be a knowledge base.
+- **CoreSpotlight.** `SpotlightRAGKit` ships `CoreSpotlightSearchIndex` in its UI target, which
+  would index the corpus into the system index and make it searchable outside the app. The app
+  uses `InMemorySearchIndex` instead, because CoreSpotlight does not index reliably in a simulator
+  and the tests would be asserting against the host machine's state.
+- **Tool approval sheet: done.** **Publish: done.** **A real embedder: done.**
 
 ## Layout
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 26 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 28 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

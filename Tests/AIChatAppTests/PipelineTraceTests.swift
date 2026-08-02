@@ -9,13 +9,19 @@ struct PipelineStageTests {
     func everyStageIsAttributed() {
         for stage in PipelineStage.allCases {
             #expect(!stage.package.isEmpty, "\(stage.rawValue) has no owning package")
-            #expect(stage.package.hasSuffix("Kit"), "\(stage.rawValue) names \(stage.package)")
+            // Every package in the series is named *Kit except one: llm-eval-harness-kit ships
+            // its library as `EvalHarness`. Naming it "EvalHarnessKit" here to satisfy a pattern
+            // would put a module name in the Diagnostics screen that does not exist.
+            #expect(
+                stage.package.hasSuffix("Kit") || stage.package == "EvalHarness",
+                "\(stage.rawValue) names \(stage.package)"
+            )
             #expect(!stage.title.isEmpty, "\(stage.rawValue) has no title")
         }
     }
 
-    /// The count that makes "all 26 packages are wired in" checkable rather than claimed.
-    @Test("the stages cover all 26 ecosystem packages, each at least once")
+    /// The count that makes "all 27 packages are wired in" checkable rather than claimed.
+    @Test("the stages cover all 27 ecosystem packages, each at least once")
     func coversEveryPackage() {
         let packages = Set(PipelineStage.allCases.map(\.package))
         let expected: Set<String> = [
@@ -25,9 +31,9 @@ struct PipelineStageTests {
             "SemanticRouterKit", "OutputRepairKit", "StreamAggregatorKit", "BatchInferenceKit",
             "RealtimeSessionKit", "IdempotencyKit", "SchemaMigrationKit", "ToolAuthorityKit",
             "GroundingKit", "QuotaGovernorKit", "CostEstimatorKit", "WorkloadProfilerKit",
-            "SpotlightRAGKit"
+            "SpotlightRAGKit", "EvalHarness"
         ]
-        #expect(expected.count == 26)
+        #expect(expected.count == 27)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")

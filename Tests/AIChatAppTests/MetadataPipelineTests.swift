@@ -279,7 +279,11 @@ struct MetadataRepairTests {
         #expect(calls.count == 3)
         #expect(calls.filter { $0 == MetadataAsk.titleID }.count == 2)
         #expect(calls.filter { $0 == MetadataAsk.followUpsID }.count == 1)
-        #expect(calls.last == MetadataAsk.titleID, "the repair is the last call made")
+        // The ordering assertion that used to sit here contradicted the paragraph above it: with
+        // two asks in flight at `ConcurrencyLimit(2)`, the follow-ups call can land after the
+        // title's repair, so "the repair is the last call made" was never a property the pipeline
+        // promised. It survived because the scheduling happened to favour it; adding an await
+        // earlier in `generate` was enough to flip it.
     }
 
     /// The structured feedback is the point: the repair prompt has to say what was wrong.

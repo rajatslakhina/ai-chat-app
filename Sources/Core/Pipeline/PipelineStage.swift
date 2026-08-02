@@ -42,6 +42,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case toolDispatch
     case agentLoop
     case batchInference
+    /// Recording the finished turn as a golden-case candidate for the eval suite.
+    case transcriptCapture
 
     // Accounting for what happened
     case guardrailOutput
@@ -56,6 +58,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
+        case .transcriptCapture: return "EvalHarness"
         case .guardrailInput, .guardrailOutput: return "GuardrailKit"
         case .semanticRoute: return "SemanticRouterKit"
         case .idempotencyGuard: return "IdempotencyKit"
@@ -95,6 +98,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .retrieval: return "Retrieval"
         case .lexicalRetrieval: return "Lexical retrieval"
         case .rankFusion: return "Rank fusion"
+        case .transcriptCapture: return "Transcript capture"
         case .contextCompaction: return "Context compaction"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"

@@ -21,6 +21,9 @@ settings:
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
 
 packages:
+  EvalHarnessKit:
+    url: https://github.com/rajatslakhina/llm-eval-harness-kit
+    from: 1.0.0
   SpotlightRAGKit:
     url: https://github.com/rajatslakhina/spotlight-rag-kit
     from: 1.0.0
@@ -188,6 +191,8 @@ targets:
         product: WorkloadProfilerKit
       - package: SpotlightRAGKit
         product: SpotlightRAG
+      - package: EvalHarnessKit
+        product: EvalHarness
 
   AIChatAppTests:
     type: bundle.unit-test

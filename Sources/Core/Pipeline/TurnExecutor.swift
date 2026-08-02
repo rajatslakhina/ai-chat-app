@@ -203,8 +203,14 @@ actor TurnExecutor {
 
         // 1. Idempotency — a double-tapped Send must not be charged twice. The key is derived from
         //    the conversation and the exact outbound text, so an identical re-ask replays.
+        //    The approval generation is part of it because a resend after the user has signed for
+        //    a tool call is byte-identical to the send that was blocked — same conversation, same
+        //    model, same text — so without it the guard replays the blocked turn's stored result
+        //    and the tool never runs. Replay is right for a double tap and wrong once a human has
+        //    authorized something the previous attempt was not allowed to do.
+        let approvals = await tools?.approvalGeneration() ?? 0
         let key = IdempotencyKey(
-            "\(conversationID):\(turn.modelID):\(turn.outboundUserText.hashValue)"
+            "\(conversationID):\(turn.modelID):\(turn.outboundUserText.hashValue):\(approvals)"
         )
 
         // 2. Workload profile — the shape of this conversation, learned from earlier turns.

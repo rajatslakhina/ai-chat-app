@@ -424,8 +424,8 @@ struct ToolAuthorityRoundTripTests {
         #expect(refusal.recovery == .approveTool(name: "calculator"))
         #expect(resolution.observation == nil, "nothing ran, so there is nothing to report back")
         #expect(
-            resolution.records.first?.outcome == .ran(detail: "approval required for calculator"),
-            "nothing was refused — the turn is waiting on a human"
+            resolution.records.first?.outcome == .refused(refusal),
+            "the trace finds a refusal by scanning for .refused, so .ran stopped the turn silently"
         )
         let statistics = await roundTrip.statistics()
         #expect(statistics.totalCalls == 0)
@@ -629,7 +629,11 @@ struct ToolDispatchOutcomeTests {
     }
 }
 
-@Suite("Tool round trip — the chat surface")
+/// `.serialized`, like every other suite that drives `StubURLProtocol`: the stub queue is static,
+/// so two tests running at once consume each other's canned responses. This suite got away without
+/// it while it was small — the symptom when it stopped was an unrelated metadata test failing on
+/// call ordering, which is what stolen stubs look like from the outside.
+@Suite("Tool round trip — the chat surface", .serialized)
 @MainActor
 struct ToolChatSurfaceTests {
     private func makePipeline() async -> PreModelPipeline {
@@ -653,6 +657,115 @@ struct ToolChatSurfaceTests {
             if !model.isSending, model.bubbles.count >= 2 { return }
             try await Task.sleep(nanoseconds: 5_000_000)
         }
+    }
+
+    /// Waits for a `Task`-backed approval call to land.
+    ///
+    /// `beginApproval` and `declinePending` deliberately do not expose their `Task` — the view
+    /// calls them from a button — so the test polls the state the view itself observes rather than
+    /// reaching for an internal handle that only exists for testing.
+    private func settleApproval(
+        until condition: @escaping @MainActor () -> Bool
+    ) async throws {
+        for _ in 0..<600 {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
+    @Test("approving a blocked call signs it, resends, and the tool actually runs")
+    func approvalRunsTheToolOnTheResend() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        await harness.tools.setApprovalRequired(true)
+        // Three bodies: the first send asks for the tool and stops on the approval, then the
+        // resend asks for the same tool again and finally answers in prose.
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"6*7"}"#),
+            toolCallBody(name: "calculator", arguments: #"{"expression":"6*7"}"#),
+            proseBody("Six sevens are 42.")
+        ])
+        let model = ChatViewModel(
+            pipeline: await makePipeline(),
+            executor: harness.executor(),
+            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy())),
+            tools: harness.tools
+        )
+
+        model.draft = "what is 6*7"
+        model.send()
+        try await settle(model)
+        // The turn has to stop *visibly*. A silent stop is the bug this asserts against.
+        #expect(model.activeRefusal?.recoveryTitle == "Approve calculator")
+
+        model.beginApproval()
+        try await settleApproval { model.pendingApproval != nil }
+        let prompt = try #require(model.pendingApproval)
+        #expect(prompt.tool == "calculator")
+        #expect(prompt.arguments.contains("6*7"), "an approver has to see what they are signing")
+
+        // `approvePending` clears `pendingApproval` synchronously and resends inside a `Task`, so
+        // waiting on the sheet closing would race the resend it triggers. Wait for the answer.
+        // Waiting on "the last bubble is delivered" would return instantly: a blocked call still
+        // publishes the model's prose, so turn one already ended delivered with the refusal
+        // alongside it. The resend is only observable as new requests on the wire.
+        let sentBefore = StubURLProtocol.allBodies.count
+        model.approvePending()
+        try await settleApproval {
+            StubURLProtocol.allBodies.count > sentBefore && !model.isSending
+        }
+        // The resend has to reach the wire. It is the assertion that catches both ways this can
+        // silently do nothing: the response cache serving the blocked turn's answer, and the
+        // idempotency guard replaying it because the key did not change.
+        #expect(StubURLProtocol.allBodies.count > sentBefore, "the resend never called the model")
+
+        let assistant = try #require(model.bubbles.last)
+        #expect(assistant.text == "Six sevens are 42.")
+        #expect(assistant.toolState == .used(["calculator"]))
+    }
+
+    @Test("declining closes the sheet, clears the gate, and leaves the turn refused")
+    func decliningLeavesTheTurnRefused() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        await harness.tools.setApprovalRequired(true)
+        stubJSON([toolCallBody(name: "calculator", arguments: #"{"expression":"6*7"}"#)])
+        let model = ChatViewModel(
+            pipeline: await makePipeline(),
+            executor: harness.executor(),
+            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy())),
+            tools: harness.tools
+        )
+
+        model.draft = "what is 6*7"
+        model.send()
+        try await settle(model)
+
+        model.beginApproval()
+        try await settleApproval { model.pendingApproval != nil }
+        model.declinePending()
+        try await settleApproval { model.pendingApproval == nil }
+
+        // The gate has to forget it too, or the next approval signs a call the user never saw.
+        for _ in 0..<600 where await harness.tools.pendingApproval() != nil {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(await harness.tools.pendingApproval() == nil)
+        #expect(model.activeRefusal?.recoveryTitle == "Approve calculator")
+    }
+
+    @Test("a view model with no tool registry simply has nothing to approve")
+    func approvalWithoutTools() async throws {
+        let harness = await ToolHarness()
+        let model = ChatViewModel(
+            pipeline: await makePipeline(),
+            executor: harness.executor(withTools: false),
+            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy()))
+        )
+        model.beginApproval()
+        model.approvePending()
+        model.declinePending()
+        #expect(model.pendingApproval == nil)
     }
 
     @Test("the bubble names the tools that ran once the answer settles")

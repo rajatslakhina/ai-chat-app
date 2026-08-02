@@ -169,8 +169,18 @@ actor ToolAuthorityGate {
             validThroughTick: tick + Self.approvalValidityTicks
         )
         pendingRequest = nil
+        approvalGeneration += 1
         return true
     }
+
+    /// How many signatures the user has given, ever.
+    ///
+    /// Folded into the turn's `IdempotencyKey`. That key is otherwise the conversation, the model
+    /// and the outbound text — so a resend after an approval is byte-identical to the send that
+    /// was blocked, and the guard replays the blocked turn's stored result instead of calling the
+    /// provider. Replaying is correct for a double-tapped Send and wrong here: a human has since
+    /// authorized a tool call that could not run before, so it is not the same operation.
+    var approvalGeneration = 0
 
     /// Drops the pending request without signing it. The turn stays refused, which is the point.
     func declinePending() {

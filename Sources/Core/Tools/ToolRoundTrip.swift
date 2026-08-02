@@ -117,6 +117,12 @@ actor ToolRoundTrip {
         await gate.declinePending()
     }
 
+    /// Folded into the turn's idempotency key so a resend after an approval is a new operation
+    /// rather than a replay of the send the approval was meant to unblock.
+    func approvalGeneration() async -> Int {
+        await gate.approvalGeneration
+    }
+
     func resolve(
         id: String,
         toolName: String,
@@ -196,12 +202,15 @@ actor ToolRoundTrip {
                 proceed: false
             )
         case let .approvalRequired(refusal):
-            // `.ran`, not `.refused`: nothing was refused, the turn is waiting on a human.
+            // `.refused`, and the distinction is not academic: `PipelineTrace.refusal` finds the
+            // turn's refusal by scanning for a `.refused` record, and `applyHop` forwards only
+            // `resolution.records` — it drops `resolution.refusal` on the floor. Recording this as
+            // `.ran` (which read well: nothing was refused, the turn is waiting on a human) meant
+            // the banner never appeared, so the turn stopped in silence with no way to approve.
+            // Unreachable until a capability actually set `requiresApproval`, which is why it
+            // survived: the denied path carries its own `.refused` record and looked identical.
             return AuthorityStep(
-                record: record(
-                    .toolAuthority,
-                    .ran(detail: "approval required for \(toolName)")
-                ),
+                record: record(.toolAuthority, .refused(refusal)),
                 refusal: refusal,
                 proceed: false
             )

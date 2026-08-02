@@ -342,12 +342,22 @@ final class ChatViewModel {
         if let refusal = freshTrace.refusal { activeRefusal = refusal }
         // Only the text the user actually saw is cached. Caching the unreviewed answer would
         // serve the un-redacted version on the next identical question.
-        await pipeline.recordCompletion(
-            turn: turn,
-            systemPrompt: turn.messages.first?.content,
-            answer: reviewed.publishableText,
-            providerID: completion.providerID
-        )
+        //
+        // And only a turn that carried no refusal is cached at all, which is `recordCompletion`'s
+        // own stated contract — "caching a refusal poisons every later turn". Caching here defeats
+        // the recovery the refusal just offered: a blocked tool call still publishes the model's
+        // prose, so the turn ends `.delivered` with an answer that is missing whatever the tool
+        // would have contributed. Store that, and approving the call and resending replays the
+        // stale answer from the cache without ever calling the model again — the button appears to
+        // do nothing, forever.
+        if freshTrace.refusal == nil {
+            await pipeline.recordCompletion(
+                turn: turn,
+                systemPrompt: turn.messages.first?.content,
+                answer: reviewed.publishableText,
+                providerID: completion.providerID
+            )
+        }
         // Named from the *reviewed* text, for the same reason the cache is: a title derived from
         // an answer the guardrail redacted would put the redacted span back on screen, in the
         // navigation bar, where it is visible on every screenshot.

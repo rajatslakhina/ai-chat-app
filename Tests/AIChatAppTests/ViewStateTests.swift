@@ -14,6 +14,8 @@ import SemanticRouterKit
 import SwiftUI
 import Testing
 import TokenMeterKit
+import ToolAuthorityKit
+import ToolRegistryKit
 import UIKit
 import WorkloadProfilerKit
 @testable import AIChatApp
@@ -463,4 +465,104 @@ struct ChatThreadStateTests {
 
         #expect(stack.model.bubbles.last?.text == "Paris.")
     }
+}
+
+/// The chat screen with the approval sheet actually up.
+///
+/// `ChatView`'s `.sheet` closure is a branch of `body`, so it only executes when something lays it
+/// out with a non-nil item. Without this, the sheet wiring is code that ships having never run.
+@MainActor
+@Suite("Chat thread — the approval sheet", .serialized)
+struct ChatApprovalSheetRenderTests {
+    private func makeTools() async -> ToolRoundTrip {
+        let registry = ToolRegistryKit.ToolRegistry()
+        await registry.register(DemoTools.calculator, handler: DemoTools.calculatorHandler())
+        return ToolRoundTrip(
+            registry: registry,
+            gate: ToolAuthorityGate(
+                capabilities: ToolAuthorityGate.readOnly(tools: [DemoTools.calculatorName]),
+                requiresApproval: true
+            )
+        )
+    }
+
+    @Test("the sheet lays out over the thread once a call is waiting on a signature")
+    func rendersWithPendingApproval() async throws {
+        let tools = await makeTools()
+        // Drive one real decision so the gate holds a genuine `ApprovalRequest` — the sheet is
+        // rendered from the broker's own answer rather than from a hand-made stand-in.
+        _ = await tools.resolve(
+            id: "call-1",
+            toolName: DemoTools.calculatorName,
+            argumentsJSON: Data(#"{"expression":"2+2"}"#.utf8),
+            in: ToolCallContext(conversationID: "conv-1", provenance: .modelAuthored)
+        )
+
+        let usage = UsageRecorder()
+        let scopes = BudgetScopes(account: ScopeID("account"), conversation: ScopeID("conversation"))
+        let governor = QuotaGovernor()
+        try? await governor.register(scopes.account, at: 0)
+        try? await governor.register(scopes.conversation, under: scopes.account, at: 0)
+        let prompts = PromptRegistry()
+        _ = try? await prompts.register(name: "chat.system", template: "You are terse.")
+
+        let model = ChatViewModel(
+            pipeline: PreModelPipeline(
+                prompts: prompts,
+                guardrail: GuardrailPipeline(policy: GuardrailPolicy()),
+                router: SemanticRouter(),
+                cache: ResponseCache(capacity: 4),
+                memory: MemoryStore(),
+                retriever: Retriever(embedder: HashingEmbeddingProvider()),
+                compactor: ContextCompactor(strategies: [SlidingWindowCompactionStrategy()])
+            ),
+            executor: TurnExecutor(
+                provider: OpenRouterProvider(
+                    configuration: OpenRouterConfiguration(apiKey: "sk-or-v1-test"),
+                    session: StubURLProtocol.makeSession(),
+                    usageObserver: usage
+                ),
+                idempotency: IdempotencyGuard(),
+                profiler: WorkloadProfiler(),
+                estimator: CostEstimator(priceBook: (try? PriceBook([])) ?? approvalEmptyBook()),
+                governor: governor,
+                retryPolicy: ExponentialBackoffRetryPolicy(maxAttempts: 1),
+                meter: TokenMeter(registry: PricingRegistry()),
+                usage: usage,
+                scopes: scopes,
+                tools: tools
+            ),
+            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy())),
+            tools: tools
+        )
+
+        model.beginApproval()
+        for _ in 0..<600 where model.pendingApproval == nil {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(model.pendingApproval != nil, "the gate held a request, so the sheet has an item")
+
+        await renderSettled(
+            NavigationStack { ChatView() }
+                .environment(model)
+                .environment(environment()),
+            passes: 6
+        )
+
+        // Dismissing through the binding is the swipe-to-dismiss path, and it has to reach the
+        // gate — a sheet that closes while the gate still holds the request would let the next
+        // approval sign a call the user never saw.
+        model.declinePending()
+        for _ in 0..<600 where await tools.pendingApproval() != nil {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        #expect(await tools.pendingApproval() == nil)
+    }
+}
+
+private func approvalEmptyBook() -> PriceBook {
+    guard let book = try? PriceBook([]) else {
+        preconditionFailure("an empty price book cannot fail to build")
+    }
+    return book
 }

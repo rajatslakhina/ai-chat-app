@@ -114,11 +114,10 @@ struct MessageDetailsSheet: View {
         NavigationStack {
             List {
                 Section("Message") {
-                    LabeledContent(
-                        "Sent",
-                        value: bubble.createdAt.formatted(date: .abbreviated, time: .shortened)
-                    )
-                    .accessibilityIdentifier("detailTime")
+                    // The long form: this sheet has no day heading above it to lean on, so a bare
+                    // "3:43 PM" would not say which day it was.
+                    LabeledContent("Sent", value: RelativeTime.detailed(for: bubble.createdAt))
+                        .accessibilityIdentifier("detailTime")
                     LabeledContent("From", value: bubble.role == .user ? "You" : "Assistant")
                 }
 

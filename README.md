@@ -17,7 +17,7 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **570 passing**, 111 suites |
+| Unit + integration tests | **583 passing**, 114 suites |
 | UI tests (XCUITest) | **6 passing, 6 failing** — see [Remaining work](#remaining-work) |
 | `swiftlint --strict` | **0 violations**, 50 files |
 | Line coverage | **92.62%** — 8351/9016, unit tests only |
@@ -116,6 +116,13 @@ fastest to smartest. Effort is not an app-invented dial: it is sent as OpenRoute
 `reasoning.effort`, which allocates roughly 20 / 50 / 80 / 95 percent of `max_tokens` to thinking
 (`extra` is `xhigh` on the wire). A conversation that never chose one sends no `reasoning` key at
 all rather than a null.
+
+Times read "Now", then seconds, minutes and hours ago; once a day has passed the row shows a
+clock time instead, because the day heading above it already says which day. The list is grouped
+into Today, Yesterday, and then `Month D, YYYY`. Days are compared as calendar days rather than as
+24-hour windows — something sent at 11pm is "Yesterday" at 1am, two hours later. Every string is
+rendered through `Calendar.current`, so a timestamp written by a server in UTC displays in the
+device's own zone; a `Date` carries no zone of its own, so that rendering *is* the conversion.
 
 Under every message: copy, edit, retry, read aloud, more. Edit and retry only on the user's own
 messages, because retrying an answer means resending the question above it. "More" holds what used

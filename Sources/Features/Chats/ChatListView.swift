@@ -38,21 +38,34 @@ struct ChatListView: View {
     /// exist a moment ago. Both go through the same path so the chat screen has one entry point.
     @Binding var openConversationID: UUID?
 
+    /// Re-read on every redraw rather than held, so a list left open across midnight regroups
+    /// instead of insisting yesterday is still today.
+    private var groups: [(title: String, items: [Conversation])] {
+        DaySection.group(conversations.conversations, by: \.updatedAt)
+    }
+
     var body: some View {
         List {
             if conversations.conversations.isEmpty {
                 emptyState
             }
-            ForEach(conversations.conversations) { conversation in
-                Button {
-                    openConversationID = conversation.id
-                } label: {
-                    ChatListRow(conversation: conversation)
+            ForEach(groups, id: \.title) { group in
+                Section {
+                    ForEach(group.items) { conversation in
+                        Button {
+                            openConversationID = conversation.id
+                        } label: {
+                            ChatListRow(conversation: conversation)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("chatRow-\(conversation.id.uuidString)")
+                    }
+                    .onDelete { delete(group.items, at: $0) }
+                } header: {
+                    Text(group.title)
+                        .accessibilityIdentifier("chatSection-\(group.title)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("chatRow-\(conversation.id.uuidString)")
             }
-            .onDelete(perform: delete)
         }
         .listStyle(.plain)
         .navigationTitle("Chats")
@@ -96,9 +109,12 @@ struct ChatListView: View {
         openConversationID = started.id
     }
 
-    private func delete(at offsets: IndexSet) {
-        for index in offsets {
-            conversations.delete(conversations.conversations[index].id)
+    /// Offsets are relative to the section, so they are resolved against that section's own
+    /// items. Indexing the flat list here would delete whatever happened to sit at that position
+    /// in another day's group.
+    private func delete(_ items: [Conversation], at offsets: IndexSet) {
+        for index in offsets where items.indices.contains(index) {
+            conversations.delete(items[index].id)
         }
     }
 }
@@ -114,7 +130,9 @@ struct ChatListRow: View {
                     .font(Theme.Typeface.heading)
                     .lineLimit(1)
                 Spacer()
-                Text(conversation.updatedAt, format: .relative(presentation: .numeric))
+                // "Now", then seconds, minutes, hours — and a clock time once a day has passed,
+                // by which point the section header above already says which day.
+                Text(RelativeTime.label(for: conversation.updatedAt))
                     .font(Theme.Typeface.metric)
                     .foregroundStyle(.tertiary)
             }

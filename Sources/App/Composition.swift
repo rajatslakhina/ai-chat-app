@@ -54,7 +54,7 @@ struct Composition: Sendable {
             appName: secrets.appName
         )
 
-        let pipeline = await makePipeline()
+        let pipeline = await makePipeline(configuration: configuration)
         let scopes = BudgetScopes(
             account: ScopeID("account"),
             conversation: ScopeID("conversation")
@@ -167,7 +167,29 @@ struct Composition: Sendable {
     }
 
     /// The pre-model half of the graph, with its prompt and routing table seeded.
-    private static func makePipeline() async -> PreModelPipeline {
+    /// Which embedder retrieval and routing run on, decided once here.
+    ///
+    /// Once, and never per call: `HashingEmbeddingProvider` and `OpenRouterEmbeddingProvider`
+    /// produce different vector widths, and `Embedding.cosineSimilarity` returns `0` on a
+    /// dimension mismatch instead of throwing. An index that had mixed the two would score every
+    /// passage identically and read as poor retrieval rather than as a defect, so the choice is
+    /// made at composition from whether a key exists and never revisited inside a turn.
+    ///
+    /// `nil` configuration, or one with no key, keeps the bag-of-words embedder — which is a
+    /// working configuration, just a blunt one, and strictly better than a provider that throws on
+    /// every passage.
+    static func makeEmbedder(
+        configuration: OpenRouterConfiguration?
+    ) -> any EmbeddingProvider {
+        guard let configuration, OpenRouterEmbeddingProvider.isUsable(configuration) else {
+            return HashingEmbeddingProvider()
+        }
+        return OpenRouterEmbeddingProvider(configuration: configuration)
+    }
+
+    private static func makePipeline(
+        configuration: OpenRouterConfiguration? = nil
+    ) async -> PreModelPipeline {
         let prompts = PromptRegistry()
         // Both registrations return a value this call site has no use for. Discarding it
         // explicitly rather than leaving `try?` unused keeps the build warning-free, and a
@@ -185,7 +207,7 @@ struct Composition: Sendable {
             router: router,
             cache: ResponseCache(capacity: 200),
             memory: MemoryStore(),
-            retriever: Retriever(embedder: HashingEmbeddingProvider()),
+            retriever: Retriever(embedder: makeEmbedder(configuration: configuration)),
             compactor: ContextCompactor(strategies: [SlidingWindowCompactionStrategy()])
         )
     }

@@ -47,6 +47,18 @@ struct UserProfile: Codable, Identifiable, Sendable, Equatable {
         UserProfile.avatarPalette[abs(avatarSeed) % UserProfile.avatarPalette.count]
     }
 
+    /// Stands in when a bubble is rendered without a profile store — a snapshot suite, a preview.
+    ///
+    /// A fixed id rather than a fresh `UUID()`: this is built inside a view body, and a new
+    /// identity on every render is churn at best and a diffing hazard at worst. The empty name is
+    /// deliberate too — it makes `monogram` empty, which is what tips the avatar into its glyph.
+    static let anonymous = UserProfile(
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000000") ?? UUID(),
+        displayName: "",
+        avatarSeed: 0,
+        createdAt: Date(timeIntervalSince1970: 0)
+    )
+
     /// The profile a fresh install starts with, named after the demo account it signs in as.
     static func bootstrap() -> UserProfile {
         UserProfile(displayName: "Demo", email: DemoAccount.email, avatarSeed: 0)

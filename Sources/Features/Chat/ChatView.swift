@@ -5,6 +5,10 @@ import UIKit
 struct ChatView: View {
     @Environment(ChatViewModel.self) private var model
     @Environment(AppEnvironment.self) private var environment
+    /// Optional on purpose. `ChatView` is rendered by several snapshot and render suites that have
+    /// no reason to stand up a profile store, and a non-optional read traps on the lookup rather
+    /// than failing a test — which is how the last environment dependency shipped a crash.
+    @Environment(ProfileStore.self) private var profiles: ProfileStore?
 
     /// The message the edit sheet is open on. An identified value rather than a bare id so the
     /// sheet is handed the text it must start from — reading it back out of the model as the sheet
@@ -90,7 +94,7 @@ struct ChatView: View {
                         if bubble.followsCompaction {
                             CompactionDivider()
                         }
-                        BubbleRow(bubble: bubble)
+                        BubbleRow(bubble: bubble, profile: profiles?.active)
                             .id(bubble.id)
                             .contextMenu { menu(for: bubble) }
                     }
@@ -206,6 +210,9 @@ struct ChatView: View {
 /// One message, plus everything the pipeline knows about it.
 struct BubbleRow: View {
     let bubble: ChatBubble
+    /// Whose message this is, when the app knows. Defaulted so a snapshot can build a row without
+    /// a profile store; `nil` falls back to the anonymous glyph rather than to a blank circle.
+    var profile: UserProfile?
 
     private var alignment: HorizontalAlignment {
         bubble.role == .user ? .trailing : .leading
@@ -217,11 +224,39 @@ struct BubbleRow: View {
 
     var body: some View {
         VStack(alignment: alignment, spacing: Theme.Spacing.tight) {
-            content
+            // The avatar pairs with the bubble, not with the whole row. Wrapping the captions too
+            // sank it to the bottom of the source and metric chips — level with the last chip
+            // rather than with the message — and stole 36pt from the chip row, which truncated
+            // every one of them to an ellipsis.
+            //
+            // `.bottom`, so it sits on the baseline of a bubble however tall it grows; `.top`
+            // leaves the avatar stranded against the first line of a long answer.
+            HStack(alignment: .bottom, spacing: Theme.Spacing.tight) {
+                if bubble.role == .assistant { avatar }
+                content
+                if bubble.role == .user { avatar }
+            }
             captions
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
     }
+
+    /// Decorative, and hidden from VoiceOver for that reason.
+    ///
+    /// The bubble already says who is speaking through its own identifier, and an avatar that
+    /// announced itself would put "Demo profile" in front of every single message.
+    private var avatar: some View {
+        Group {
+            if bubble.role == .user {
+                ProfileAvatar(profile: profile ?? .anonymous, diameter: BubbleRow.avatarSize)
+            } else {
+                AssistantAvatar(diameter: BubbleRow.avatarSize)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    static let avatarSize: CGFloat = 28
 
     private var content: some View {
         Group {

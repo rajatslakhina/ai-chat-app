@@ -1,9 +1,20 @@
 import SwiftUI
+import UIKit
 
 /// The conversation.
 struct ChatView: View {
     @Environment(ChatViewModel.self) private var model
     @Environment(AppEnvironment.self) private var environment
+
+    /// The message the edit sheet is open on. An identified value rather than a bare id so the
+    /// sheet is handed the text it must start from — reading it back out of the model as the sheet
+    /// presents would race the truncation that editing performs.
+    @State private var editingMessage: EditTarget?
+
+    struct EditTarget: Identifiable, Equatable {
+        let id: UUID
+        let text: String
+    }
 
     var body: some View {
         @Bindable var model = model
@@ -21,6 +32,11 @@ struct ChatView: View {
         // being read is a distraction for a caption nobody asked for.
         .navigationTitle(model.conversationTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editingMessage) { target in
+            EditMessageSheet(original: target.text) { edited in
+                model.edit(target.id, to: edited)
+            }
+        }
         // Bound through the model rather than to a local `@State`: the gate is what the broker
         // consults, so a swipe-to-dismiss has to reach it too — otherwise the sheet closes while
         // the gate still holds a request, and the next approval signs a call the user never saw.
@@ -76,6 +92,7 @@ struct ChatView: View {
                         }
                         BubbleRow(bubble: bubble)
                             .id(bubble.id)
+                            .contextMenu { menu(for: bubble) }
                     }
                     if let refusal = model.activeRefusal {
                         // Every other recovery action is resolved by resending — the user changed
@@ -99,6 +116,37 @@ struct ChatView: View {
                     proxy.scrollTo(last, anchor: .bottom)
                 }
             }
+        }
+    }
+
+    /// Copy always; edit and retry only where they mean something.
+    ///
+    /// An assistant bubble has no edit or retry: retrying an answer means resending the question
+    /// that produced it, which is the user's message, and offering it here would put two controls
+    /// on screen that do the same thing to different-looking targets.
+    @ViewBuilder
+    private func menu(for bubble: ChatBubble) -> some View {
+        Button {
+            UIPasteboard.general.string = bubble.text
+        } label: {
+            Label("Copy", systemImage: "doc.on.doc")
+        }
+        .accessibilityIdentifier("copyMessage")
+
+        if bubble.role == .user, model.canRevise(bubble.id) {
+            Button {
+                editingMessage = EditTarget(id: bubble.id, text: bubble.text)
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .accessibilityIdentifier("editMessage")
+
+            Button {
+                model.retry(bubble.id)
+            } label: {
+                Label("Retry", systemImage: "arrow.clockwise")
+            }
+            .accessibilityIdentifier("retryMessage")
         }
     }
 
@@ -340,5 +388,50 @@ struct TypingIndicator: View {
         .foregroundStyle(.secondary)
         .onAppear { animating = true }
         .accessibilityLabel("Assistant is typing")
+    }
+}
+
+/// Rewriting a message before sending it again.
+///
+/// Everything after the edited message is discarded when it sends, which the footer says outright:
+/// a thread whose later answers still reply to the question that was just rewritten reads as the
+/// app having lost track of the conversation.
+struct EditMessageSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+    private let onSave: (String) -> Void
+
+    init(original: String, onSave: @escaping (String) -> Void) {
+        self._text = State(initialValue: original)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Message", text: $text, axis: .vertical)
+                        .lineLimit(3...12)
+                        .accessibilityIdentifier("editMessageField")
+                } footer: {
+                    Text("Sending this again replaces everything below it in the thread.")
+                }
+            }
+            .navigationTitle("Edit message")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send") {
+                        onSave(text)
+                        dismiss()
+                    }
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("sendEditedMessage")
+                }
+            }
+        }
     }
 }

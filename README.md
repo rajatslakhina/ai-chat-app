@@ -17,8 +17,8 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **537 passing**, 105 suites |
-| UI tests (XCUITest) | **24 passing** |
+| Unit + integration tests | **555 passing**, 108 suites |
+| UI tests (XCUITest) | **6 passing, 6 failing** — see [Remaining work](#remaining-work) |
 | `swiftlint --strict` | **0 violations**, 50 files |
 | Line coverage | **99.33%** — 7146/7194 |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
@@ -108,7 +108,15 @@ ChatViewModel (@MainActor)
 The split is at the point the turn stops being free. Everything before `TurnExecutor` is local
 computation; everything inside it either costs money or exists to control what it costs.
 
-Screens: login → chat → model picker, settings, diagnostics.
+Screens: login → **chat list** → chat → model picker, settings, diagnostics; profile and edit
+profile from the list.
+
+Profiles are local and switchable. There is no backend, so a "user" is scope rather than an
+identity: each profile owns its own conversations (`conversations.v1.<uuid>`) and its own settings
+(`settings.v1.<uuid>`), and the pre-profile `settings.v1` blob is inherited once so an existing
+install does not silently reset. Chats persist; a `ChatBubble` does not — delivery state, tool
+chips and refusals describe one run of a turn, and restoring them would show a spinner for a turn
+nobody is awaiting.
 
 ### Ordering decisions that are load-bearing
 
@@ -298,16 +306,22 @@ rather than gamed.
 
 ## Remaining work
 
-- **Coverage back to 99.55%.** Currently 99.33%. The residual is `ChatView`'s recovery-button
-  closure, which needs a tap: a XCUITest launches the app with no test code linked, so the
-  tool-call response it would need cannot be stubbed from the test process.
-- **A real corpus.** `AppKnowledge` is four passages about the app itself — enough to make hybrid
-  retrieval demonstrably work, not enough to be a knowledge base.
-- **CoreSpotlight.** `SpotlightRAGKit` ships `CoreSpotlightSearchIndex` in its UI target, which
-  would index the corpus into the system index and make it searchable outside the app. The app
-  uses `InMemorySearchIndex` instead, because CoreSpotlight does not index reliably in a simulator
-  and the tests would be asserting against the host machine's state.
-- **Tool approval sheet: done.** **Publish: done.** **A real embedder: done.**
+- **Six UI tests need rework for the new navigation.** They were written against a two-level
+  hierarchy (chat → destination) and there are now three (list → chat → destination), so the back
+  button they tap is named for a different screen and the Diagnostics rows they look for sit one
+  push deeper. The 555 unit tests cover the new stores and message actions; the app itself was
+  verified by hand on the simulator. Bounded work, not a defect in the feature.
+- **Coverage back to 99.55%.** `ChatView`'s recovery-button closure needs a tap, and a XCUITest
+  launches the app with no test code linked, so its tool-call response cannot be stubbed.
+- **`AccentColor` is still unused.** The asset exists and the design system references
+  `Color.accentColor`, but nothing sets `ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME`, so the
+  system default blue is what actually renders. Setting it is one line and a visible change to
+  every tinted control, so it is called out rather than slipped in.
+- **A real corpus.** `AppKnowledge` is four passages about the app itself.
+- **CoreSpotlight.** `SpotlightRAGKit` ships `CoreSpotlightSearchIndex`; the app uses
+  `InMemorySearchIndex` because CoreSpotlight does not index reliably in a simulator.
+- **Profile photos.** Avatars are monograms. A photo picker means a permission prompt, a privacy
+  string and an image store.
 
 ## Layout
 

@@ -19,11 +19,41 @@ class ScreensUITestCase: XCTestCase {
         if let apiKey { arguments += ["-OpenRouterAPIKey", apiKey] }
         app.launchArguments = arguments
         app.launch()
+        openNewChat(in: app)
+        return app
+    }
+
+    /// Lands on the chat list without opening anything.
+    func launchToList(apiKey: String? = nil) -> XCUIApplication {
+        let app = XCUIApplication()
+        var arguments = ["-UITestMode", "-SignedIn"]
+        if let apiKey { arguments += ["-OpenRouterAPIKey", apiKey] }
+        app.launchArguments = arguments
+        app.launch()
         XCTAssertTrue(
-            app.buttons["settingsButton"].waitForExistence(timeout: 20),
-            "the signed-in scaffold never appeared"
+            element("newChatButton", in: app).waitForExistence(timeout: 20),
+            "the chat list never appeared"
         )
         return app
+    }
+
+    /// Walks from the list into a fresh conversation.
+    ///
+    /// The signed-in root is now the chat list rather than a conversation, so every test that
+    /// asserts against the chat has to open one first. Doing it here rather than in each test
+    /// keeps the restructure to a single place.
+    func openNewChat(in app: XCUIApplication) {
+        // Queried across every element type rather than as `app.buttons[...]`. A SwiftUI toolbar
+        // button does not reliably surface as a `button` to XCUITest — the same reason
+        // `element(_:in:)` exists for combined rows — and asserting the type made this fail for a
+        // control that is plainly on screen.
+        let newChat = element("newChatButton", in: app)
+        XCTAssertTrue(newChat.waitForExistence(timeout: 20), "the chat list never appeared")
+        newChat.tap()
+        XCTAssertTrue(
+            app.buttons["settingsButton"].waitForExistence(timeout: 20),
+            "the conversation never opened"
+        )
     }
 
     /// Scrolls until `element` is in the hierarchy.

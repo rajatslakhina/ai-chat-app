@@ -94,6 +94,31 @@ struct Composition: Sendable {
         )
     }
 
+    /// A view model bound to one stored thread.
+    ///
+    /// Here rather than in the view because it is the last place that knows every actor the model
+    /// needs; a view assembling five collaborators is a view that has to be changed whenever the
+    /// graph is.
+    @MainActor
+    func makeChatViewModel(
+        conversation: Conversation,
+        onPersist: @escaping @MainActor ([StoredMessage], String) -> Void
+    ) -> ChatViewModel {
+        ChatViewModel(
+            conversationID: conversation.id.uuidString,
+            pipeline: pipeline,
+            executor: executor,
+            review: review,
+            metadata: metadata,
+            tools: tools,
+            seed: conversation.messages,
+            title: conversation.title == Conversation.untitled
+                ? ChatViewModel.untitled
+                : conversation.title,
+            onPersist: onPersist
+        )
+    }
+
     /// The real client, or a fixed catalog when a UI test asked for one.
     ///
     /// A XCUITest launches the app as its own process with no test code linked, so `URLProtocol`

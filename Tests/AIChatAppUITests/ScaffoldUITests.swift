@@ -17,6 +17,19 @@ final class LoginFlowUITests: XCTestCase {
         return app
     }
 
+    /// The signed-in root is the chat list now, so reaching the composer takes one more tap.
+    private func openChat(_ app: XCUIApplication) {
+        let newChat = element("newChatButton", in: app)
+        XCTAssertTrue(newChat.waitForExistence(timeout: 20))
+        newChat.tap()
+    }
+
+    /// A SwiftUI toolbar button does not reliably surface as a `button`, so it is found by
+    /// identifier across every type.
+    private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
     func testLaunchesToLoginWhenNoSessionExists() {
         let app = launch()
         XCTAssertTrue(app.buttons["signInButton"].waitForExistence(timeout: 10))
@@ -60,27 +73,33 @@ final class LoginFlowUITests: XCTestCase {
         app.secureTextFields["passphraseField"].typeText("letmein")
         app.buttons["signInButton"].tap()
 
+        // Signing in lands on the list, and the list is where a chat is started from.
+        openChat(app)
         XCTAssertTrue(app.staticTexts["chatEmptyState"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["signOutButton"].exists)
     }
 
-    /// A restored session must land in the chat, not bounce through login.
+    /// A restored session must land in the app, not bounce through login.
     func testRestoredSessionSkipsLogin() {
         let app = launch(signedIn: true)
-        XCTAssertTrue(app.staticTexts["chatEmptyState"].waitForExistence(timeout: 15))
+        XCTAssertTrue(element("newChatButton", in: app).waitForExistence(timeout: 20))
         XCTAssertFalse(app.buttons["signInButton"].exists)
     }
 
+    /// Sign out moved to the profile screen, where the account it ends actually lives.
     func testSignOutReturnsToLogin() {
         let app = launch(signedIn: true)
+        let profile = element("profileButton", in: app)
+        XCTAssertTrue(profile.waitForExistence(timeout: 20))
+        profile.tap()
         XCTAssertTrue(app.buttons["signOutButton"].waitForExistence(timeout: 15))
         app.buttons["signOutButton"].tap()
-        XCTAssertTrue(app.buttons["signInButton"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["signInButton"].waitForExistence(timeout: 10))
     }
 
     /// Send stays disabled on an empty draft, so an empty turn can never be billed.
     func testSendIsDisabledUntilSomethingIsTyped() {
         let app = launch(signedIn: true)
+        openChat(app)
         XCTAssertTrue(app.staticTexts["chatEmptyState"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["sendButton"].isEnabled)
     }

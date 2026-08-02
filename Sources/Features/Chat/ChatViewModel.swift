@@ -2,82 +2,6 @@ import Foundation
 import ProviderGatewayKit
 import SwiftUI
 
-/// One bubble in the thread, as the UI holds it.
-///
-/// Deliberately owned by the view model rather than read back from `LLMSession.currentTranscript()`
-/// — the gateway drops the user's message when a turn fails, which is correct for a transcript it
-/// will resend but wrong for a chat log, where the message the user typed must stay on screen with
-/// a way to retry it.
-struct ChatBubble: Identifiable, Equatable, Sendable {
-    enum Role: Equatable, Sendable { case user, assistant }
-
-    enum Delivery: Equatable, Sendable {
-        case sending
-        case streaming
-        case delivered
-        case refused(Refusal)
-        case failed(String)
-    }
-
-    /// What the tool round trip should say under this bubble.
-    ///
-    /// `used` and `failed` are separate cases because a tool that ran and a tool that broke are
-    /// different facts, and only the second one is the user's problem. A blocked call is neither:
-    /// the refusal banner already speaks for it, so the chip goes back to silence.
-    enum ToolState: Equatable, Sendable {
-        /// Named `idle` rather than `none`: an optional `ToolState?` would make `.none` mean two
-        /// different things at every call site, and the compiler resolves that in Optional's favour.
-        case idle
-        case running(String)
-        case used([String])
-        case failed(tool: String, message: String)
-    }
-
-    /// Not part of the initializer: it is set as the turn runs rather than when the bubble is
-    /// created, and every call site would otherwise pass `.none`.
-    var toolState: ToolState = .idle
-
-    let id: UUID
-    let role: Role
-    var text: String
-    var delivery: Delivery
-    /// Filled in once the turn completes, for the caption under the bubble.
-    var metrics: TurnCompletion?
-    var sources: [RetrievedSource]
-    /// True when compaction dropped earlier turns before this one was sent.
-    var followsCompaction: Bool
-    /// Share of claims a source supported, when grounding ran.
-    var groundedFraction: Double?
-    /// Claims checked, so the caption can say "3 of 4" rather than a bare percentage.
-    var claimCount: Int
-
-    init(
-        id: UUID = UUID(),
-        role: Role,
-        text: String,
-        delivery: Delivery = .delivered,
-        metrics: TurnCompletion? = nil,
-        sources: [RetrievedSource] = [],
-        followsCompaction: Bool = false,
-        groundedFraction: Double? = nil,
-        claimCount: Int = 0
-    ) {
-        self.id = id
-        self.role = role
-        self.text = text
-        self.delivery = delivery
-        self.metrics = metrics
-        self.sources = sources
-        self.followsCompaction = followsCompaction
-        self.groundedFraction = groundedFraction
-        self.claimCount = claimCount
-    }
-
-    var isPending: Bool {
-        delivery == .sending || delivery == .streaming
-    }
-}
-
 /// Drives one conversation.
 ///
 /// `@MainActor` in full: every property here is read by SwiftUI during `body`, and the pipeline it
@@ -115,6 +39,10 @@ final class ChatViewModel {
     /// Nil when no tool registry is wired, which is a legitimate configuration — the chat works,
     /// it just never proposes a tool call and so never asks for one to be approved.
     private let tools: ToolRoundTrip?
+    /// Called whenever the thread's durable content changes, so the list and the on-disk history
+    /// stay in step with what is on screen. Internal rather than private only so `persist()` can
+    /// live beside the other derived members instead of padding the class body.
+    let onPersist: (@MainActor ([StoredMessage], String) -> Void)?
     /// Nil means this conversation is not named at all, which is a legitimate configuration —
     /// the chat works identically, it just keeps the default title.
     private let metadata: MetadataPipeline?
@@ -133,7 +61,10 @@ final class ChatViewModel {
         executor: TurnExecutor,
         review: PostModelPipeline,
         metadata: MetadataPipeline? = nil,
-        tools: ToolRoundTrip? = nil
+        tools: ToolRoundTrip? = nil,
+        seed: [StoredMessage] = [],
+        title: String = ChatViewModel.untitled,
+        onPersist: (@MainActor ([StoredMessage], String) -> Void)? = nil
     ) {
         self.conversationID = conversationID
         self.pipeline = pipeline
@@ -141,27 +72,16 @@ final class ChatViewModel {
         self.review = review
         self.metadata = metadata
         self.tools = tools
-    }
-
-    /// There is no account system, so the signature records the device's user as "you" rather than
-    /// inventing an identity. `Authorization.approvedBy` carries it into the audit trail.
-    static let approver = "you"
-
-    var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
-    }
-
-    /// History in the shape the pipeline wants — only bubbles that actually landed.
-    ///
-    /// A refused or failed turn must not enter the history it will be resent with, or the model
-    /// ends up answering a question that was never delivered.
-    var history: [ConversationMessage] {
-        bubbles.compactMap { bubble in
-            guard bubble.delivery == .delivered else { return nil }
-            return ConversationMessage(
-                id: bubble.id,
-                role: bubble.role == .user ? .user : .assistant,
-                text: bubble.text
+        self.onPersist = onPersist
+        self.conversationTitle = title
+        // Restored as delivered, because that is what they are: a stored message is one the user
+        // actually saw. Restoring delivery state would put a spinner on a turn nobody is awaiting.
+        self.bubbles = seed.map {
+            ChatBubble(
+                id: $0.id,
+                role: $0.role == .user ? .user : .assistant,
+                text: $0.text,
+                delivery: .delivered
             )
         }
     }
@@ -214,7 +134,12 @@ final class ChatViewModel {
         generation += 1
         metadataTask?.cancel()
         metadataTask = nil
-        defer { isSending = false }
+        // Persist on every exit, not only the happy one: a turn that refused still leaves the
+        // user's message on screen, and a list that had not recorded it would lose it on relaunch.
+        defer {
+            isSending = false
+            persist()
+        }
 
         let priorHistory = history
         let userBubble = ChatBubble(role: .user, text: text, delivery: .sending)
@@ -469,5 +394,58 @@ extension ChatViewModel {
         pendingApproval = nil
         guard let tools else { return }
         Task { await tools.declinePending() }
+    }
+}
+
+// MARK: - Message actions
+
+/// Editing and retrying a specific message, rather than only the last turn.
+///
+/// Both truncate: everything after the message being acted on is discarded before the resend. The
+/// alternative — leaving the later turns in place — produces a thread where the model's answers
+/// respond to a question that is no longer above them, which reads as the app having lost track of
+/// the conversation rather than as an edit.
+extension ChatViewModel {
+    /// True when a message can be edited or retried: it is the user's, and nothing is in flight.
+    func canRevise(_ messageID: UUID) -> Bool {
+        guard !isSending else { return false }
+        return bubbles.contains { $0.id == messageID && $0.role == .user }
+    }
+
+    /// Sends the message again, discarding whatever it originally produced.
+    func retry(_ messageID: UUID) {
+        guard canRevise(messageID),
+              let index = bubbles.firstIndex(where: { $0.id == messageID }) else { return }
+        let text = bubbles[index].text
+        truncate(from: index)
+        sendTask = Task { await perform(text) }
+    }
+
+    /// Rewrites the message and sends the new version.
+    ///
+    /// An empty edit deletes nothing and sends nothing: a user who cleared the field and tapped
+    /// Save almost certainly meant to cancel, and silently deleting their turn would be worse than
+    /// ignoring them.
+    func edit(_ messageID: UUID, to newText: String) {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, canRevise(messageID),
+              let index = bubbles.firstIndex(where: { $0.id == messageID }) else { return }
+        guard trimmed != bubbles[index].text else { return }
+        truncate(from: index)
+        sendTask = Task { await perform(trimmed) }
+    }
+
+    /// The text of one message, for the edit sheet and for copying.
+    func text(of messageID: UUID) -> String? {
+        bubbles.first { $0.id == messageID }?.text
+    }
+
+    /// Drops the message at `index` and everything after it, and clears the state that described
+    /// them — a refusal banner left behind would point at a turn that is no longer on screen.
+    private func truncate(from index: Int) {
+        bubbles.removeSubrange(index...)
+        activeRefusal = nil
+        followUps = []
+        persist()
     }
 }

@@ -230,18 +230,28 @@ struct ScreenRenderTests {
         let environment = AppEnvironment(
             secrets: AppSecrets(store: InMemoryKeychain(), info: [:], launchArguments: [])
         )
+        // The shell now roots at the chat list, so it needs whose chats those are. In-memory
+        // stores for the same reason the settings are: a render test that read the simulator's
+        // real profiles would pass here and fail on a machine that had used the app.
+        let profiles = ProfileStore(persistence: InMemoryProfiles())
+        let conversations = ConversationStore(
+            profileID: profiles.activeID,
+            persistence: InMemoryConversations()
+        )
+        conversations.startConversation(modelID: "openai/gpt-4o")
         render(
             ChatScaffold(
                 composition: await Composition.build(
                     apiKey: "",
                     secrets: environment.secrets,
                     arguments: ["-UITestMode"]
-                ),
-                model: model
+                )
             )
             .environment(AuthStore(isSignedIn: true, biometrics: UnavailableBiometrics()))
             .environment(environment)
             .environment(settings)
+            .environment(profiles)
+            .environment(conversations)
         )
     }
 }

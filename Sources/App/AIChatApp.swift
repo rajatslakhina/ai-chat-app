@@ -66,6 +66,17 @@ struct AIChatAppMain: App {
     @State private var environment = AppEnvironment.forLaunch()
     @State private var auth = AuthStore.restored()
     @State private var settings = AppSettingsStore.forLaunch()
+    @State private var profiles: ProfileStore
+    @State private var conversations: ConversationStore
+
+    /// Both stores are built here rather than as property initializers because the conversation
+    /// store has to open the *active* profile's chats, and one `@State` cannot read another's
+    /// value while it is still being initialised.
+    init() {
+        let store = ProfileStore.forLaunch()
+        _profiles = State(initialValue: store)
+        _conversations = State(initialValue: ConversationStore.forLaunch(profiles: store))
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -73,6 +84,8 @@ struct AIChatAppMain: App {
                 .environment(environment)
                 .environment(auth)
                 .environment(settings)
+                .environment(profiles)
+                .environment(conversations)
         }
     }
 }
@@ -94,8 +107,9 @@ struct RootView: View {
     @Environment(AppEnvironment.self) private var environment
     @Environment(AuthStore.self) private var auth
     @Environment(AppSettingsStore.self) private var settings
+    @Environment(ProfileStore.self) private var profiles
+    @Environment(ConversationStore.self) private var conversations
     @State private var composition: Composition?
-    @State private var model: ChatViewModel?
 
     /// What a rebuild depends on. Signing out and back in, or replacing the key, both invalidate
     /// the whole graph — the provider captured the old credential when it was constructed.
@@ -109,8 +123,8 @@ struct RootView: View {
             if !auth.isSignedIn {
                 LoginView()
                     .transition(.opacity)
-            } else if let composition, let model {
-                ChatScaffold(composition: composition, model: model)
+            } else if let composition {
+                ChatScaffold(composition: composition)
                     .transition(.opacity)
             } else {
                 ProgressView("Starting…")
@@ -123,6 +137,13 @@ struct RootView: View {
         ) {
             guard auth.isSignedIn else { return }
             await start()
+        }
+        // Switching profile swaps two things that must move together: whose chats are listed, and
+        // whose settings the graph is running on. Doing only the first would show one person's
+        // threads answered with another person's model and budget.
+        .task(id: profiles.activeID) {
+            conversations.load(profileID: profiles.activeID)
+            settings.switchProfile(to: profiles.activeID)
         }
     }
 
@@ -145,13 +166,6 @@ struct RootView: View {
             onSettled: Self.spendRecorder(for: settings)
         )
         composition = built
-        model = ChatViewModel(
-            pipeline: built.pipeline,
-            executor: built.executor,
-            review: built.review,
-            metadata: built.metadata,
-            tools: built.tools
-        )
         // The saved settings reach the actors before the first send, not on the first change: a
         // graph built from defaults would answer one turn with the wrong model and the wrong
         // temperature, and the user would have no way to know it had happened.
@@ -159,5 +173,34 @@ struct RootView: View {
         // Prices land after the UI is up. Until they do, costs read as "not reported" rather than
         // as a confident zero.
         await built.installPricing()
+    }
+}
+
+extension ProfileStore {
+    /// A UI-test launch keeps its profiles in memory, for the same reason its settings and its
+    /// Keychain are: a run that inherited the previous run's profile passes here and fails on the
+    /// next machine.
+    static func forLaunch(
+        arguments: [String] = ProcessInfo.processInfo.arguments
+    ) -> ProfileStore {
+        guard arguments.contains("-UITestMode") else { return ProfileStore() }
+        return ProfileStore(persistence: InMemoryProfiles())
+    }
+}
+
+extension ConversationStore {
+    /// Built against the profile that is already active, so the first frame lists the right chats
+    /// rather than an empty list that fills in a moment later.
+    static func forLaunch(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        profiles: ProfileStore
+    ) -> ConversationStore {
+        guard arguments.contains("-UITestMode") else {
+            return ConversationStore(profileID: profiles.activeID)
+        }
+        return ConversationStore(
+            profileID: profiles.activeID,
+            persistence: InMemoryConversations()
+        )
     }
 }

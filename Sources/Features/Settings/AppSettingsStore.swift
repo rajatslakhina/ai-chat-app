@@ -24,20 +24,39 @@ protocol SettingsPersisting: Sendable {
 }
 
 struct UserDefaultsSettings: SettingsPersisting {
-    static let key = "settings.v1"
+    /// The key every build before profiles wrote to. Still read, once, so an existing user's
+    /// model, budget and temperature survive the upgrade instead of silently resetting.
+    static let legacyKey = "settings.v1"
+
+    static func key(profileID: UUID?) -> String {
+        guard let profileID else { return legacyKey }
+        return "\(legacyKey).\(profileID.uuidString)"
+    }
 
     /// `UserDefaults` is documented as thread-safe but is not annotated `Sendable`, so the
     /// compiler cannot see that. The alternative — storing a suite name and re-resolving on every
     /// read — trades a real allocation on each access for a promise the platform already makes.
     nonisolated(unsafe) let defaults: UserDefaults
+    let profileID: UUID?
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, profileID: UUID? = nil) {
         self.defaults = defaults
+        self.profileID = profileID
     }
 
-    func loadSettings() -> Data? { defaults.data(forKey: Self.key) }
+    /// Falls back to the pre-profile blob exactly once — on a scoped key that has never been
+    /// written. After the first save the scoped key exists and the legacy one is never consulted
+    /// again, so two profiles cannot both inherit it and then diverge from a shared ancestor.
+    func loadSettings() -> Data? {
+        let scoped = Self.key(profileID: profileID)
+        if let data = defaults.data(forKey: scoped) { return data }
+        guard profileID != nil else { return nil }
+        return defaults.data(forKey: Self.legacyKey)
+    }
 
-    func saveSettings(_ data: Data) { defaults.set(data, forKey: Self.key) }
+    func saveSettings(_ data: Data) {
+        defaults.set(data, forKey: Self.key(profileID: profileID))
+    }
 }
 
 /// Settings that vanish with the process. Used under `-UITestMode`, for the same reason
@@ -133,7 +152,7 @@ private struct PersistedSettings: Codable {
 final class AppSettingsStore {
     private(set) var snapshot: SettingsSnapshot
 
-    private let persistence: any SettingsPersisting
+    private var persistence: any SettingsPersisting
     private let clock: @Sendable () -> Date
     private var target: (any SettingsApplying)?
     /// The tail of the apply chain. Settings changes are applied strictly in the order they were
@@ -249,6 +268,34 @@ final class AppSettingsStore {
     private func persist() {
         guard let data = try? JSONEncoder().encode(PersistedSettings(snapshot)) else { return }
         persistence.saveSettings(data)
+    }
+
+    /// Points the store at another profile's settings and pushes them into the graph.
+    ///
+    /// The whole snapshot is replaced rather than merged: these are a different person's choices,
+    /// and merging would carry one profile's model or budget into another's.
+    func switchProfile(to profileID: UUID, defaults: UserDefaults = .standard) {
+        let scoped = UserDefaultsSettings(defaults: defaults, profileID: profileID)
+        reload(persistence: scoped)
+    }
+
+    /// Swaps the backing store and reloads. Not private so a test can drive it without
+    /// `UserDefaults`.
+    func reload(persistence newPersistence: any SettingsPersisting) {
+        persistence = newPersistence
+        let month = MonthlyBudget.now(clock())
+        guard let data = newPersistence.loadSettings(),
+              let decoded = try? JSONDecoder().decode(PersistedSettings.self, from: data) else {
+            snapshot = SettingsSnapshot(
+                pipeline: PipelineSettings(),
+                turn: TurnSettings(),
+                budget: MonthlyBudget(month: month)
+            )
+            schedule(snapshot)
+            return
+        }
+        snapshot = decoded.snapshot(month: month)
+        schedule(snapshot)
     }
 
     private func schedule(_ value: SettingsSnapshot) {

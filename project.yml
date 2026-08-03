@@ -102,6 +102,9 @@ packages:
   WorkloadProfilerKit:
     url: https://github.com/rajatslakhina/workload-profiler-kit
     from: 1.0.0
+  ClaimConsistencyKit:
+    url: https://github.com/rajatslakhina/claim-consistency-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -194,6 +197,8 @@ targets:
         product: CostEstimatorKit
       - package: WorkloadProfilerKit
         product: WorkloadProfilerKit
+      - package: ClaimConsistencyKit
+        product: ClaimConsistencyKit
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

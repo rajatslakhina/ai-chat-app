@@ -36,6 +36,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case outputRepair
     case schemaMigration
     case grounding
+    /// Whether each grounded claim actually *agrees* with the passage it matched.
+    case claimConsistency
 
     // Acting on the answer
     case toolAuthority
@@ -77,6 +79,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .outputRepair: return "OutputRepairKit"
         case .schemaMigration: return "SchemaMigrationKit"
         case .grounding: return "GroundingKit"
+        case .claimConsistency: return "ClaimConsistencyKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -111,6 +114,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .outputRepair: return "Output repair"
         case .schemaMigration: return "Schema migration"
         case .grounding: return "Grounding"
+        case .claimConsistency: return "Claim consistency"
         case .toolAuthority: return "Tool authority"
         case .toolDispatch: return "Tool dispatch"
         case .agentLoop: return "Agent loop"

@@ -158,3 +158,100 @@ struct TracingStageTests {
         }
     }
 }
+
+@Suite("Post-model — claim consistency")
+struct ClaimConsistencyStageTests {
+    /// The case grounding structurally cannot reach: no negation, no differing numeral, and the
+    /// answer still says the opposite of the passage it was drawn from.
+    @Test("a quantifier widened past the source refuses instead of publishing")
+    func widenedQuantifierRefuses() async throws {
+        let (review, trace) = await run(
+            makeReview(),
+            answer: "All providers expose a token counting endpoint.",
+            sources: [source(text: "Some providers expose a token counting endpoint.")]
+        )
+
+        let refusal = try #require(review.refusal)
+        #expect(refusal.stage == .claimConsistency)
+        #expect(refusal.headline == "Answer contradicts its own sources")
+        #expect(refusal.explanation.contains("quantifier"))
+        #expect(refusal.recoveryTitle == "Try again")
+        #expect(review.publishableText.isEmpty, "a contradicted answer must not reach the screen")
+        #expect(trace.outcome(for: .claimConsistency)?.isRefusal == true)
+        #expect(trace.refusal == refusal, "the refusal has to survive the trace to reach the UI")
+    }
+
+    @Test("one member of a mutually exclusive pair swapped for the other refuses")
+    func swappedExclusiveValueRefuses() async throws {
+        let (review, _) = await run(
+            makeReview(),
+            answer: "Background refresh is disabled on watchOS.",
+            sources: [source(text: "Background refresh is enabled on watchOS.")]
+        )
+        let refusal = try #require(review.refusal)
+        #expect(refusal.explanation.contains("disabled"))
+        #expect(refusal.explanation.contains("enabled"))
+    }
+
+    /// Grounding compares numeric terms as written, so it reads this as a conflict. It is a
+    /// satisfied bound, and publishing a refusal for it would be a false alarm.
+    @Test("a satisfied bound is agreement, not a contradiction")
+    func satisfiedBoundIsNotAContradiction() async {
+        let (review, trace) = await run(
+            makeReview(),
+            answer: "The client retries 5 times before failing.",
+            sources: [source(text: "The client retries at least 3 times before failing.")]
+        )
+        #expect(review.refusal == nil)
+        #expect(trace.outcome(for: .claimConsistency)?.summary.contains("positively agree") == true)
+    }
+
+    /// Absence of contradiction is not agreement, and the trace has to say which one it was.
+    @Test("claims with nothing checkable in them record a no-op, not a pass")
+    func unreadableClaimsAreNotAPass() async {
+        let (review, trace) = await run(
+            makeReview(),
+            answer: "The router prefers whichever provider costs least.",
+            sources: [source(text: "Routing selects a provider by cost and capability.")]
+        )
+        #expect(review.refusal == nil)
+        #expect(trace.outcome(for: .claimConsistency)?.summary.contains("nothing") == false)
+        let summary = trace.outcome(for: .claimConsistency)?.summary ?? ""
+        #expect(summary.contains("no negation, number, quantifier or version"))
+    }
+
+    /// A checker that cannot run must not imply the answer was checked and found consistent.
+    @Test("a source with no text is reported as a failure, not as agreement")
+    func emptySourceIsAFailure() async {
+        let (review, trace) = await run(
+            makeReview(),
+            answer: "All providers expose a token counting endpoint.",
+            sources: [source(text: "")]
+        )
+        #expect(review.refusal == nil)
+        #expect(trace.outcome(for: .claimConsistency)?.isFailure == true)
+    }
+
+    @Test("with no sources the stage is skipped rather than silently passing")
+    func noSourcesIsSkipped() async {
+        let (_, trace) = await run(makeReview(), answer: "Paris is the capital of France.")
+        #expect(trace.outcome(for: .claimConsistency)?.summary.contains("nothing was grounded") == true)
+    }
+
+    /// A pipeline built without a checker must say so. A stage that quietly did not run reads
+    /// exactly like a stage that ran and found nothing.
+    @Test("an unconfigured checker records skipped rather than nothing at all")
+    func unconfiguredCheckerIsVisible() async {
+        let pipeline = PostModelPipeline(
+            guardrail: GuardrailPipeline(policy: GuardrailPolicy()),
+            consistencyChecker: nil
+        )
+        let (review, trace) = await run(
+            pipeline,
+            answer: "All providers expose a token counting endpoint.",
+            sources: [source(text: "Some providers expose a token counting endpoint.")]
+        )
+        #expect(review.refusal == nil)
+        #expect(trace.outcome(for: .claimConsistency)?.summary == "no consistency checker configured")
+    }
+}

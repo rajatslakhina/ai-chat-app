@@ -1,3 +1,4 @@
+import ClaimConsistencyKit
 import Foundation
 import GroundingKit
 import GuardrailKit
@@ -26,6 +27,10 @@ struct AnswerReview: Sendable, Equatable {
 actor PostModelPipeline {
     private let guardrail: GuardrailPipeline
     private let verifier: GroundingVerifier
+    /// Optional so a caller can build a pipeline without this stage. It is never silently
+    /// absent: an unconfigured checker records `.skipped`, because a stage that quietly did
+    /// not run reads exactly like a stage that ran and found nothing.
+    private let consistencyChecker: ConsistencyChecker?
     private let tracer: Tracer
     private var tick = 0
     /// Spans this pipeline has closed. Counted here rather than read back from `Tracer`, whose
@@ -35,10 +40,12 @@ actor PostModelPipeline {
     init(
         guardrail: GuardrailPipeline,
         verifier: GroundingVerifier = GroundingVerifier(),
+        consistencyChecker: ConsistencyChecker? = try? ConsistencyChecker(),
         tracer: Tracer = Tracer()
     ) {
         self.guardrail = guardrail
         self.verifier = verifier
+        self.consistencyChecker = consistencyChecker
         self.tracer = tracer
     }
 
@@ -83,29 +90,52 @@ actor PostModelPipeline {
             )
         }
 
-        // 2. Grounding — only meaningful when there were sources to check against.
-        var fraction: Double?
-        var claims = 0
-        if sources.isEmpty {
-            trace.record(.grounding, .skipped(reason: "no retrieved sources to verify against"))
-        } else {
-            let outcome = await verify(text: text, sources: sources, trace: &trace)
-            fraction = outcome.fraction
-            claims = outcome.claims
-            if let stripped = outcome.text, stripped != text {
-                text = stripped
-                modified = true
-            }
+        // 2. Grounding, then whether the grounded claims actually agree with what they matched.
+        let outcome = await ground(text: text, sources: sources, trace: &trace)
+        if let stripped = outcome.text, stripped != text {
+            text = stripped
+            modified = true
+        }
+        // A refusal here outranks the answer: the text exists and is wrong about its own
+        // sources, so publishing it with a warning would still put it on screen as prose.
+        if let refusal = outcome.refusal {
+            await close(spanID, status: .error(refusal.explanation), trace: &trace)
+            return AnswerReview(
+                publishableText: "",
+                wasModified: true,
+                groundedFraction: outcome.fraction,
+                claimCount: outcome.claims,
+                refusal: refusal
+            )
         }
 
         await close(spanID, status: .ok, trace: &trace)
         return AnswerReview(
             publishableText: text,
             wasModified: modified,
-            groundedFraction: fraction,
-            claimCount: claims,
+            groundedFraction: outcome.fraction,
+            claimCount: outcome.claims,
             refusal: nil
         )
+    }
+
+    /// Grounding is only meaningful when there were sources to check against.
+    ///
+    /// An answer with no sources is not "ungrounded", it is unchecked, and reporting 0% grounded
+    /// would be a claim the app cannot support. Both stages say so explicitly rather than being
+    /// absent from the trace, because an absent stage and a stage that found nothing look the
+    /// same to a reader of Diagnostics.
+    private func ground(
+        text: String,
+        sources: [RetrievedSource],
+        trace: inout PipelineTrace
+    ) async -> VerifyOutcome {
+        guard !sources.isEmpty else {
+            trace.record(.grounding, .skipped(reason: "no retrieved sources to verify against"))
+            trace.record(.claimConsistency, .skipped(reason: "nothing was grounded, so nothing to compare"))
+            return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
+        }
+        return await verify(text: text, sources: sources, trace: &trace)
     }
 
     private enum ScreenOutcome {
@@ -154,6 +184,86 @@ actor PostModelPipeline {
         var text: String?
         var fraction: Double?
         var claims: Int
+        var refusal: Refusal?
+    }
+
+    /// Asks whether each claim *agrees* with the passage grounding matched it to.
+    ///
+    /// Grounding scores overlap and, above a threshold, checks polarity and quantity. That leaves
+    /// a real gap: a claim that widens "some" to "all", swaps one member of a mutually exclusive
+    /// pair for another, or names a different version carries neither a negation nor a differing
+    /// numeral, so an overlap score cannot see it. Those answers reach the user reading as
+    /// verified, which is worse than reaching them unverified.
+    ///
+    /// The pairs are grounding's own — re-matching here would answer a question the pipeline
+    /// never asked. Nothing is re-retrieved and no model is called; every finding comes from
+    /// reading two sentences, so this stage cannot fail for a network reason.
+    ///
+    /// A contradiction refuses. An answer that states the opposite of the app's own retrieved
+    /// source is not worth annotating and showing, and the recovery is a regeneration: the
+    /// contradiction is in this answer, not in the question.
+    private func checkConsistency(
+        of report: GroundingReport,
+        against evidence: EvidenceSet,
+        trace: inout PipelineTrace
+    ) async -> Refusal? {
+        let pairs: [ClaimPair] = report.verdicts.compactMap { verdict in
+            guard let document = evidence.document(verdict.support.sourceID) else { return nil }
+            return ClaimPair(
+                claim: ClaimConsistencyKit.Claim(id: verdict.claim.id, text: verdict.claim.text),
+                passage: SourcePassage(id: document.id.rawValue, text: document.text)
+            )
+        }
+        guard let consistencyChecker else {
+            trace.record(.claimConsistency, .skipped(reason: "no consistency checker configured"))
+            return nil
+        }
+        // No `pairs.isEmpty` guard: grounding always returns at least one verdict for a
+        // non-blank answer, so the empty case is unreachable from here. If it ever became
+        // reachable the checker refuses it by name, and the catch below reports that rather
+        // than a branch nothing can execute.
+        do {
+            let consistency = try await consistencyChecker.check(pairs, policy: .standard, at: nextTick())
+            let contradicted = consistency.count(of: .contradicts)
+            guard contradicted > 0 else {
+                return recordAgreement(consistency, pairs: pairs.count, trace: &trace)
+            }
+            let detail = consistency.contradictions.map(\.summary).prefix(2).joined(separator: "; ")
+            let refusal = Refusal(
+                stage: .claimConsistency,
+                headline: "Answer contradicts its own sources",
+                explanation: "\(contradicted) of \(pairs.count) statement(s) disagree with the passage "
+                    + "they were drawn from — \(detail).",
+                recovery: .retryLater(after: nil)
+            )
+            trace.record(.claimConsistency, .refused(refusal))
+            return refusal
+        } catch {
+            trace.record(.claimConsistency, .failed(message: "\(error)"))
+            return nil
+        }
+    }
+
+    /// Absence of contradiction is not agreement, and the trace says which one it was. Reporting
+    /// "no rule could read these claims" as a pass is how a check becomes decoration.
+    private func recordAgreement(
+        _ consistency: ConsistencyReport,
+        pairs: Int,
+        trace: inout PipelineTrace
+    ) -> Refusal? {
+        let agreed = consistency.count(of: .agrees)
+        guard agreed > 0 else {
+            trace.record(
+                .claimConsistency,
+                .noOp(reason: "no negation, number, quantifier or version to check in \(pairs) claim(s)")
+            )
+            return nil
+        }
+        trace.record(
+            .claimConsistency,
+            .ran(detail: "\(agreed) of \(pairs) claim(s) positively agree with their source")
+        )
+        return nil
     }
 
     private func verify(
@@ -184,15 +294,18 @@ actor PostModelPipeline {
                 .grounding,
                 .ran(detail: "\(supported) of \(total) claim(s) supported by a source")
             )
+            let refusal = await checkConsistency(of: report, against: evidence, trace: &trace)
             return VerifyOutcome(
                 text: report.decision.publishableAnswer(),
                 fraction: grounded,
-                claims: total
+                claims: total,
+                refusal: refusal
             )
         } catch {
             // A verifier that cannot run must not silently imply the answer was checked.
             trace.record(.grounding, .failed(message: "\(error)"))
-            return VerifyOutcome(text: nil, fraction: nil, claims: 0)
+            trace.record(.claimConsistency, .skipped(reason: "grounding produced no claim/source pairs"))
+            return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
         }
     }
 }

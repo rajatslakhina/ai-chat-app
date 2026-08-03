@@ -17,13 +17,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **583 passing**, 114 suites |
-| UI tests (XCUITest) | **6 passing, 6 failing** — see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 50 files |
-| Line coverage | **92.62%** — 8351/9016, unit tests only |
+| Unit + integration tests | **590 passing**, 115 suites |
+| UI tests (XCUITest) | **red on this machine** — 46 failures across 24 tests, reproduced with all app changes stashed, so it predates them; see [Remaining work](#remaining-work) |
+| `swiftlint --strict` | **0 violations**, 60 files |
+| Line coverage | **92.77%** — 8542/9208, unit tests only. `PostModelPipeline.swift` and `PipelineStage.swift`, the two files this change touches, are at **100.00%** |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 27 packages do real work in the app.** 26 of them run in the send path and own a pipeline
+**All 28 packages do real work in the app.** 27 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. 48 lines remain uncovered; see [Coverage](#coverage).
 
@@ -185,6 +185,24 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A stage that can refuse must be proven to refuse *through the trace*, not just to return a
+  refusal.** `ProviderEffectExecutor` once dropped `resolution.refusal` on the floor, so a turn
+  stopped in silence. `claimConsistency` is asserted both ways: the review carries the refusal
+  *and* `trace.refusal` finds it, because the second is what actually reaches the banner.
+
+- **Before blaming your own change for a red suite, stash it and re-run.** The 46 UI-test
+  failures found this session looked like a regression from wiring in a new pipeline stage.
+  Stashing every source change, regenerating the project and running the same `SettingsUITests`
+  class reproduced 25 failures identically — the change was not the cause, and an hour of
+  bisecting the wrong thing was avoided by one ten-minute control run.
+
+- **Delete the defensive branch you cannot reach rather than testing around it.** A
+  `guard !pairs.isEmpty` in the consistency stage looked prudent and was dead: grounding always
+  returns at least one verdict for a non-blank answer. Two attempts to reach it (a citation-only
+  fragment, an unsegmentable answer) both produced a claim anyway. The checker already refuses
+  empty input by name, so the guard went — unreachable code that looks like a safety net is worse
+  than none, because it reports as covered risk.
 
 Things that cost real debugging and are not obvious from any documentation.
 
@@ -350,7 +368,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 27 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 28 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

@@ -109,7 +109,12 @@ actor PreModelPipeline {
         }
 
         let memoryBlock = await recallMemory(for: outbound, trace: &trace)
-        let (sources, retrievalBlock) = await retrievePassages(for: outbound, trace: &trace)
+        let sources: [RetrievedSource]
+        let retrievalBlock: String
+        switch await retrievePassages(for: outbound, trace: &trace) {
+        case let .refused(refusal): return .refused(refusal)
+        case let .passages(found, block): (sources, retrievalBlock) = (found, block)
+        }
 
         let assembled = assemble(
             systemPrompt: systemPrompt,
@@ -292,10 +297,11 @@ extension PreModelPipeline {
     private func retrievePassages(
         for outbound: String,
         trace: inout PipelineTrace
-    ) async -> ([RetrievedSource], String) {
+    ) async -> RetrievalResult {
         guard settings.retrievalEnabled else {
             trace.record(.retrieval, .skipped(reason: "retrieval disabled in Settings"))
-            return ([], "")
+            trace.record(.sourceConflict, .skipped(reason: "retrieval disabled in Settings"))
+            return .passages([], "")
         }
         var dense: [ScoredChunk] = []
         do {
@@ -311,8 +317,18 @@ extension PreModelPipeline {
 
         let lexicalHits = await lexicalRanking(for: outbound, trace: &trace)
         let fused = fuseRankings(dense: dense, lexical: lexicalHits, trace: &trace)
-        guard !fused.isEmpty else { return ([], "") }
-        return (fused, fused.map(\.snippet).joined(separator: "\n---\n"))
+        guard !fused.isEmpty else {
+            trace.record(.sourceConflict, .noOp(reason: "nothing was retrieved to compare"))
+            return .passages([], "")
+        }
+
+        switch await auditSourceConflicts(fused, for: outbound, trace: &trace) {
+        case let .refused(refusal):
+            return .refused(refusal)
+        case let .admitted(admitted):
+            guard !admitted.isEmpty else { return .passages([], "") }
+            return .passages(admitted, admitted.map(\.snippet).joined(separator: "\n---\n"))
+        }
     }
 
     /// The lexical half. Absent when no index was composed, which stays a legitimate configuration.

@@ -17,13 +17,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **590 passing**, 115 suites |
-| UI tests (XCUITest) | **red on this machine** — 46 failures across 24 tests, reproduced with all app changes stashed, so it predates them; see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 60 files |
-| Line coverage | **92.77%** — 8542/9208, unit tests only. `PostModelPipeline.swift` and `PipelineStage.swift`, the two files this change touches, are at **100.00%** |
+| Unit + integration tests | **601 passing**, 116 suites |
+| UI tests (XCUITest) | **red on this machine, and worse than last recorded** — failures now span `SettingsUITests`, `DiagnosticsUITests` and `ModelPickerUITests`, all with the same signature: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
+| `swiftlint --strict` | **0 violations**, 61 files |
+| Line coverage | **92.84%** — 8644/9311, unit tests only, up from 92.77%. `PipelineStage.swift` is at **100.00%**; the code added this change has no uncovered lines |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 28 packages do real work in the app.** 27 of them run in the send path and own a pipeline
+**All 29 packages do real work in the app.** 28 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. 48 lines remain uncovered; see [Coverage](#coverage).
 
@@ -185,6 +185,24 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **An iCloud-synced checkout grows `<name> 2.swift` duplicates, and XcodeGen will happily compile
+  them.** Five untracked sync-conflict copies (`PipelineStage 2.swift`, `PostModelPipeline 2.swift`,
+  two test files, `project 2.yml`) were globbed into the target and failed the build with
+  `invalid redeclaration of 'PipelineStage'`. They were stale — all five predated a case committed
+  the day before — but nothing in the error says so. Check `git status` for `?? "... 2.swift"`
+  before believing a redeclaration error is about your own change.
+
+- **A tuple return cannot grow a third outcome.** `retrievePassages` returned
+  `([RetrievedSource], String)` — passages or none. Adding a stage that can conclude *the passages
+  contradict each other* had no room in that shape, and the tempting fix is to return no passages
+  and let the turn proceed unexplained. It returns a `RetrievalResult` enum instead, so the refusal
+  reaches `prepare` rather than being flattened into silence.
+
+- **A verification stage should fail open, and a refusing stage should fail closed. They are not
+  the same stage.** `sourceConflict` refuses when the sources genuinely disagree, but records
+  `.failed` and admits the passages when the audit itself breaks on malformed input. An audit that
+  takes the turn down when *it* is broken is a new failure mode, not a safety feature.
 
 - **A stage that can refuse must be proven to refuse *through the trace*, not just to return a
   refusal.** `ProviderEffectExecutor` once dropped `resolution.refusal` on the floor, so a turn
@@ -368,7 +386,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 28 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 29 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

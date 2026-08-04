@@ -105,6 +105,9 @@ packages:
   ClaimConsistencyKit:
     url: https://github.com/rajatslakhina/claim-consistency-kit
     from: 1.0.0
+  SourceConflictKit:
+    url: https://github.com/rajatslakhina/source-conflict-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -199,6 +202,8 @@ targets:
         product: WorkloadProfilerKit
       - package: ClaimConsistencyKit
         product: ClaimConsistencyKit
+      - package: SourceConflictKit
+        product: SourceConflictKit
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

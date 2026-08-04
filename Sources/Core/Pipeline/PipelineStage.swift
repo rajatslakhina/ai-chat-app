@@ -18,6 +18,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// The lexical half of retrieval, and the fusion that reconciles it with the dense half.
     case lexicalRetrieval
     case rankFusion
+    /// Whether the passages that survived fusion agree with each other.
+    case sourceConflict
     case contextCompaction
 
     // Deciding whether the turn is allowed to happen at all
@@ -80,6 +82,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .schemaMigration: return "SchemaMigrationKit"
         case .grounding: return "GroundingKit"
         case .claimConsistency: return "ClaimConsistencyKit"
+        case .sourceConflict: return "SourceConflictKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -115,6 +118,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .schemaMigration: return "Schema migration"
         case .grounding: return "Grounding"
         case .claimConsistency: return "Claim consistency"
+        case .sourceConflict: return "Source conflict"
         case .toolAuthority: return "Tool authority"
         case .toolDispatch: return "Tool dispatch"
         case .agentLoop: return "Agent loop"

@@ -204,6 +204,14 @@ Three properties are load-bearing, and each has a test:
   `.failed` and admits the passages when the audit itself breaks on malformed input. An audit that
   takes the turn down when *it* is broken is a new failure mode, not a safety feature.
 
+- **The coverage number needs the real `Secrets.xcconfig`, so a fresh clone reads lower and it is
+  not a regression.** A clean clone carries only `Secrets.example.xcconfig`, and `coverage.sh`
+  against it reports **91.17%** over the same 9311 executable lines — 155 fewer covered than the
+  92.84% recorded below. All 601 tests still pass either way. The gap is the provider paths: with
+  a placeholder key those tests take their error branches, so the success branches never execute.
+  Verifying a fresh clone is still worth doing, but compare its coverage against another
+  fresh-clone run, never against the figure measured here.
+
 - **A stage that can refuse must be proven to refuse *through the trace*, not just to return a
   refusal.** `ProviderEffectExecutor` once dropped `resolution.refusal` on the floor, so a turn
   stopped in silence. `claimConsistency` is asserted both ways: the review carries the refusal

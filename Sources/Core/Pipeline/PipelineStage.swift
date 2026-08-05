@@ -38,6 +38,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case outputRepair
     case schemaMigration
     case grounding
+    /// Deciding what a claim *is*, before anything judges one.
+    case claimSegmentation
     /// Whether each grounded claim actually *agrees* with the passage it matched.
     case claimConsistency
 
@@ -81,6 +83,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .outputRepair: return "OutputRepairKit"
         case .schemaMigration: return "SchemaMigrationKit"
         case .grounding: return "GroundingKit"
+        case .claimSegmentation: return "ClaimSegmenterKit"
         case .claimConsistency: return "ClaimConsistencyKit"
         case .sourceConflict: return "SourceConflictKit"
         case .toolAuthority: return "ToolAuthorityKit"
@@ -117,6 +120,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .outputRepair: return "Output repair"
         case .schemaMigration: return "Schema migration"
         case .grounding: return "Grounding"
+        case .claimSegmentation: return "Claim segmentation"
         case .claimConsistency: return "Claim consistency"
         case .sourceConflict: return "Source conflict"
         case .toolAuthority: return "Tool authority"

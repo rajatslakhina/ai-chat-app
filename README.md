@@ -17,15 +17,15 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **601 passing**, 116 suites |
+| Unit + integration tests | **609 passing**, 117 suites |
 | UI tests (XCUITest) | **red on this machine, and worse than last recorded** — failures now span `SettingsUITests`, `DiagnosticsUITests` and `ModelPickerUITests`, all with the same signature: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 61 files |
-| Line coverage | **92.84%** — 8644/9311, unit tests only, up from 92.77%. `PipelineStage.swift` is at **100.00%**; the code added this change has no uncovered lines |
+| `swiftlint --strict` | **0 violations**, 62 files |
+| Line coverage | **92.89%** — 8713/9380, unit tests only, up from 92.84%. `PipelineStage.swift`, `PostModelPipeline.swift` and `ClaimSegmenterBridge.swift` are all at **100.00%**; the code added this change has no uncovered lines |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 29 packages do real work in the app.** 28 of them run in the send path and own a pipeline
+**All 30 packages do real work in the app.** 29 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
-`Tests/`. 48 lines remain uncovered; see [Coverage](#coverage).
+`Tests/`. See [Coverage](#coverage).
 
 ---
 
@@ -212,6 +212,33 @@ Three properties are load-bearing, and each has a test:
   Verifying a fresh clone is still worth doing, but compare its coverage against another
   fresh-clone run, never against the figure measured here.
 
+- **A stage that cannot refuse should say so out loud, not leave the gap unexplained.**
+  `claimSegmentation` decides where a claim ends. That is not a policy question — it has no opinion
+  about whether the answer is any good — so it records `.ran` or `.noOp` and never `.refused`. The
+  refusals this turn can raise belong to grounding and consistency; this stage only changes what
+  they are looking at. Written down because "no refusal path" and "refusal path forgotten" look
+  identical in a diff.
+
+- **An empty claim list makes a verifier report a clean sweep over nothing.** When
+  `ClaimSegmenterKit` finds nothing checkable, the obvious bridge returns `[]` — and
+  `GroundingVerifier` then produces a report with no verdicts, no violations, and a decision that
+  reads as accepted. An answer nobody checked, published as if it were verified. The bridge falls
+  back to `SentenceClaimSegmenter` instead. Standing aside to a coarser check loses granularity;
+  standing aside to nothing loses the check.
+
+- **Finer claims are matched worse, not better, by a lexical scorer.** Splitting
+  `The client is capped at two retries, and streaming is enabled by default` isolates the false
+  half — and then grounding scores `Streaming is enabled by default` against the *cache* document,
+  because `is enabled by default` overlaps it more than the streaming source the clause actually
+  cited. The smaller a claim gets, the more of its wording it shares with a near neighbour.
+  Isolating the clause was necessary and was not sufficient; the fix belongs to the scorer, not the
+  segmenter.
+
+- **The stage-table test asserts a count as well as a set.** Adding `ClaimSegmenterKit` to the
+  `expected` set left `#expect(expected.count == 29)` untouched and the suite went red on a literal
+  rather than on the mapping. That is the reminder working — but read the whole test, not just the
+  list.
+
 - **A stage that can refuse must be proven to refuse *through the trace*, not just to return a
   refusal.** `ProviderEffectExecutor` once dropped `resolution.refusal` on the floor, so a turn
   stopped in silence. `claimConsistency` is asserted both ways: the review carries the refusal
@@ -394,7 +421,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 29 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 30 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

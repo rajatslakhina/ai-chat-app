@@ -1,4 +1,5 @@
 import ClaimConsistencyKit
+import ClaimSegmenterKit
 import Foundation
 import GroundingKit
 import GuardrailKit
@@ -39,7 +40,7 @@ actor PostModelPipeline {
 
     init(
         guardrail: GuardrailPipeline,
-        verifier: GroundingVerifier = GroundingVerifier(),
+        verifier: GroundingVerifier = GroundingVerifier(segmenter: ClaimSegmenterBridge()),
         consistencyChecker: ConsistencyChecker? = try? ConsistencyChecker(),
         tracer: Tracer = Tracer()
     ) {
@@ -132,6 +133,10 @@ actor PostModelPipeline {
     ) async -> VerifyOutcome {
         guard !sources.isEmpty else {
             trace.record(.grounding, .skipped(reason: "no retrieved sources to verify against"))
+            trace.record(
+                .claimSegmentation,
+                .skipped(reason: "nothing to verify against, so cutting the answer up buys nothing")
+            )
             trace.record(.claimConsistency, .skipped(reason: "nothing was grounded, so nothing to compare"))
             return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
         }
@@ -287,6 +292,7 @@ actor PostModelPipeline {
                 policy: policy,
                 at: nextTick()
             )
+            recordSegmentation(of: text, trace: &trace)
             let grounded = report.groundedFraction()
             let total = report.claimCount()
             let supported = Int((grounded * Double(total)).rounded())
@@ -304,8 +310,41 @@ actor PostModelPipeline {
         } catch {
             // A verifier that cannot run must not silently imply the answer was checked.
             trace.record(.grounding, .failed(message: "\(error)"))
+            trace.record(.claimSegmentation, .skipped(reason: "grounding never ran, so nothing was cut"))
             trace.record(.claimConsistency, .skipped(reason: "grounding produced no claim/source pairs"))
             return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
         }
+    }
+
+    /// Records what the segmenter did to this answer.
+    ///
+    /// The work is repeated rather than threaded out of `ClaimSegmenterBridge`: segmentation is a
+    /// pure function of the text and the policy, so the two passes cannot disagree, and one extra
+    /// walk over a chat reply is not a cost worth an escape hatch through a `Sendable` protocol
+    /// method that has nowhere to put one.
+    ///
+    /// This stage has no refusal, and that is deliberate rather than missing. Deciding where a
+    /// claim ends is not a policy question — it has no opinion about whether the answer is any
+    /// good. When it cannot improve on sentence boundaries it says so and grounding uses its own,
+    /// which is a `.noOp`, not a `.refused`. The refusals this turn can raise belong to grounding
+    /// and consistency, and this stage only changes what they are looking at.
+    private func recordSegmentation(of text: String, trace: inout PipelineTrace) {
+        guard let segmented = try? SynchronousClaimSegmenter().segment(text) else {
+            trace.record(
+                .claimSegmentation,
+                .noOp(reason: "no checkable claim; grounding used its own sentence segmenter")
+            )
+            return
+        }
+        let repaired = segmented.repairedClaims.count
+        let clauses = segmented.claims(of: .clause).count
+        var detail = "\(segmented.claims.count) claim(s), \(clauses) from split sentences"
+        if repaired > 0 {
+            detail += ", \(repaired) with a subject carried in"
+        }
+        if !segmented.refusedSplits.isEmpty {
+            detail += ", \(segmented.refusedSplits.count) split(s) refused"
+        }
+        trace.record(.claimSegmentation, .ran(detail: detail))
     }
 }

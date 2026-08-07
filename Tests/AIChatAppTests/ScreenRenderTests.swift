@@ -225,7 +225,10 @@ struct ScreenRenderTests {
 
     @Test("the chat scaffold renders with its toolbar and every destination")
     func scaffoldDestinations() async {
-        let model = await makeChatModel()
+        // Built and discarded on purpose: `ChatScaffold` composes its own view model, so this only
+        // proves the shared fixture still constructs under the environment below. Binding it to a
+        // name is a warning in a clean build; deleting the call would stop proving that.
+        _ = await makeChatModel()
         let settings = AppSettingsStore(persistence: InMemorySettings())
         let environment = AppEnvironment(
             secrets: AppSecrets(store: InMemoryKeychain(), info: [:], launchArguments: [])

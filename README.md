@@ -187,6 +187,12 @@ Three properties are load-bearing, and each has a test:
 
 ## What was learned the hard way
 
+- **An incremental build cannot verify "0 warnings" — only a clean one can.** Repeated runs against
+  a warm `-derivedDataPath` reported zero warnings for weeks while
+  `ScreenRenderTests.swift` carried an unused `let model`; the file was already compiled, so the
+  warning was never re-emitted. It surfaced the first time a fresh clone built from scratch. Verify
+  the warning gate against a clean DerivedData, or it is measuring the cache rather than the code.
+
 - **`git status` under-reports in this checkout, and `xcodebuild` will compile the version `git`
   could not see.** A test run reported two failures — a stage table missing `CitationBindingKit`
   and a no-op assertion that got `.ran` — against source that plainly already had both right.

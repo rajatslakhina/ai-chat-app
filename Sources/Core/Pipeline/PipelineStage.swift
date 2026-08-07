@@ -42,6 +42,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case claimSegmentation
     /// Whether each grounded claim actually *agrees* with the passage it matched.
     case claimConsistency
+    /// Whether each claim is supported by the document the answer *said* it came from.
+    case citationBinding
 
     // Acting on the answer
     case toolAuthority
@@ -85,6 +87,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .grounding: return "GroundingKit"
         case .claimSegmentation: return "ClaimSegmenterKit"
         case .claimConsistency: return "ClaimConsistencyKit"
+        case .citationBinding: return "CitationBindingKit"
         case .sourceConflict: return "SourceConflictKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
@@ -122,6 +125,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .grounding: return "Grounding"
         case .claimSegmentation: return "Claim segmentation"
         case .claimConsistency: return "Claim consistency"
+        case .citationBinding: return "Citation binding"
         case .sourceConflict: return "Source conflict"
         case .toolAuthority: return "Tool authority"
         case .toolDispatch: return "Tool dispatch"

@@ -17,13 +17,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **609 passing**, 117 suites |
-| UI tests (XCUITest) | **red on this machine, and worse than last recorded** — failures now span `SettingsUITests`, `DiagnosticsUITests` and `ModelPickerUITests`, all with the same signature: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 62 files |
-| Line coverage | **92.89%** — 8713/9380, unit tests only, up from 92.84%. `PipelineStage.swift`, `PostModelPipeline.swift` and `ClaimSegmenterBridge.swift` are all at **100.00%**; the code added this change has no uncovered lines |
+| Unit + integration tests | **618 passing**, 118 suites |
+| UI tests (XCUITest) | **still red on this machine** — 8 tests, 22 failures, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
+| `swiftlint --strict` | **0 violations**, 64 files |
+| Line coverage | **93.00%** — 8855/9522, unit tests only, up from 92.89%. `PipelineStage.swift`, `PostModelPipeline.swift`, `PostModelPipeline+CitationBinding.swift`, `PostModelPipeline+Consistency.swift` and `PreModelPipeline+Assembly.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — a full run including the UI suite reports **95.33%**, which is a different question |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 30 packages do real work in the app.** 29 of them run in the send path and own a pipeline
+**All 31 packages do real work in the app.** 30 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -185,6 +185,19 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A stage can be wired perfectly and still have nothing to do, because an earlier stage never
+  gave it anything to work with.** `citationBinding` checks that a claim is supported by the
+  document the answer *cited* — but retrieval was injecting passages joined by `---` with no
+  identifiers, and nothing in the prompt asked for a citation. `GroundingKit` parsed zero citations
+  from every answer, so the stage would have recorded an honest no-op forever and looked wired.
+  The fix was upstream: label each passage `[id]` and ask for inline citations. Before concluding a
+  package "cannot do useful work in this app", check whether the app is *capable* of producing its
+  input — an unverifiable attribution is indistinguishable from a correct one.
+
+- **Two `xcodebuild` runs sharing one `-derivedDataPath` will fight.** A superseded background test
+  run was still going when the next one started against `/tmp/aichatapp-coverage-dd`. Stop the old
+  task before starting the new one, or give the second run its own path.
 
 - **An iCloud-synced checkout grows `<name> 2.swift` duplicates, and XcodeGen will happily compile
   them.** Five untracked sync-conflict copies (`PipelineStage 2.swift`, `PostModelPipeline 2.swift`,
@@ -421,7 +434,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 30 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 31 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

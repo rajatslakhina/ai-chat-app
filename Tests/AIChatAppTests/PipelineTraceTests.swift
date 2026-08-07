@@ -32,9 +32,9 @@ struct PipelineStageTests {
             "RealtimeSessionKit", "IdempotencyKit", "SchemaMigrationKit", "ToolAuthorityKit",
             "GroundingKit", "QuotaGovernorKit", "CostEstimatorKit", "WorkloadProfilerKit",
             "SpotlightRAGKit", "EvalHarness", "ClaimConsistencyKit", "SourceConflictKit",
-            "ClaimSegmenterKit"
+            "ClaimSegmenterKit", "CitationBindingKit"
         ]
-        #expect(expected.count == 30)
+        #expect(expected.count == 31)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")

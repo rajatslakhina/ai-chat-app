@@ -111,6 +111,9 @@ packages:
   ClaimSegmenterKit:
     url: https://github.com/rajatslakhina/claim-segmenter-kit
     from: 1.1.0
+  CitationBindingKit:
+    url: https://github.com/rajatslakhina/citation-binding-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -209,6 +212,8 @@ targets:
         product: SourceConflictKit
       - package: ClaimSegmenterKit
         product: ClaimSegmenterKit
+      - package: CitationBindingKit
+        product: CitationBindingKit
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

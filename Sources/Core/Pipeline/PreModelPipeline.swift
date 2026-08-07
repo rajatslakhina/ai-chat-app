@@ -327,7 +327,14 @@ extension PreModelPipeline {
             return .refused(refusal)
         case let .admitted(admitted):
             guard !admitted.isEmpty else { return .passages([], "") }
-            return .passages(admitted, admitted.map(\.snippet).joined(separator: "\n---\n"))
+            // Each passage is labelled with the identifier the answer is asked to cite it by.
+            // Without a label there is nothing for the model to cite and nothing for the
+            // citation stage to check, so attribution would be unverifiable by construction —
+            // and an unverifiable attribution is indistinguishable from a correct one.
+            let block = admitted
+                .map { "[\($0.id)] \($0.snippet)" }
+                .joined(separator: "\n---\n")
+            return .passages(admitted, block)
         }
     }
 

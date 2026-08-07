@@ -41,7 +41,10 @@ extension PreModelPipeline {
             system += "\n\nWhat you remember about this user:\n\(memoryBlock)"
         }
         if !retrievalBlock.isEmpty {
-            system += "\n\nRelevant excerpts from the user's documents:\n\(retrievalBlock)"
+            system += "\n\nRelevant excerpts from the user's documents, each labelled with the "
+                + "identifier to cite it by:\n\(retrievalBlock)"
+                + "\n\nWhen a statement comes from one of these excerpts, cite it inline as "
+                + "[identifier]. Cite only identifiers listed above."
         }
         if !system.isEmpty {
             // Pinned: the system block must survive compaction, or the model loses its

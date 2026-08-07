@@ -1,12 +1,13 @@
 # AI Chat
 
-A SwiftUI iOS chat client for [OpenRouter](https://openrouter.ai), built on the 27-package Swift
+A SwiftUI iOS chat client for [OpenRouter](https://openrouter.ai), built on the 31-package Swift
 LLM ecosystem from [`llm-ecosystem-demo`](https://github.com/rajatslakhina/llm-ecosystem-demo).
 
 Every message runs through a real pipeline — prompt templating, PII guardrails, semantic routing,
 caching, retrieval, compaction, cost forecasting, budget reservation, retries, streaming, tool
-round-tripping, metering, settlement, answer screening and claim grounding — and **every refusal is
-surfaced to the user with the stage that caused it and the action that resolves it**.
+round-tripping, metering, settlement, answer screening, claim grounding and citation binding — and
+**every refusal is surfaced to the user with the stage that caused it and the action that resolves
+it**.
 
 ---
 
@@ -18,7 +19,7 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
 | Unit + integration tests | **618 passing**, 118 suites |
-| UI tests (XCUITest) | **still red on this machine** — 8 tests, 22 failures, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
+| UI tests (XCUITest) | **still red on this machine** — 19 tests failing across `SettingsUITests`, `ModelPickerUITests`, `DiagnosticsUITests` and `LoginFlowUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
 | `swiftlint --strict` | **0 violations**, 64 files |
 | Line coverage | **93.00%** — 8855/9522, unit tests only, up from 92.89%. `PipelineStage.swift`, `PostModelPipeline.swift`, `PostModelPipeline+CitationBinding.swift`, `PostModelPipeline+Consistency.swift` and `PreModelPipeline+Assembly.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — a full run including the UI suite reports **95.33%**, which is a different question |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
@@ -185,6 +186,16 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **`git status` under-reports in this checkout, and `xcodebuild` will compile the version `git`
+  could not see.** A test run reported two failures — a stage table missing `CitationBindingKit`
+  and a no-op assertion that got `.ran` — against source that plainly already had both right.
+  `PipelineTraceTests.swift` was modified on disk but absent from `git status --short`, because
+  iCloud had evicted it; the compiler read the old copy. Running
+  `find Sources Tests -name '*.swift' -exec cat {} + > /dev/null` materialised everything, the file
+  appeared as modified, and the same suite passed 618/118 with no source change at all. **When a
+  failure names code you can see is already correct, materialise before debugging** — the diff you
+  are reading and the one that compiled are not necessarily the same diff.
 
 - **A stage can be wired perfectly and still have nothing to do, because an earlier stage never
   gave it anything to work with.** `citationBinding` checks that a claim is supported by the
@@ -381,26 +392,51 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**99.55%** — 6412/6441 lines. 36 files are at 100%. The remaining 29 lines sit in 12 files:
+**93.00%** — 8855/9522 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+including the three touched this change. 28 files sit below it, and they divide into two groups
+that want different answers:
+
+**The view layer, uncovered because the UI suite is red.** These lines are exercised by XCUITest,
+not by the unit target, so a unit-only run reports them as gaps. Fixing the UI suite moves them,
+not new tests.
+
+| File | Coverage |
+|---|---|
+| `AppNavigation.swift` | 24.15% |
+| `ChatViewModel+Derived.swift` | 55.56% |
+| `ChatView.swift` | 78.51% |
+| `AIChatApp.swift` | 79.05% |
+| `SettingsView.swift` | 86.08% |
+| `ProfileView.swift` | 88.44% |
+| `ChatViewModel.swift` | 88.48% |
+| `ChatListView.swift` | 93.15% |
+| `MessageActions.swift` | 93.45% |
+| `ModelPickerView.swift` | 95.35% |
+| `SettingsSections.swift` | 96.33% |
+
+**Branches a test cannot reach.** Real device hardware, a forced OS-level failure, or a state the
+surrounding types make unreachable. Closing these would mean adding seams whose only caller is a
+test — worth doing for `KeychainStore` (already done once), not for `LAContext.biometryType`.
 
 | File | Coverage | What is uncovered |
 |---|---|---|
-| `Authentication.swift` | 98.11% | `LAContext` biometry-type branches needing real hardware |
+| `Composition.swift` | 87.61% | provider-assembly branches taken only with a live key |
+| `UserProfile.swift` | 91.74% | |
+| `Authentication.swift` | 94.32% | `LAContext` biometry-type branches needing real hardware |
+| `AssistantAvatar.swift` | 96.77% | |
+| `Conversation.swift` | 97.04% | |
+| `AppSettingsStore.swift` | 97.14% | |
+| `ReasoningEffort.swift` | 97.62% | |
 | `ProviderEffectExecutor.swift` | 98.58% | retry-sleep branch, `Task.isCancelled` guard |
+| `OpenRouterEmbeddingProvider.swift` | 98.61% | |
 | `TurnExecutor+Support.swift` | 98.65% | |
-| `Composition.swift` | 98.70% | |
-| `TurnExecutor.swift` | 98.81% | |
+| `PreModelPipeline+SourceConflict.swift` | 98.82% | |
+| `TurnExecutor.swift` | 98.86% | |
+| `OpenRouterProvider.swift` | 98.91% | |
+| `ModelPicker.swift` | 98.97% | |
 | `KeychainStore.swift` | 98.99% | one `SecItem` OSStatus path |
-| `ToolAuthorityGate.swift` | 99.12% | `.failed` verdict — needs a thrown `AuthorityError` this call shape cannot produce |
-| `OpenRouterProvider.swift` | 99.26% | |
-| `ModelPickerView.swift` | 99.34% | |
-| `ChatViewModel.swift` | 99.36% | |
-| `ChatView.swift` | 99.62% | |
-| `SettingsSections.swift` | 99.66% | |
-
-These are branches reachable only with real device hardware, a forced OS-level failure, or a state
-the surrounding types make unreachable. Closing them would mean adding seams whose only caller is a
-test — worth doing for `KeychainStore` (already done once), not worth it for `LAContext.biometryType`.
+| `PreModelPipeline.swift` | 99.07% | |
+| `ToolAuthorityGate.swift` | 99.48% | `.failed` verdict — needs a thrown `AuthorityError` this call shape cannot produce |
 
 `COVERAGE_THRESHOLD=100 ./Scripts/coverage.sh` exits non-zero, by design: the number is honest
 rather than gamed.

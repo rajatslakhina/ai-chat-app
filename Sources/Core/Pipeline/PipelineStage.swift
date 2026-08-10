@@ -44,6 +44,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case claimConsistency
     /// Whether each claim is supported by the document the answer *said* it came from.
     case citationBinding
+    /// Whether each claim can be read on its own, or only makes sense inside the answer.
+    case claimDecontextualization
 
     // Acting on the answer
     case toolAuthority
@@ -88,6 +90,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .claimSegmentation: return "ClaimSegmenterKit"
         case .claimConsistency: return "ClaimConsistencyKit"
         case .citationBinding: return "CitationBindingKit"
+        case .claimDecontextualization: return "ClaimDecontextualizerKit"
         case .sourceConflict: return "SourceConflictKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
@@ -126,6 +129,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .claimSegmentation: return "Claim segmentation"
         case .claimConsistency: return "Claim consistency"
         case .citationBinding: return "Citation binding"
+        case .claimDecontextualization: return "Claim decontextualization"
         case .sourceConflict: return "Source conflict"
         case .toolAuthority: return "Tool authority"
         case .toolDispatch: return "Tool dispatch"

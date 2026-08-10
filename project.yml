@@ -114,6 +114,9 @@ packages:
   CitationBindingKit:
     url: https://github.com/rajatslakhina/citation-binding-kit
     from: 1.0.0
+  ClaimDecontextualizerKit:
+    url: https://github.com/rajatslakhina/claim-decontextualizer-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -214,6 +217,8 @@ targets:
         product: ClaimSegmenterKit
       - package: CitationBindingKit
         product: CitationBindingKit
+      - package: ClaimDecontextualizerKit
+        product: ClaimDecontextualizerKit
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

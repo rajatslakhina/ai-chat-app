@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **618 passing**, 118 suites |
+| Unit + integration tests | **631 passing**, 119 suites |
 | UI tests (XCUITest) | **still red on this machine** — 19 tests failing across `SettingsUITests`, `ModelPickerUITests`, `DiagnosticsUITests` and `LoginFlowUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
 | `swiftlint --strict` | **0 violations**, 64 files |
-| Line coverage | **93.00%** — 8855/9522, unit tests only, up from 92.89%. `PipelineStage.swift`, `PostModelPipeline.swift`, `PostModelPipeline+CitationBinding.swift`, `PostModelPipeline+Consistency.swift` and `PreModelPipeline+Assembly.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — a full run including the UI suite reports **95.33%**, which is a different question |
+| Line coverage | **93.07%** — 8958/9625, unit tests only, up from 93.00%. `PipelineStage.swift`, `PostModelPipeline.swift`, `PostModelPipeline+Decontextualization.swift`, `PostModelPipeline+CitationBinding.swift` and `PostModelPipeline+Consistency.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — a full run including the UI suite reports a higher figure, which is a different question |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 31 packages do real work in the app.** 30 of them run in the send path and own a pipeline
+**All 32 packages do real work in the app.** 31 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,27 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A branch no test can reach is a branch whose behaviour is a guess, and coverage is how that
+  shows up.** `claimDecontextualization` handles two inputs a real `GroundingReport` never
+  produces — an empty claim list and a blank claim — and both were unreachable through a send, so
+  the file sat at 88.04% and the repo total fell *below* its own baseline. The fix was not a test
+  that pokes at privates: an internal `checkDecontextualization(claims:against:trace:)` overload
+  makes the malformed-input contract callable, the send path uses the single-argument form, and the
+  doc comment says which is which. Repo went 92.92% -> 93.07% and the file to 100.00%.
+
+- **`/tmp/aichatapp-coverage-dd` can rot, and the error blames the packages.** A run failed with
+  `Could not resolve package dependencies: .../workload-profiler-kit/Package.swift doesn't exist`
+  for six packages at once. Nothing was wrong with any of them — the tmp reaper had eaten parts of
+  `SourcePackages/checkouts`. `Scripts/coverage.sh` honours `DERIVED_DATA`, so a fresh path fixes it
+  without deleting anything: `DERIVED_DATA=/tmp/aichatapp-dd-$(date +%m%d) ./Scripts/coverage.sh`.
+
+- **Compare unit-only against unit-only, and re-run the suite after every source edit.** Two runs
+  were discarded this session: one because `xcodegen generate` had run before a new test file
+  existed, one because a lint fix landed mid-compile. Both would have reported numbers about a tree
+  that no longer existed. And a full run including the UI suite reports a higher coverage figure
+  than the unit-only baseline it would be compared against — a number without its measurement basis
+  is not a number.
 
 - **An incremental build cannot verify "0 warnings" — only a clean one can.** Repeated runs against
   a warm `-derivedDataPath` reported zero warnings for weeks while
@@ -398,7 +419,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.00%** — 8855/9522 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.07%** — 8958/9625 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including the three touched this change. 28 files sit below it, and they divide into two groups
 that want different answers:
 
@@ -476,7 +497,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 31 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 32 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

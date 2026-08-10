@@ -146,6 +146,10 @@ actor PostModelPipeline {
                 .citationBinding,
                 .skipped(reason: "no retrieved sources, so there is nothing a citation could name")
             )
+            trace.record(
+                .claimDecontextualization,
+                .skipped(reason: "nothing was grounded, so no verdict can overclaim")
+            )
             return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
         }
         return await verify(text: text, sources: sources, trace: &trace)
@@ -229,23 +233,7 @@ actor PostModelPipeline {
                 .grounding,
                 .ran(detail: "\(supported) of \(total) claim(s) supported by a source")
             )
-            // Attribution before agreement: a claim attributed to a document that was never
-            // retrieved is not worth asking whether it agrees with one.
-            if let refusal = bindCitations(of: report, against: evidence, trace: &trace) {
-                return VerifyOutcome(
-                    text: nil,
-                    fraction: grounded,
-                    claims: total,
-                    refusal: refusal
-                )
-            }
-            let refusal = await checkConsistency(of: report, against: evidence, trace: &trace)
-            return VerifyOutcome(
-                text: report.decision.publishableAnswer(),
-                fraction: grounded,
-                claims: total,
-                refusal: refusal
-            )
+            return await judge(report, against: evidence, grounded: grounded, total: total, trace: &trace)
         } catch {
             // A verifier that cannot run must not silently imply the answer was checked.
             trace.record(.grounding, .failed(message: "\(error)"))
@@ -255,8 +243,40 @@ actor PostModelPipeline {
                 .citationBinding,
                 .skipped(reason: "grounding never ran, so there are no claims to attribute")
             )
+            trace.record(
+                .claimDecontextualization,
+                .skipped(reason: "grounding never ran, so there are no claims to make standalone")
+            )
             return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
         }
+    }
+
+    /// The three questions asked of an answer grounding has already scored, in the order that
+    /// makes each one worth asking.
+    ///
+    /// Attribution first: a claim credited to a document nobody retrieved is not worth asking
+    /// anything else about. Readability second: whether a claim *agrees* with a passage assumes the
+    /// claim says something, and one with no subject does not. Agreement last, on what survives.
+    private func judge(
+        _ report: GroundingReport,
+        against evidence: EvidenceSet,
+        grounded: Double,
+        total: Int,
+        trace: inout PipelineTrace
+    ) async -> VerifyOutcome {
+        if let refusal = bindCitations(of: report, against: evidence, trace: &trace) {
+            return VerifyOutcome(text: nil, fraction: grounded, claims: total, refusal: refusal)
+        }
+        if let refusal = checkDecontextualization(of: report, trace: &trace) {
+            return VerifyOutcome(text: nil, fraction: grounded, claims: total, refusal: refusal)
+        }
+        let refusal = await checkConsistency(of: report, against: evidence, trace: &trace)
+        return VerifyOutcome(
+            text: report.decision.publishableAnswer(),
+            fraction: grounded,
+            claims: total,
+            refusal: refusal
+        )
     }
 
     /// Records what the segmenter did to this answer.

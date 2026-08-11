@@ -1,4 +1,5 @@
 import AgentMemoryKit
+import AnswerabilityKit
 import ContextCompactionKit
 import Foundation
 import GuardrailKit
@@ -49,6 +50,12 @@ actor PreModelPipeline {
     /// Nil keeps the dense-only behaviour, and the lexical stage records itself as skipped.
     private let lexical: LexicalIndex?
     private let compactor: ContextCompactor
+    /// Judges whether the retrieved passages can answer the question, before anything is sent.
+    ///
+    /// `.lenient` rather than `.strict`: this is a chat client, and ordinary questions arrive
+    /// with one aspect and a partial match. A strict gate would refuse conversation, and a gate
+    /// users switch off protects nobody.
+    let answerability: AnswerabilityGate
     var settings: PipelineSettings
 
     init(
@@ -60,6 +67,7 @@ actor PreModelPipeline {
         retriever: Retriever,
         lexical: LexicalIndex? = nil,
         compactor: ContextCompactor,
+        answerability: AnswerabilityGate = AnswerabilityGate(engine: AnswerabilityEngine(policy: .lenient)),
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -70,6 +78,7 @@ actor PreModelPipeline {
         self.retriever = retriever
         self.lexical = lexical
         self.compactor = compactor
+        self.answerability = answerability
         self.settings = settings
     }
 
@@ -124,6 +133,12 @@ actor PreModelPipeline {
             userText: outbound
         )
         let (finalMessages, didCompact) = await compactIfNeeded(assembled, trace: &trace)
+
+        // After compaction on purpose: the gate should judge the evidence the model will
+        // actually receive, not the evidence retrieval happened to find.
+        if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
+            return .refused(refusal)
+        }
 
         return .ready(
             PreparedTurn(

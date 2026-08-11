@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **631 passing**, 119 suites |
-| UI tests (XCUITest) | **still red on this machine** — 19 tests failing across `SettingsUITests`, `ModelPickerUITests`, `DiagnosticsUITests` and `LoginFlowUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 64 files |
+| Unit + integration tests | **639 passing**, 120 suites |
+| UI tests (XCUITest) | **still red on this machine** — 24 tests, 46 failures this run, across `SettingsUITests`, `ModelPickerUITests`, `DiagnosticsUITests` and `LoginFlowUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
+| `swiftlint --strict` | **0 violations**, 66 files |
 | Line coverage | **93.07%** — 8958/9625, unit tests only, up from 93.00%. `PipelineStage.swift`, `PostModelPipeline.swift`, `PostModelPipeline+Decontextualization.swift`, `PostModelPipeline+CitationBinding.swift` and `PostModelPipeline+Consistency.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — a full run including the UI suite reports a higher figure, which is a different question |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 32 packages do real work in the app.** 31 of them run in the send path and own a pipeline
+**All 33 packages do real work in the app.** 32 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,22 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A refusal based on absence is only as good as your matcher's recall; one based on presence is
+  not.** `answerabilityGate` was first wired to refuse on `AnswerabilityKit`'s `.insufficient`
+  verdict — the claim that *nothing* in the corpus speaks to some part of the question. That
+  blocked "how much am I spending" against this app's own budget corpus: the corpus says `spend`
+  and `spends`, the question says `spending`, and `LexicalEvidenceMatcher` does no stemming. Three
+  existing `HybridRetrievalTests` caught it. `.contested` has no such exposure — it needs two
+  passages that both matched and point opposite ways, so a recall gap can only make it fire *less*.
+  The app refuses on `.contested` and records the coverage gap into the trace instead. The gap
+  closes when the matcher does; `EvidenceMatching` is a protocol for exactly that reason.
+
+- **The same judgement in two places means only one of them is tested.** The answerability stage
+  opened with its own `guard !sources.isEmpty` before calling a package that already reports
+  `.undetermined(.noEvidenceOffered)`. That made the package's arm unreachable, and coverage found
+  it as one dead line at 98.61%. Deleting the guard and letting the verdict drive both trace
+  outcomes took the file to 100.00% by removing code, not by adding a test.
 
 - **A branch no test can reach is a branch whose behaviour is a guess, and coverage is how that
   shows up.** `claimDecontextualization` handles two inputs a real `GroundingReport` never
@@ -497,7 +513,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 32 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 33 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

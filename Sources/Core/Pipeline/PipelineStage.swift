@@ -23,6 +23,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case contextCompaction
 
     // Deciding whether the turn is allowed to happen at all
+    /// Whether the passages that survived can answer the question that was asked.
+    /// Runs after compaction so it judges the evidence the model will actually receive.
+    case answerabilityGate
     case workloadProfile
     case costForecast
     case budgetReserve
@@ -92,6 +95,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .citationBinding: return "CitationBindingKit"
         case .claimDecontextualization: return "ClaimDecontextualizerKit"
         case .sourceConflict: return "SourceConflictKit"
+        case .answerabilityGate: return "AnswerabilityKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -115,6 +119,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .rankFusion: return "Rank fusion"
         case .transcriptCapture: return "Transcript capture"
         case .contextCompaction: return "Context compaction"
+        case .answerabilityGate: return "Answerability gate"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

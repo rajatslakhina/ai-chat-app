@@ -125,6 +125,63 @@ struct AnswerabilityStageTests {
         #expect(refusal.recovery != nil)
     }
 
+    /// The package's own `.contested` verdict, reached when the two sides score close enough to
+    /// fall inside `conflictMargin`.
+    ///
+    /// Worth a test of its own alongside the asymmetric case below, because the two arrive at the
+    /// same refusal down different paths — this one through the package's margin test, that one
+    /// through this app's two-sided check. Keying made the asymmetric corpus stop exercising this
+    /// path, and a path nothing exercises is a behaviour nobody has checked.
+    @Test("a symmetric contradiction is refused by the package's own contested verdict")
+    func symmetricContradictionIsRefused() async throws {
+        var trace = PipelineTrace()
+        let result = await pipeline().gateAnswerability(
+            of: [
+                source("kb-yes", "The provider gateway retries a failed request."),
+                source("kb-no", "The provider gateway does not retry a failed request.")
+            ],
+            for: "Does the provider gateway retry?",
+            trace: &trace
+        )
+        guard case let .refused(refusal) = result else {
+            Issue.record("expected a refusal; got \(result)")
+            return
+        }
+        #expect(refusal.headline.contains("contradict"))
+        #expect(refusal.recovery != nil)
+    }
+
+    /// The regression that arrived with `MorphologyEvidenceMatcher`, kept as a test because the
+    /// mechanism is not obvious: raising recall on one side of a disagreement can *hide* it.
+    ///
+    /// `isContested` in the package fires when affirming and denying strengths sit within
+    /// `conflictMargin` of each other. On this corpus the lexical matcher scored both sides 0.75 —
+    /// one missing `retry`, the other missing `times` — and the two failures cancelled, so the
+    /// contradiction was caught by luck. Keying lifts the affirming side to 1.00 and leaves the
+    /// denying side at 0.75, which is 0.25 apart and outside the margin. The stage must still
+    /// refuse, which is why it reads two-sided support rather than a margin.
+    @Test("a contradiction stays refused even when keying pushes the two sides outside the margin")
+    func asymmetricContradictionIsStillRefused() async throws {
+        var trace = PipelineTrace()
+        let result = await pipeline().gateAnswerability(
+            of: [
+                source("kb-five", "The provider gateway retries a failed request up to five times."),
+                source("kb-none", "The provider gateway does not retry a failed request.")
+            ],
+            for: "How many times does the provider gateway retry?",
+            trace: &trace
+        )
+        guard case let .refused(refusal) = result else {
+            Issue.record("a flat contradiction must not be admitted; got \(result)")
+            return
+        }
+        #expect(refusal.headline.contains("contradict"))
+        guard case .refused = trace.outcome(for: .answerabilityGate) else {
+            Issue.record("the refusal has to reach the trace, or Diagnostics cannot show it")
+            return
+        }
+    }
+
     /// Declining to rule is not a soft block. A question the gate could not read must not be
     /// refused on the strength of not having been read.
     @Test("a question the gate cannot read is admitted, recorded as a no-op rather than a refusal")

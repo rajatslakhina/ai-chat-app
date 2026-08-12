@@ -3,6 +3,7 @@ import AnswerabilityKit
 import ContextCompactionKit
 import Foundation
 import GuardrailKit
+import MorphologyMatchAnswerability
 import PromptTemplateKit
 import ProviderGatewayKit
 import ResponseCacheKit
@@ -55,6 +56,11 @@ actor PreModelPipeline {
     /// `.lenient` rather than `.strict`: this is a chat client, and ordinary questions arrive
     /// with one aspect and a partial match. A strict gate would refuse conversation, and a gate
     /// users switch off protects nobody.
+    ///
+    /// Reads evidence through `MorphologyEvidenceMatcher` rather than the package default. The
+    /// default does no stemming, and this app's own budget corpus says `spend` and `spends` while
+    /// users ask about `spending` — a gap that made a coverage verdict untrustworthy enough that
+    /// this stage could only ever record it. See `PreModelPipeline+Answerability.swift`.
     let answerability: AnswerabilityGate
     var settings: PipelineSettings
 
@@ -67,7 +73,9 @@ actor PreModelPipeline {
         retriever: Retriever,
         lexical: LexicalIndex? = nil,
         compactor: ContextCompactor,
-        answerability: AnswerabilityGate = AnswerabilityGate(engine: AnswerabilityEngine(policy: .lenient)),
+        answerability: AnswerabilityGate = AnswerabilityGate(
+            engine: AnswerabilityEngine(policy: .lenient, matcher: MorphologyEvidenceMatcher())
+        ),
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -136,6 +144,7 @@ actor PreModelPipeline {
 
         // After compaction on purpose: the gate should judge the evidence the model will
         // actually receive, not the evidence retrieval happened to find.
+        recordEvidenceKeying(of: sources, for: outbound, trace: &trace)
         if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
             return .refused(refusal)
         }

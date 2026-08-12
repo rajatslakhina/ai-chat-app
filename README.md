@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **639 passing**, 120 suites |
-| UI tests (XCUITest) | **still red on this machine** — 24 tests, 46 failures this run, across `SettingsUITests`, `ModelPickerUITests`, `DiagnosticsUITests` and `LoginFlowUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, `tracing`, the model catalogue); none is touched by the current change. Environmental; see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 66 files |
-| Line coverage | **93.07%** — 8958/9625, unit tests only, up from 93.00%. `PipelineStage.swift`, `PostModelPipeline.swift`, `PostModelPipeline+Decontextualization.swift`, `PostModelPipeline+CitationBinding.swift` and `PostModelPipeline+Consistency.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — a full run including the UI suite reports a higher figure, which is a different question |
+| Unit + integration tests | **641 passing**, 120 suites |
+| UI tests (XCUITest) | **still red on this machine** — 5 tests executed, 15 failures this run, in `DiagnosticsUITests` and `ScreensUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, the Diagnostics summary); none is touched by the current change. The executed/failed counts have varied every run (8/22, 19, 24/43, 24/46, now 5/15), which is itself consistent with an environmental fault rather than a behavioural one. Environmental; see [Remaining work](#remaining-work) |
+| `swiftlint --strict` | **0 violations**, 67 files |
+| Line coverage | **93.20%** — 9136/9803, unit tests only, up from 93.11%. `PreModelPipeline+Answerability.swift`, `PreModelPipeline+EvidenceKeying.swift` and `PipelineStage.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58%, which is a different question. (This row read 93.07% before today; the previous run measured 93.11% and updated the log but not the README.) |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 33 packages do real work in the app.** 32 of them run in the send path and own a pipeline
+**All 34 packages do real work in the app.** 33 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,23 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **Improving recall on one side of a disagreement can hide the disagreement.** Swapping in
+  `MorphologyMatchKit`'s matcher turned a refusal into an admission on this app's own retry corpus,
+  and the mechanism took a while to see. `AnswerabilityKit` calls an aspect contested when the
+  affirming and denying strengths land within `conflictMargin` (0.2) of each other. Under the
+  lexical matcher both sides scored **0.75** — one passage was missing `retry`, the other missing
+  `times` — so two *different* recall failures cancelled out and the contradiction was caught by
+  luck. Keying lifted the affirming side to **1.00** and left the denying side at 0.75: 0.25 apart,
+  outside the margin, verdict `.answerable`. The fix was not to widen the margin but to stop
+  reading symmetry at all — this app now refuses on the *presence* of two-sided support, which no
+  strength change can hide. A threshold that happens to pass is not the same as a property that
+  holds.
+- **A branch that stops being reachable is a test that stopped running, and coverage is how you
+  find out.** The same keying change made `AnswerabilityKit`'s own `.contested` verdict unreachable
+  from the test suite — every contested corpus now routed through the app's two-sided check
+  instead — and it showed up as exactly one uncovered line. The fix was a second test with a
+  *symmetric* corpus, so both paths to the same refusal are exercised.
 
 - **A refusal based on absence is only as good as your matcher's recall; one based on presence is
   not.** `answerabilityGate` was first wired to refuse on `AnswerabilityKit`'s `.insufficient`
@@ -435,7 +452,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.07%** — 8958/9625 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.20%** — 9136/9803 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including the three touched this change. 28 files sit below it, and they divide into two groups
 that want different answers:
 
@@ -513,7 +530,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 33 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 34 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

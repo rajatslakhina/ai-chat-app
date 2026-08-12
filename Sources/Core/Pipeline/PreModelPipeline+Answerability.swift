@@ -43,6 +43,19 @@ extension PreModelPipeline {
 
         switch report.verdict {
         case .answerable:
+            // The package reports `.contested` only when the affirming and denying strengths land
+            // within `conflictMargin` of each other. That symmetry test turns out to be fragile to
+            // a recall change, and this app found out how: keying raised one side of its own retry
+            // corpus from 0.75 to 1.00 while the other stayed at 0.75, pushing a flat contradiction
+            // outside the margin and turning a refusal into an admission. The old pass had been
+            // luck — two *different* recall failures cancelling out at 0.75 each.
+            //
+            // So the presence of two-sided support is checked here as well. It is the claim this
+            // app actually cares about, and unlike a margin, no strength change can hide it.
+            let disputed = Self.disputed(in: report)
+            guard disputed.isEmpty else {
+                return .refused(Self.contestedRefusal(aspects: disputed, trace: &trace))
+            }
             trace.record(
                 .answerabilityGate,
                 .ran(detail: "\(Self.covered(report)) of \(report.assessments.count) aspect(s) covered "
@@ -51,14 +64,19 @@ extension PreModelPipeline {
             return .admitted
 
         case let .insufficient(missing):
-            // Recorded, not refused. The reason is a property of this app's matcher rather than
-            // of the package — see the note below `gateAnswerability`.
-            trace.record(
-                .answerabilityGate,
-                .ran(detail: "\(Self.covered(report)) of \(report.assessments.count) aspect(s) covered; "
-                    + "nothing found for: \(missing.joined(separator: ", "))")
-            )
-            return .admitted
+            // Refused only when every uncovered aspect is one this app's matcher reads reliably.
+            // An attribute aspect is matched with its anchors unkeyed, so absence there is a much
+            // weaker claim than absence of a subject. See the note below `gateAnswerability`.
+            guard Self.recallIsTrustworthy(for: report) else {
+                trace.record(
+                    .answerabilityGate,
+                    .ran(detail: "\(Self.covered(report)) of \(report.assessments.count) aspect(s) covered; "
+                        + "nothing found for: \(missing.joined(separator: ", ")); recorded rather than "
+                        + "refused - an attribute aspect is matched unkeyed")
+                )
+                return .admitted
+            }
+            return .refused(Self.insufficientRefusal(report: report, missing: missing, trace: &trace))
 
         case let .contested(aspects):
             return .refused(Self.contestedRefusal(aspects: aspects, trace: &trace))
@@ -84,23 +102,82 @@ extension PreModelPipeline {
         }
     }
 
-    // MARK: - Why a coverage gap is recorded rather than refused
+    // MARK: - Why absence is refused for some aspects and only recorded for others
     //
     // `.insufficient` is a claim that *nothing* in the corpus speaks to an aspect — evidence of
-    // absence, inferred from the matcher finding nothing. That inference is only as good as the
-    // matcher's recall, and `LexicalEvidenceMatcher` does no stemming. Wiring this as a hard
-    // refusal blocked "how much am I spending" against this app's own budget corpus, because the
-    // corpus says `spend` and `spends` and the question says `spending`. Three existing tests
-    // caught it, and they were right to.
+    // absence, inferred from the matcher finding nothing. That inference is worth exactly as much
+    // as the matcher's recall, which is why this stage used to admit it unconditionally: with
+    // `LexicalEvidenceMatcher`, refusing blocked "how much am I spending" against this app's own
+    // budget corpus, because the corpus says `spend` and `spends` and the question says `spending`.
     //
-    // `.contested` does not have this failure mode. It requires two passages that both matched,
-    // pointing opposite ways — a claim about **presence**, which a recall gap can only ever make
-    // less likely to fire, never more. So that is the one this stage refuses on, and the coverage
-    // gap is surfaced in Diagnostics instead, where a reader can weigh it.
+    // `MorphologyEvidenceMatcher` keys those onto one bucket, so that specific gap is closed — but
+    // the flip still cannot be made wholesale, and the reason is worth writing down because it is
+    // not the reason it failed last time. **The decorator deliberately leaves attribute aspects
+    // unkeyed.** An `AttributeProbe` tests the shape of a statement against surface vocabulary —
+    // `.time` looks for `minutes`, `.quantity` for `hundred` — and keying the passage turns those
+    // into `minut` and `hundr`, which appear in no unit list, breaking the probe it was meant to
+    // help. An attribute aspect's anchors go through unkeyed with it.
     //
-    // The gap closes when the matcher improves: `EvidenceMatching` is a protocol precisely so a
-    // stemming or embedding matcher can replace the lexical one without touching this policy.
-    // Until then, refusing on absence would trade a real failure for a more common invented one.
+    // So "how much am I spending" is *still* `.insufficient`, now missing `a quantity` rather than
+    // its subject, and the three hybrid-retrieval tests caught the wholesale flip a second time.
+    // They were right twice, for two different reasons.
+    //
+    // The policy that follows from that is narrower and matches where recall actually improved:
+    // refuse when every uncovered aspect is probe-free — a missing subject means the corpus is not
+    // about the thing at all, and inflection-aware recall makes that claim trustworthy. Record,
+    // don't refuse, when an attribute is among the gaps.
+    //
+    // `.contested` never had this exposure: it requires two passages that both matched, pointing
+    // opposite ways, which is a claim about **presence** that a recall gap can only make less
+    // likely to fire. It has been refused since this stage was written, and still is.
+
+    /// Aspects carrying meaningful support in both directions, whatever their strengths.
+    ///
+    /// `affirmingSources` and `denyingSources` are already filtered by the policy's
+    /// `supportThreshold`, so a passage listed here matched the aspect properly rather than
+    /// glancingly. Two such passages pointing opposite ways is a contradiction regardless of how
+    /// far apart their scores are, and reading it from presence rather than from a margin is what
+    /// makes this stage robust to its own matcher improving.
+    private static func disputed(in report: AnswerabilityReport) -> [String] {
+        report.assessments
+            .filter { !$0.affirmingSources.isEmpty && !$0.denyingSources.isEmpty }
+            .map(\.aspect.surface)
+    }
+
+    /// Whether every aspect the gate could not cover is one this app's matcher reads reliably.
+    ///
+    /// `probe == nil` is the test because that is exactly the set `MorphologyEvidenceMatcher` keys.
+    /// An attribute aspect is compared with its anchor terms in their written form, so "no passage
+    /// mentions this" is a claim about spelling as much as about content — not a basis for refusing
+    /// somebody's question.
+    private static func recallIsTrustworthy(for report: AnswerabilityReport) -> Bool {
+        report.assessments
+            .filter { !$0.isCovered }
+            .allSatisfy { $0.aspect.probe == nil }
+    }
+
+    /// A coverage gap the user can act on.
+    ///
+    /// Named aspects rather than a score. "Nothing covers the retry budget" tells someone what to
+    /// go and add; "coverage 40%" tells them the app is unhappy and not why. Retrieval is the
+    /// recovery because a gap is the one verdict more retrieval actually fixes — which is exactly
+    /// what separates it from `.contested`, where retrieving more makes things worse.
+    private static func insufficientRefusal(
+        report: AnswerabilityReport,
+        missing: [String],
+        trace: inout PipelineTrace
+    ) -> Refusal {
+        let refusal = Refusal(
+            stage: .answerabilityGate,
+            headline: "Your sources don't cover this question",
+            explanation: "Nothing in the \(report.evidenceCount) retrieved passage(s) speaks to "
+                + "\(missing.joined(separator: ", ")). Answering from them would produce something "
+                + "that reads as verified without being checkable.",
+            recovery: .openSettings(field: "Retrieval")
+        )
+        trace.record(.answerabilityGate, .refused(refusal))
+        return refusal
+    }
 
     /// Distinct from `sourceConflict`, which asks whether passages disagree on their shared topic.
     /// This asks whether they disagree on **the specific thing this question needs**, which a

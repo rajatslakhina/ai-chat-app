@@ -23,6 +23,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case contextCompaction
 
     // Deciding whether the turn is allowed to happen at all
+    /// Which inflectional families the answerability gate will read the evidence through.
+    /// Produces the audit trail for the stage below it: without it, a gate that changes its
+    /// mind about the same corpus cannot be asked why.
+    case evidenceKeying
     /// Whether the passages that survived can answer the question that was asked.
     /// Runs after compaction so it judges the evidence the model will actually receive.
     case answerabilityGate
@@ -95,6 +99,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .citationBinding: return "CitationBindingKit"
         case .claimDecontextualization: return "ClaimDecontextualizerKit"
         case .sourceConflict: return "SourceConflictKit"
+        case .evidenceKeying: return "MorphologyMatchKit"
         case .answerabilityGate: return "AnswerabilityKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
@@ -119,6 +124,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .rankFusion: return "Rank fusion"
         case .transcriptCapture: return "Transcript capture"
         case .contextCompaction: return "Context compaction"
+        case .evidenceKeying: return "Evidence keying"
         case .answerabilityGate: return "Answerability gate"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"

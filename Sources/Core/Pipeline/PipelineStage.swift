@@ -30,6 +30,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Whether the passages that survived can answer the question that was asked.
     /// Runs after compaction so it judges the evidence the model will actually receive.
     case answerabilityGate
+    /// Whether the gate's ruling would survive its own evidence being taken apart.
+    /// Runs only after an admission, because there is no point measuring the stability of a
+    /// verdict the app already refused to act on.
+    case verdictStability
     case workloadProfile
     case costForecast
     case budgetReserve
@@ -101,6 +105,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .sourceConflict: return "SourceConflictKit"
         case .evidenceKeying: return "MorphologyMatchKit"
         case .answerabilityGate: return "AnswerabilityKit"
+        case .verdictStability: return "EvidenceSensitivityKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -126,6 +131,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .contextCompaction: return "Context compaction"
         case .evidenceKeying: return "Evidence keying"
         case .answerabilityGate: return "Answerability gate"
+        case .verdictStability: return "Verdict stability"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

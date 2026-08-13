@@ -123,6 +123,9 @@ packages:
   MorphologyMatchKit:
     url: https://github.com/rajatslakhina/morphology-match-kit
     from: 1.0.0
+  EvidenceSensitivityKit:
+    url: https://github.com/rajatslakhina/evidence-sensitivity-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -231,6 +234,10 @@ targets:
         product: MorphologyMatchKit
       - package: MorphologyMatchKit
         product: MorphologyMatchAnswerability
+      - package: EvidenceSensitivityKit
+        product: EvidenceSensitivityKit
+      - package: EvidenceSensitivityKit
+        product: EvidenceSensitivityAnswerability
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

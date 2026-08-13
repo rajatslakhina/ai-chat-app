@@ -1,6 +1,7 @@
 import AgentMemoryKit
 import AnswerabilityKit
 import ContextCompactionKit
+import EvidenceSensitivityKit
 import Foundation
 import GuardrailKit
 import MorphologyMatchAnswerability
@@ -62,6 +63,16 @@ actor PreModelPipeline {
     /// users ask about `spending` — a gap that made a coverage verdict untrustworthy enough that
     /// this stage could only ever record it. See `PreModelPipeline+Answerability.swift`.
     let answerability: AnswerabilityGate
+    /// Measures whether the gate above actually depended on the evidence it was handed.
+    let stability: SensitivityAnalyzer
+    /// The same judgement the gate makes, in a form that can be re-run over a subset.
+    ///
+    /// A second engine rather than a handle on the gate's own, because `VerdictProbing` is
+    /// synchronous by contract — a probe that awaited an actor could not be a pure function of
+    /// its evidence, and the whole measurement depends on it being one. Kept injectable so a
+    /// caller that configures a non-default gate can keep the two in step; a mismatch here would
+    /// measure the stability of a ruling nobody made.
+    let stabilityEngine: AnswerabilityEngine
     var settings: PipelineSettings
 
     init(
@@ -76,6 +87,11 @@ actor PreModelPipeline {
         answerability: AnswerabilityGate = AnswerabilityGate(
             engine: AnswerabilityEngine(policy: .lenient, matcher: MorphologyEvidenceMatcher())
         ),
+        stability: SensitivityAnalyzer = SensitivityAnalyzer(policy: .standard),
+        stabilityEngine: AnswerabilityEngine = AnswerabilityEngine(
+            policy: .lenient,
+            matcher: MorphologyEvidenceMatcher()
+        ),
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -87,11 +103,37 @@ actor PreModelPipeline {
         self.lexical = lexical
         self.compactor = compactor
         self.answerability = answerability
+        self.stability = stability
+        self.stabilityEngine = stabilityEngine
         self.settings = settings
     }
 
     func update(settings: PipelineSettings) {
         self.settings = settings
+    }
+
+    /// The two rulings that can stop a turn while stopping it is still free.
+    ///
+    /// Both run after compaction, so they judge the evidence the model will actually receive.
+    /// Order matters and is not arbitrary: the gate decides whether the evidence answers the
+    /// question, and only then is there a ruling whose stability is worth measuring. Measuring
+    /// first would spend re-runs on a verdict the app was going to refuse anyway.
+    private func refusalBeforeSending(
+        sources: [RetrievedSource],
+        outbound: String,
+        trace: inout PipelineTrace
+    ) async -> Refusal? {
+        if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
+            return refusal
+        }
+        if case let .refused(refusal) = await measureVerdictStability(
+            of: sources,
+            for: outbound,
+            trace: &trace
+        ) {
+            return refusal
+        }
+        return nil
     }
 
     /// Prepares one turn, recording what every stage did into `trace`.
@@ -145,7 +187,7 @@ actor PreModelPipeline {
         // After compaction on purpose: the gate should judge the evidence the model will
         // actually receive, not the evidence retrieval happened to find.
         recordEvidenceKeying(of: sources, for: outbound, trace: &trace)
-        if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
+        if let refusal = await refusalBeforeSending(sources: sources, outbound: outbound, trace: &trace) {
             return .refused(refusal)
         }
 

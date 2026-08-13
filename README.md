@@ -21,10 +21,10 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Unit + integration tests | **641 passing**, 120 suites |
 | UI tests (XCUITest) | **still red on this machine** — 5 tests executed, 15 failures this run, in `DiagnosticsUITests` and `ScreensUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, the Diagnostics summary); none is touched by the current change. The executed/failed counts have varied every run (8/22, 19, 24/43, 24/46, now 5/15), which is itself consistent with an environmental fault rather than a behavioural one. Environmental; see [Remaining work](#remaining-work) |
 | `swiftlint --strict` | **0 violations**, 67 files |
-| Line coverage | **93.20%** — 9136/9803, unit tests only, up from 93.11%. `PreModelPipeline+Answerability.swift`, `PreModelPipeline+EvidenceKeying.swift` and `PipelineStage.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58%, which is a different question. (This row read 93.07% before today; the previous run measured 93.11% and updated the log but not the README.) |
+| Line coverage | **93.28%** — 9272/9940, unit tests only, up from 93.20%. `PreModelPipeline+VerdictStability.swift` (120/120), `PreModelPipeline+Answerability.swift`, `PreModelPipeline+EvidenceKeying.swift` and `PipelineStage.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58%, which is a different question. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 34 packages do real work in the app.** 33 of them run in the send path and own a pipeline
+**All 35 packages do real work in the app.** 34 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,31 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A coincidence finding only bears on the ruling it is about.** `EvidenceSensitivityKit` reports
+  `offsettingWeakness` when two sides land close while neither is independently strong. Wiring that
+  straight through to a refusal blocked *"how much am I spending, what is the ceiling"* against this
+  app's own budget corpus — because that turn was ruled **answerable**, not contested, and for an
+  answerable ruling the same two numbers mean only that support was thin. There was no conflict
+  claim for the finding to undermine. The stage now refuses only when the gate itself ruled
+  `contested`, and records otherwise. This is the third time a wholesale refusal in the pre-model
+  gates has been wrong, and the third time for a different reason than the last — and the same
+  `HybridRetrievalTests` caught all three.
+
+- **A package's own demo shares the blind spots of whoever wrote it.** The same wiring exposed a
+  real bug *inside* `EvidenceSensitivityKit`: `offsettingWeakness` never checked that there were
+  two sides, so affirming 0.15 against denying 0.00 — a margin of 0.15, inside any conflict margin
+  — was reported as two failures cancelling. Nothing had cancelled; there was no second side.
+  Every scenario in that package's nine-scenario demo happened to give one side a score of 0.4 or
+  better, so its own tests could not have found it. Fixed in `1.0.1`. The first real consumer is
+  worth more than another scenario written by the same hand.
+
+- **The app cannot tell two chunks of a page from two pages.** `RetrievedSource` carries `id`,
+  `title` and `snippet` — no document identifier. `verdictStability` uses `title` as a stand-in, so
+  two same-titled documents merge into one. That under-reports independence and never over-reports
+  it, which is the safe direction: it can route a sound answer to review, and cannot let a
+  single-source answer pass as corroborated. A real document identifier belongs in the retrieval
+  layer and is not yet there.
 
 - **Improving recall on one side of a disagreement can hide the disagreement.** Swapping in
   `MorphologyMatchKit`'s matcher turned a refusal into an admission on this app's own retry corpus,
@@ -452,7 +477,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.20%** — 9136/9803 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.28%** — 9272/9940 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including the three touched this change. 28 files sit below it, and they divide into two groups
 that want different answers:
 
@@ -530,7 +555,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 34 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 35 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

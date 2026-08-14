@@ -3,6 +3,7 @@ import AnswerabilityKit
 import ContextCompactionKit
 import EvidenceSensitivityKit
 import Foundation
+import SourceIndependenceKit
 import GuardrailKit
 import MorphologyMatchAnswerability
 import PromptTemplateKit
@@ -65,6 +66,8 @@ actor PreModelPipeline {
     let answerability: AnswerabilityGate
     /// Measures whether the gate above actually depended on the evidence it was handed.
     let stability: SensitivityAnalyzer
+    /// Pure value type, so it needs no isolation and no injection point beyond its policy.
+    let independence = SourceIndependenceAnalyzer()
     /// The same judgement the gate makes, in a form that can be re-run over a subset.
     ///
     /// A second engine rather than a handle on the gate's own, because `VerdictProbing` is
@@ -126,8 +129,13 @@ actor PreModelPipeline {
         if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
             return refusal
         }
+        let independence = resolveIndependence(of: sources, trace: &trace)
+        if let refusal = independence.refusal {
+            return refusal
+        }
         if case let .refused(refusal) = await measureVerdictStability(
             of: sources,
+            independence: independence.report,
             for: outbound,
             trace: &trace
         ) {

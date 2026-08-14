@@ -33,6 +33,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Whether the gate's ruling would survive its own evidence being taken apart.
     /// Runs only after an admission, because there is no point measuring the stability of a
     /// verdict the app already refused to act on.
+    /// How many independent sources are actually behind the passages the gate just admitted.
+    /// Runs before stability, because stability's document-level pass is only as good as the
+    /// document identifiers it is handed, and this app's retrieval layer supplies none.
+    case sourceIndependence
     case verdictStability
     case workloadProfile
     case costForecast
@@ -105,6 +109,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .sourceConflict: return "SourceConflictKit"
         case .evidenceKeying: return "MorphologyMatchKit"
         case .answerabilityGate: return "AnswerabilityKit"
+        case .sourceIndependence: return "SourceIndependenceKit"
         case .verdictStability: return "EvidenceSensitivityKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
@@ -131,6 +136,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .contextCompaction: return "Context compaction"
         case .evidenceKeying: return "Evidence keying"
         case .answerabilityGate: return "Answerability gate"
+        case .sourceIndependence: return "Source independence"
         case .verdictStability: return "Verdict stability"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"

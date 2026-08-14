@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **641 passing**, 120 suites |
-| UI tests (XCUITest) | **still red on this machine** — 5 tests executed, 15 failures this run, in `DiagnosticsUITests` and `ScreensUITests`, same signature throughout: the screen never renders, so element queries find nothing. Every failing assertion names a pre-existing surface (`promptTemplate`, `providerRouting`, the Diagnostics summary); none is touched by the current change. The executed/failed counts have varied every run (8/22, 19, 24/43, 24/46, now 5/15), which is itself consistent with an environmental fault rather than a behavioural one. Environmental; see [Remaining work](#remaining-work) |
-| `swiftlint --strict` | **0 violations**, 67 files |
-| Line coverage | **93.28%** — 9272/9940, unit tests only, up from 93.20%. `PreModelPipeline+VerdictStability.swift` (120/120), `PreModelPipeline+Answerability.swift`, `PreModelPipeline+EvidenceKeying.swift` and `PipelineStage.swift` are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58%, which is a different question. |
+| Unit + integration tests | **662 passing**, 122 suites |
+| UI tests (XCUITest) | **not re-run for this change** — last measured 2026-08-13 at 5 executed / 15 failures, every failing assertion naming a pre-existing surface. The executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15), which is the strongest evidence the fault is environmental. |
+| `swiftlint --strict` | **0 violations**, 69 files |
+| Line coverage | **93.34%** — 9371/10040, unit tests only, up from 93.28%. `PreModelPipeline+SourceIndependence.swift` (80/80), `PreModelPipeline+VerdictStability.swift` (132/132) and `PipelineStage.swift` (142/142) are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58% on a previous change, which is a different question. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 35 packages do real work in the app.** 34 of them run in the send path and own a pipeline
+**All 36 packages do real work in the app.** 35 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,22 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A pure stage on an actor should be `nonisolated`, and the tests will tell you.**
+  `establishSourceIndependence` reads one immutable `Sendable` analyzer and pure statics, but it
+  was first written as an ordinary member of the `PreModelPipeline` actor. Every test failed to
+  compile with *actor-isolated instance method cannot be called from outside the actor* — and
+  `await` does not fix it, because the stage takes `trace` as `inout` and exclusive access cannot
+  cross an actor boundary. Marking it `nonisolated` compiled immediately and is also the honest
+  description of what it does. If a stage needs no isolation, saying so costs nothing; discovering
+  it through a wall of test errors costs an hour.
+
+- **Adding a `PipelineStage` case means three edits, not two, and the count is the decoy.**
+  `PipelineTraceTests` asserts both `expected.count == N` *and* set equality against a literal list
+  of package names. Bumping only the count makes the count assertion pass and the equality
+  assertion fail with `missing: [...]`. The docstring and the `@Test` title carry the number too.
+  Case, `stage.package` mapping, the set literal, the count, the docstring and the test title —
+  all six move together.
 
 - **A coincidence finding only bears on the ruling it is about.** `EvidenceSensitivityKit` reports
   `offsettingWeakness` when two sides land close while neither is independently strong. Wiring that
@@ -477,7 +493,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.28%** — 9272/9940 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.34%** — 9371/10040 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including the three touched this change. 28 files sit below it, and they divide into two groups
 that want different answers:
 
@@ -555,7 +571,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 35 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 36 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

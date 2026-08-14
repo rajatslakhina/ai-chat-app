@@ -2,6 +2,7 @@ import AnswerabilityKit
 import EvidenceSensitivityAnswerability
 import EvidenceSensitivityKit
 import Foundation
+import SourceIndependenceKit
 
 extension PreModelPipeline {
     /// Measures whether the answerability gate's admission would survive its own evidence
@@ -18,6 +19,7 @@ extension PreModelPipeline {
     /// free. Everything downstream of `providerRouting` judges a paragraph already paid for.
     func measureVerdictStability(
         of sources: [RetrievedSource],
+        independence: IndependenceReport? = nil,
         for outbound: String,
         trace: inout PipelineTrace
     ) async -> AnswerabilityResult {
@@ -34,7 +36,8 @@ extension PreModelPipeline {
             question: Question(outbound),
             corpus: sources.map { EvidenceItem(id: $0.id, text: $0.snippet) }
         )
-        let report = await stability.analyse(evidence: Self.references(for: sources), using: probe)
+        let references = Self.references(for: sources, independence: independence)
+        let report = await stability.analyse(evidence: references, using: probe)
         return Self.act(on: report, sourceCount: sources.count, trace: &trace)
     }
 
@@ -48,10 +51,24 @@ extension PreModelPipeline {
     /// that share a title get merged, so this **under-reports** independence and never
     /// over-reports it. That direction is the safe one — it can route a sound answer to review,
     /// which costs a moment, and it cannot let a single-source answer pass as corroborated,
-    /// which costs the user's trust. Giving `RetrievedSource` a real document identifier is the
-    /// correct fix and belongs in the retrieval layer, not here.
-    static func references(for sources: [RetrievedSource]) -> [EvidenceRef] {
-        sources.map { EvidenceRef(id: $0.id, documentID: $0.title) }
+    /// which costs the user's trust.
+    ///
+    /// `sourceIndependence` now runs first and supplies a key derived from the text as well as
+    /// the title, which catches the case the title alone cannot: the same writing indexed twice
+    /// under two names. It merges strictly more than the title did, never less, so the direction
+    /// above is preserved. The title remains the fallback when no report was established, and a
+    /// real document identifier on `RetrievedSource` is still the correct fix — it belongs in the
+    /// retrieval layer, not here.
+    static func references(
+        for sources: [RetrievedSource],
+        independence: IndependenceReport? = nil
+    ) -> [EvidenceRef] {
+        sources.map { source in
+            EvidenceRef(
+                id: source.id,
+                documentID: independence?.documentKey(for: source.id) ?? source.title
+            )
+        }
     }
 
     /// Internal rather than private so every arm can be driven directly.

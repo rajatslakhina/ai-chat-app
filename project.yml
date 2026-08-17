@@ -129,6 +129,9 @@ packages:
   SourceIndependenceKit:
     url: https://github.com/rajatslakhina/source-independence-kit
     from: 1.0.0
+  TemporalValidityKit:
+    url: https://github.com/rajatslakhina/temporal-validity-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -245,6 +248,10 @@ targets:
         product: SourceIndependenceKit
       - package: SourceIndependenceKit
         product: SourceIndependenceSensitivity
+      - package: TemporalValidityKit
+        product: TemporalValidityKit
+      - package: TemporalValidityKit
+        product: TemporalValidityAnswerability
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

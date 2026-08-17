@@ -22,6 +22,34 @@ struct RetrievedSource: Sendable, Equatable, Identifiable {
     let snippet: String
     /// 0...100, so the UI can draw a relevance bar without knowing about cosine distance.
     let relevancePercent: Int
+
+    /// What this passage is a reading *of*, for the temporal pass. `nil` when the corpus did not
+    /// say — which is not the same as "one subject", so supersession simply is not asked.
+    let subject: String?
+
+    /// When this passage was last known accurate, carried from the corpus rather than guessed.
+    ///
+    /// Optional and it has to be: the lexical half of retrieval produces hits with no date, and a
+    /// stand-in here would turn "unknown" into "fresh" — the one direction that costs trust. This
+    /// app has already written down twice what happens when a stage infers provenance from
+    /// whatever field was nearest to hand.
+    let observedAt: Date?
+
+    init(
+        id: String,
+        title: String,
+        snippet: String,
+        relevancePercent: Int,
+        subject: String? = nil,
+        observedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.snippet = snippet
+        self.relevancePercent = relevancePercent
+        self.subject = subject
+        self.observedAt = observedAt
+    }
 }
 
 /// The assembled request, plus what the assembly cost the user in visible terms.

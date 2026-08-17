@@ -205,3 +205,43 @@ extension PreModelPipeline {
         report.assessments.filter(\.isCovered).count
     }
 }
+
+extension PreModelPipeline {
+    /// The four rulings that can stop a turn while stopping it is still free.
+    ///
+    /// All four run after compaction, so they judge the evidence the model will actually receive.
+    /// Order matters and is not arbitrary. The gate decides whether the evidence answers the
+    /// question at all. Temporal validity comes next because it needs nothing from the two below
+    /// it and because a ruling resting on an expired snapshot is not worth measuring the
+    /// provenance or the stability of. Independence then derives the document keys stability
+    /// needs, and stability runs last because it is the only one that re-runs a judge.
+    ///
+    /// Lives here rather than in the actor body for the reason `resolveIndependence` does: adding
+    /// the temporal call put `PreModelPipeline` at 251 lines against a 250-line limit, and the fix
+    /// for that is to move orchestration out, not to raise the number.
+    func refusalBeforeSending(
+        sources: [RetrievedSource],
+        outbound: String,
+        trace: inout PipelineTrace
+    ) async -> Refusal? {
+        if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
+            return refusal
+        }
+        if let refusal = establishTemporalValidity(question: outbound, sources: sources, trace: &trace) {
+            return refusal
+        }
+        let independence = resolveIndependence(of: sources, trace: &trace)
+        if let refusal = independence.refusal {
+            return refusal
+        }
+        if case let .refused(refusal) = await measureVerdictStability(
+            of: sources,
+            independence: independence.report,
+            for: outbound,
+            trace: &trace
+        ) {
+            return refusal
+        }
+        return nil
+    }
+}

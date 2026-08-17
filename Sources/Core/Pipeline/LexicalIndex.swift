@@ -80,16 +80,44 @@ enum AppKnowledge {
         )
     ]
 
+    /// What each document is a reading *of*, and how fast that thing changes.
+    ///
+    /// Three of these four passages describe *this app*, and they ship in the same binary as the
+    /// code they describe — a self-describing document cannot be stale relative to the build it
+    /// travels with, so a `nil` window here is a structural fact rather than an optimistic guess.
+    ///
+    /// `models` is the exception and it is the whole reason this table exists. It describes
+    /// OpenRouter's live catalog — which model identifiers carry the `-1` price sentinel, which
+    /// ones support tool calling — and that catalog changes without this app being rebuilt. It is
+    /// a snapshot taken at `epoch` of something that moved on afterwards.
+    static let volatility: [String: (subject: String, window: TimeInterval?)] = [
+        "models": ("openrouter-catalog", 30 * 86_400),
+        "budget": ("app-budgets", nil),
+        "tools": ("app-tools", nil),
+        "privacy": ("app-privacy", nil)
+    ]
+
     /// The same passages in the dense retriever's vocabulary, so both halves see one corpus.
     ///
     /// If these ever diverged, fusion would be combining rankings over different document sets and
     /// the reciprocal-rank arithmetic would still produce a confident-looking order.
+    ///
+    /// `subject` and `observedAt` ride in the metadata rather than being looked up later from
+    /// `AppKnowledge`. The comment on `fuseRankings` is the reason: a lookup that only knew the
+    /// bundled documents would silently drop every passage indexed by anything else. Carrying
+    /// provenance with the passage means a corpus this app does not own arrives undated and is
+    /// read as undated, which is the truth.
     static var retrievalDocuments: [RetrievalKit.Document] {
         documents.map {
-            RetrievalKit.Document(
+            var metadata = [
+                "title": $0.title,
+                "observedAt": String($0.updatedAt.timeIntervalSince1970)
+            ]
+            metadata["subject"] = volatility[$0.id.rawValue]?.subject
+            return RetrievalKit.Document(
                 id: $0.id.rawValue,
                 text: "\($0.title). \($0.body)",
-                metadata: ["title": $0.title]
+                metadata: metadata
             )
         }
     }

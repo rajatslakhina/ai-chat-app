@@ -115,35 +115,6 @@ actor PreModelPipeline {
         self.settings = settings
     }
 
-    /// The two rulings that can stop a turn while stopping it is still free.
-    ///
-    /// Both run after compaction, so they judge the evidence the model will actually receive.
-    /// Order matters and is not arbitrary: the gate decides whether the evidence answers the
-    /// question, and only then is there a ruling whose stability is worth measuring. Measuring
-    /// first would spend re-runs on a verdict the app was going to refuse anyway.
-    private func refusalBeforeSending(
-        sources: [RetrievedSource],
-        outbound: String,
-        trace: inout PipelineTrace
-    ) async -> Refusal? {
-        if case let .refused(refusal) = await gateAnswerability(of: sources, for: outbound, trace: &trace) {
-            return refusal
-        }
-        let independence = resolveIndependence(of: sources, trace: &trace)
-        if let refusal = independence.refusal {
-            return refusal
-        }
-        if case let .refused(refusal) = await measureVerdictStability(
-            of: sources,
-            independence: independence.report,
-            for: outbound,
-            trace: &trace
-        ) {
-            return refusal
-        }
-        return nil
-    }
-
     /// Prepares one turn, recording what every stage did into `trace`.
     ///
     /// `trace` is `inout` rather than returned alongside because the caller needs it even when a
@@ -480,7 +451,12 @@ extension PreModelPipeline {
                 // Relative to the best hit: an RRF score is a sum of 1/(k+rank) terms with no
                 // upper bound anyone would recognise, so showing it raw would put "0.03" under a
                 // passage that is in fact the strongest match there is.
-                relevancePercent: best > 0 ? Int((result.score / best * 100).rounded()) : 0
+                relevancePercent: best > 0 ? Int((result.score / best * 100).rounded()) : 0,
+                // Carried through rather than re-derived. Fusion reorders passages and rescales
+                // one number; it learns nothing about when a passage was written, and rebuilding
+                // the struct without these would silently undate the whole corpus.
+                subject: source.subject,
+                observedAt: source.observedAt
             )
         }
         let detail = "\(rankings.count) ranking(s) → \(sources.count) passage(s) injected"

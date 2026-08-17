@@ -103,11 +103,20 @@ extension CompactableRole {
 
 extension RetrievedSource {
     init(_ scored: ScoredChunk) {
-        self.id = scored.chunk.id
-        self.title = scored.chunk.metadata["filename"] ?? scored.chunk.documentID
-        self.snippet = String(scored.chunk.text.prefix(160))
-        // Cosine similarity is 0...1 here; clamped because a scorer swap must not produce a bar
-        // that overflows its track.
-        self.relevancePercent = min(100, max(0, Int((scored.score * 100).rounded())))
+        self.init(
+            id: scored.chunk.id,
+            title: scored.chunk.metadata["filename"] ?? scored.chunk.documentID,
+            snippet: String(scored.chunk.text.prefix(160)),
+            // Cosine similarity is 0...1 here; clamped because a scorer swap must not produce a
+            // bar that overflows its track.
+            relevancePercent: min(100, max(0, Int((scored.score * 100).rounded()))),
+            subject: scored.chunk.metadata["subject"],
+            // `Double(_:)` rather than a formatter: the value was written by
+            // `AppKnowledge.retrievalDocuments` as a raw interval, and a corpus that wrote
+            // something else should arrive undated rather than arrive at a parsed guess.
+            observedAt: scored.chunk.metadata["observedAt"]
+                .flatMap(Double.init)
+                .map(Date.init(timeIntervalSince1970:))
+        )
     }
 }

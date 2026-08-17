@@ -18,10 +18,10 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **662 passing**, 122 suites |
-| UI tests (XCUITest) | **not re-run for this change** — last measured 2026-08-13 at 5 executed / 15 failures, every failing assertion naming a pre-existing surface. The executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15), which is the strongest evidence the fault is environmental. |
-| `swiftlint --strict` | **0 violations**, 69 files |
-| Line coverage | **93.34%** — 9371/10040, unit tests only, up from 93.28%. `PreModelPipeline+SourceIndependence.swift` (80/80), `PreModelPipeline+VerdictStability.swift` (132/132) and `PipelineStage.swift` (142/142) are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58% on a previous change, which is a different question. |
+| Unit + integration tests | **673 passing**, 123 suites |
+| UI tests (XCUITest) | **re-run 2026-08-17: 1 failure**, `DiagnosticsUITests.testDiagnosticsIsReachableAndDismissable`, on `"Diagnostics" IN identifiers` — it cannot find the button to tap. **Confirmed pre-existing rather than assumed**: the same single test was run against this change stashed, on a clean DerivedData, and failed identically. The executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, now 1), which remains the strongest evidence the fault is environmental. Still unfixed. |
+| `swiftlint --strict` | **0 violations**, 70 files |
+| Line coverage | **93.41%** — 9496/10166, unit tests only, up from 93.34%. `PreModelPipeline+TemporalValidity.swift` (82/82), `PreparedTurn.swift` (36/36), `LexicalIndex.swift` (47/47) and `PipelineStage.swift` (144/144) are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58% on a previous change, which is a different question. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
 **All 36 packages do real work in the app.** 35 of them run in the send path and own a pipeline
@@ -202,6 +202,21 @@ Three properties are load-bearing, and each has a test:
   assertion fail with `missing: [...]`. The docstring and the `@Test` title carry the number too.
   Case, `stage.package` mapping, the set literal, the count, the docstring and the test title —
   all six move together.
+
+  **2026-08-17: it is seven, not six.** `PipelineStage` has a *second* exhaustive switch —
+  `title`, which the Diagnostics screen renders — and it sits far enough below `package` that
+  updating one and not the other is the natural mistake. The compiler does catch it, but as
+  `Switch must be exhaustive` inside a 60-line `xcodebuild` failure dump rather than next to the
+  case you just added. The language server flagged it immediately and it was scrolled past. When
+  a tool tells you a switch is not exhaustive, that is the cheapest this finding will ever be.
+
+- **A UI failure is not pre-existing until you have run it without your change.** This run's suite
+  came back with one failure, in a Diagnostics *navigation* assertion with nothing to do with the
+  pipeline, and this README already records the suite as chronically red. Both facts point at
+  "pre-existing" and neither establishes it. `git stash push -u`, a clean DerivedData and
+  `-only-testing:AIChatAppUITests/DiagnosticsUITests` settled it in one run: it fails identically
+  without the change. That is the difference between reporting a verified result and a plausible
+  one, and it costs about two minutes.
 
 - **A coincidence finding only bears on the ruling it is about.** `EvidenceSensitivityKit` reports
   `offsettingWeakness` when two sides land close while neither is independently strong. Wiring that
@@ -493,7 +508,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.34%** — 9371/10040 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.41%** — 9496/10166 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including the three touched this change. 28 files sit below it, and they divide into two groups
 that want different answers:
 

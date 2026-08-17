@@ -30,6 +30,11 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Whether the passages that survived can answer the question that was asked.
     /// Runs after compaction so it judges the evidence the model will actually receive.
     case answerabilityGate
+    /// Whether the passages the gate just admitted are still entitled to speak.
+    /// Runs before independence and stability because it needs nothing from either — only the
+    /// dates the corpus already carried — and because a ruling that rests on an expired snapshot
+    /// is not worth measuring the provenance of.
+    case temporalValidity
     /// Whether the gate's ruling would survive its own evidence being taken apart.
     /// Runs only after an admission, because there is no point measuring the stability of a
     /// verdict the app already refused to act on.
@@ -109,6 +114,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .sourceConflict: return "SourceConflictKit"
         case .evidenceKeying: return "MorphologyMatchKit"
         case .answerabilityGate: return "AnswerabilityKit"
+        case .temporalValidity: return "TemporalValidityKit"
         case .sourceIndependence: return "SourceIndependenceKit"
         case .verdictStability: return "EvidenceSensitivityKit"
         case .toolAuthority: return "ToolAuthorityKit"
@@ -136,6 +142,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .contextCompaction: return "Context compaction"
         case .evidenceKeying: return "Evidence keying"
         case .answerabilityGate: return "Answerability gate"
+        case .temporalValidity: return "Temporal validity"
         case .sourceIndependence: return "Source independence"
         case .verdictStability: return "Verdict stability"
         case .workloadProfile: return "Workload profile"

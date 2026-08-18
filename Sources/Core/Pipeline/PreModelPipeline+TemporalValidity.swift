@@ -1,3 +1,4 @@
+import AbstentionPolicyKit
 import AnswerabilityKit
 import Foundation
 import TemporalValidityAnswerability
@@ -25,6 +26,8 @@ extension PreModelPipeline {
     ) -> Refusal? {
         guard !sources.isEmpty else {
             trace.record(.temporalValidity, .skipped(reason: "no passages to date"))
+            Self.reserve(.unavailable("no passages to date"),
+                         for: ReservationOrigin.temporal, trace: &trace)
             return nil
         }
 
@@ -36,6 +39,8 @@ extension PreModelPipeline {
                 .temporalValidity,
                 .noOp(reason: "\(sources.count) passage(s), none carrying both a subject and a date")
             )
+            Self.reserve(.unavailable("no passage carries both a subject and a date"),
+                         for: ReservationOrigin.temporal, trace: &trace)
             return nil
         }
 
@@ -50,6 +55,8 @@ extension PreModelPipeline {
         case .timeDependent(_, _, let withheld):
             let refusal = Self.refusalForStaleAdmission(withheld: withheld, sources: sources)
             trace.record(.temporalValidity, .refused(refusal))
+            Self.reserve(.refuse("the ruling depends on \(withheld.count) stale passage(s)"),
+                         for: ReservationOrigin.temporal, trace: &trace)
             return refusal
 
         case .timeInvariant(let verdict):
@@ -58,10 +65,22 @@ extension PreModelPipeline {
                 .ran(detail: "\(assessment.entitledFloor) of \(sources.count) passage(s) entitled; "
                     + "\(verdict) either way")
             )
+            // Stale evidence that did not change the ruling. Not grounds to stop a turn — most of
+            // this app's corpus is a bundled snapshot and always will be — but it is a real
+            // reservation, and until now the sentence above was the only place it existed.
+            let stale = sources.count - assessment.entitledFloor
+            Self.reserve(
+                stale > 0
+                    ? .concern(.low, "\(stale) of \(sources.count) passage(s) no longer entitled to speak")
+                    : .clear,
+                for: ReservationOrigin.temporal,
+                trace: &trace
+            )
             return nil
 
         case .undetermined(let reason):
             trace.record(.temporalValidity, .noOp(reason: reason))
+            Self.reserve(.unavailable(reason), for: ReservationOrigin.temporal, trace: &trace)
             return nil
         }
     }

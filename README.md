@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **673 passing**, 123 suites |
-| UI tests (XCUITest) | **re-run 2026-08-17: 1 failure**, `DiagnosticsUITests.testDiagnosticsIsReachableAndDismissable`, on `"Diagnostics" IN identifiers` — it cannot find the button to tap. **Confirmed pre-existing rather than assumed**: the same single test was run against this change stashed, on a clean DerivedData, and failed identically. The executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, now 1), which remains the strongest evidence the fault is environmental. Still unfixed. |
-| `swiftlint --strict` | **0 violations**, 70 files |
-| Line coverage | **93.41%** — 9496/10166, unit tests only, up from 93.34%. `PreModelPipeline+TemporalValidity.swift` (82/82), `PreparedTurn.swift` (36/36), `LexicalIndex.swift` (47/47) and `PipelineStage.swift` (144/144) are all at **100.00%**; the code added this change has no uncovered lines. Measure unit-only against unit-only — the same DerivedData after a run that *includes* the UI suite reported 95.58% on a previous change, which is a different question. |
+| Unit + integration tests | **681 passing**, 124 suites |
+| UI tests (XCUITest) | **re-run 2026-08-18: still failing, still pre-existing.** `DiagnosticsUITests` (all 3), `ModelPickerUITests` (all 4) and `LoginFlowUITests` (`testDemoCredentialsReachTheChatScreen`). **Confirmed against a clean clone of the previous commit** this time rather than a stash: `git clone` of `4fcdf49`, fresh DerivedData, UI target only — it fails the same tests with the same signatures (`the catalogue never rendered`, `promptTemplate is not listed as unreached`). Three unrelated screens failing to render at all is the shape of an environmental fault, and the executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, now 3/8+7/1). Still unfixed. |
+| `swiftlint --strict` | **0 violations**, 71 files |
+| Line coverage | **93.51%** — 9646/10316, unit tests only, up from 93.41%. `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148), `PreModelPipeline+SourceIndependence.swift` (99/99), `PreModelPipeline+TemporalValidity.swift` (100/100) and `PipelineStage.swift` (150/150) are all at **100.00%**; the code added this change has no uncovered lines. The 93.41% baseline was **reproduced rather than trusted** this run — a fresh clone of the previous commit, a clean DerivedData and a unit-only run returned 9496/10166 exactly. Measure unit-only against unit-only: the same DerivedData after a run that *includes* the UI suite reported 95.73% today, which is a different question. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 36 packages do real work in the app.** 35 of them run in the send path and own a pipeline
+**All 37 packages do real work in the app.** 36 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,34 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **A finding a stage will not stand behind must not be able to corroborate another one.**
+  `AbstentionPolicyKit` abstains when two distinct gates each raise a concern. Wiring it, the
+  answerability gate's untrusted coverage gap and the stability pass's thin-support number were
+  both filed as concerns — and together they refused *"how much am I spending, what is the
+  ceiling"*, the same query this app has now wrongly refused three times by three different
+  mechanisms. `HybridRetrievalTests` caught it, and has now been right four times running. Both
+  readings are ones the owning stage explicitly discounts: absence on an unkeyed attribute aspect
+  is a claim about spelling, and offsetting weakness is a statement about a *conflict* that does
+  not bear on a ruling nobody contested. They are not two independent judges — they are two
+  symptoms of one recall gap. Both now file `.unavailable`, which is what the four-case vocabulary
+  is for: **"I ran and could not rule" is not "I found something mild."** Concurrence only means
+  anything if the concurring voices are independent, which is `SourceIndependenceKit`'s lesson
+  arriving one layer up.
+
+- **Read a result bundle in a different command from the one that wrote it.**
+  `Scripts/coverage.sh` reported 91.95% immediately after the `xcodebuild` run that produced the
+  bundle, and 93.51% from the identical bundle a moment later. Chaining the two in one shell
+  command reads a bundle Xcode has not finished writing, and the number it gives is quietly wrong
+  rather than an error. Anything derived from an `.xcresult` should be a separate invocation.
+
+- **Reproduce the baseline before believing a coverage regression.**
+  This change looked like it dropped coverage from a README figure recorded on a previous run. A
+  fresh `git clone` of the previous commit, a clean DerivedData and a unit-only run returned
+  9496/10166 — the recorded figure exactly. That takes four minutes and converts "the number
+  moved" into "the number moved *because of this change*", which are different claims. The same
+  clone then settled the UI failures as pre-existing without touching the working tree, which a
+  `git stash` would have.
 
 - **A pure stage on an actor should be `nonisolated`, and the tests will tell you.**
   `establishSourceIndependence` reads one immutable `Sendable` analyzer and pure statics, but it

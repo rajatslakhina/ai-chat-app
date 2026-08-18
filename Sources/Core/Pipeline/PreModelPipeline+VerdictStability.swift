@@ -1,6 +1,7 @@
 import AnswerabilityKit
 import EvidenceSensitivityAnswerability
 import EvidenceSensitivityKit
+import AbstentionPolicyKit
 import Foundation
 import SourceIndependenceKit
 
@@ -28,6 +29,8 @@ extension PreModelPipeline {
                 .verdictStability,
                 .skipped(reason: "no retrieved passages; there is no verdict resting on evidence")
             )
+            Self.reserve(.unavailable("no verdict rests on evidence here"),
+                         for: ReservationOrigin.stability, trace: &trace)
             return .admitted
         }
 
@@ -83,64 +86,110 @@ extension PreModelPipeline {
     ) -> AnswerabilityResult {
         switch report.verdict {
         case .robust:
-            trace.record(
-                .verdictStability,
+            return admit(
                 .ran(detail: "admission survives losing any passage and any document "
-                    + "(\(report.probeCount) re-runs over \(sourceCount) passage(s))")
+                    + "(\(report.probeCount) re-runs over \(sourceCount) passage(s))"),
+                reserving: .clear,
+                trace: &trace
             )
-            return .admitted
 
         case let .coincidental(.offsettingWeakness(affirming, denying)):
-            // Only a *contested* ruling can be undermined by this finding.
-            //
-            // Offsetting weakness says two sides landed close while neither is strong — which is
-            // a statement about a conflict being coincidental. When the gate ruled `answerable`
-            // there is no conflict claim to undermine, and the same numbers mean only that
-            // support was thin. Refusing on them blocked "how much am I spending, what is the
-            // ceiling" against this app's own budget corpus, which is the third time a wholesale
-            // refusal here has turned out to be wrong for a different reason than the last.
-            guard report.baseline.label == "contested" else {
-                trace.record(
-                    .verdictStability,
-                    .ran(detail: String(format: "support %.2f against %.2f is thin on both sides, but "
-                        + "the gate ruled '%@' rather than contested; recorded, not refused",
-                        affirming, denying, report.baseline.label))
-                )
-                return .admitted
-            }
-            return .refused(Self.offsettingRefusal(affirming: affirming, denying: denying, trace: &trace))
+            return judgeOffsettingWeakness(
+                affirming: affirming, denying: denying, baseline: report.baseline.label, trace: &trace
+            )
 
         case let .coincidental(.singleDocumentCorroboration(documentID, passages)):
             // Recorded, not refused. Answering from one document is ordinary and often correct.
             // What would be wrong is presenting it as corroborated, and that is a claim this
             // stage does not make on the app's behalf either way.
-            trace.record(
-                .verdictStability,
+            return admit(
                 .ran(detail: "admitted on \(passages) passage(s) from one document (\(documentID)); "
-                    + "agreement between them is one source, not several")
+                    + "agreement between them is one source, not several"),
+                reserving: .concern(.low, "admitted on \(passages) passage(s) from one document; "
+                    + "agreement between them is one source, not several"),
+                trace: &trace
             )
-            return .admitted
 
         case let .pivotal(items, documents):
-            trace.record(
-                .verdictStability,
+            return admit(
                 .ran(detail: "admission depends on \(Self.describe(items, "passage")) and "
-                    + "\(Self.describe(documents, "document")); losing any of them changes the ruling")
+                    + "\(Self.describe(documents, "document")); losing any of them changes the ruling"),
+                reserving: .concern(.low, "losing any of \(Self.describe(items, "passage")) "
+                    + "changes the ruling"),
+                trace: &trace
             )
-            return .admitted
 
         case let .knifeEdge(margin):
-            trace.record(
-                .verdictStability,
+            return admit(
                 .ran(detail: String(format: "admission sits %.2f from the gate's threshold; "
-                    + "a rescoring flips it without any passage changing", margin))
+                    + "a rescoring flips it without any passage changing", margin)),
+                reserving: .concern(.low, String(
+                    format: "the admission sits %.2f from the gate's threshold", margin
+                )),
+                trace: &trace
             )
-            return .admitted
 
         case let .undetermined(cause):
-            trace.record(.verdictStability, Self.unmeasured(cause))
-            return .admitted
+            return admit(
+                Self.unmeasured(cause),
+                reserving: .unavailable("stability could not be measured"),
+                trace: &trace
+            )
         }
+    }
+
+    /// Support thin on both sides, which only a *contested* ruling can be undermined by.
+    ///
+    /// Offsetting weakness says two sides landed close while neither is strong — a statement
+    /// about a conflict being coincidental. When the gate ruled `answerable` there is no conflict
+    /// claim to undermine, and the same numbers mean only that support was thin. Refusing on them
+    /// blocked "how much am I spending, what is the ceiling" against this app's own budget corpus:
+    /// the third time a wholesale refusal here was wrong, each time for a different reason.
+    ///
+    /// 08-18: the non-contested arm files `.unavailable` rather than a concern, because that is
+    /// what the paragraph above actually says. These numbers are a measurement *about a conflict*.
+    /// With no conflict claim to bear on, the stage has not found a mild problem — it has found
+    /// that its instrument does not apply. Filing it as a concern let it corroborate the
+    /// answerability gate's equally-discounted coverage gap, and the two together refused "how
+    /// much am I spending, what is the ceiling" a third time. Two readings neither stage will
+    /// stand behind are not two independent voices; they are one measurement gap counted twice.
+    private static func judgeOffsettingWeakness(
+        affirming: Double,
+        denying: Double,
+        baseline: String,
+        trace: inout PipelineTrace
+    ) -> AnswerabilityResult {
+        guard baseline == "contested" else {
+            return admit(
+                .ran(detail: String(format: "support %.2f against %.2f is thin on both sides, but "
+                    + "the gate ruled '%@' rather than contested; recorded, not refused",
+                    affirming, denying, baseline)),
+                reserving: .unavailable(String(
+                    format: "support %.2f against %.2f is thin, but offsetting weakness does not "
+                        + "bear on a ruling that was not contested", affirming, denying
+                )),
+                trace: &trace
+            )
+        }
+        reserve(.refuse("a contested ruling rests on offsetting weakness"),
+                for: ReservationOrigin.stability, trace: &trace)
+        return .refused(Self.offsettingRefusal(affirming: affirming, denying: denying, trace: &trace))
+    }
+
+    /// Records what the stage did and files what it found, in one place.
+    ///
+    /// Six of this stage's seven arms admit, and each was three lines of record-reserve-return.
+    /// Extracting it keeps `act` inside `function_body_length` — raising the limit was the other
+    /// option and this repo's rule says extract — and it makes the pairing structural: an arm
+    /// cannot now record an outcome and forget to file a reading.
+    private static func admit(
+        _ outcome: StageOutcome,
+        reserving reading: SignalReading,
+        trace: inout PipelineTrace
+    ) -> AnswerabilityResult {
+        trace.record(.verdictStability, outcome)
+        reserve(reading, for: ReservationOrigin.stability, trace: &trace)
+        return .admitted
     }
 
     /// The one refusal this stage makes, and the reason it is the only one.

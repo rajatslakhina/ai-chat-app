@@ -1,3 +1,4 @@
+import AbstentionPolicyKit
 import Foundation
 
 /// Every stage one user message passes through, in the order it passes through them.
@@ -43,6 +44,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// document identifiers it is handed, and this app's retrieval layer supplies none.
     case sourceIndependence
     case verdictStability
+    /// Whether the reservations the four gates above raised but did not block on add up.
+    /// Runs last of the free stages, because it has nothing to say until they have all spoken —
+    /// and it never overturns one of their refusals, only finds the turns none of them stopped.
+    case abstentionArbiter
     case workloadProfile
     case costForecast
     case budgetReserve
@@ -117,6 +122,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .temporalValidity: return "TemporalValidityKit"
         case .sourceIndependence: return "SourceIndependenceKit"
         case .verdictStability: return "EvidenceSensitivityKit"
+        case .abstentionArbiter: return "AbstentionPolicyKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -145,6 +151,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .temporalValidity: return "Temporal validity"
         case .sourceIndependence: return "Source independence"
         case .verdictStability: return "Verdict stability"
+        case .abstentionArbiter: return "Abstention arbiter"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"
@@ -268,12 +275,32 @@ struct StageRecord: Sendable, Equatable, Identifiable {
 struct PipelineTrace: Sendable, Equatable {
     private(set) var records: [StageRecord] = []
 
+    /// What each stage found but did not block on.
+    ///
+    /// A stage that raises a reservation and returns `.admitted` currently has nowhere to put the
+    /// reservation, so it is written into a `detail` string and thrown away. Independence merging
+    /// two passages, stability finding support thin on both sides, the answerability gate
+    /// recording a coverage gap it does not trust its own recall to refuse on — all real, all
+    /// discarded. They live here so `abstentionArbiter` can ask whether several of them together
+    /// mean something none of them meant alone.
+    private(set) var reservations: [AbstentionSignal] = []
+
     init(records: [StageRecord] = []) {
         self.records = records
     }
 
     mutating func record(_ stage: PipelineStage, _ outcome: StageOutcome, durationMs: Int = 0) {
         records.append(StageRecord(stage: stage, outcome: outcome, durationMs: durationMs))
+    }
+
+    /// Files one stage's reading, blocking or not.
+    ///
+    /// Separate from `record` rather than derived from it. A `StageOutcome` says what the stage
+    /// *did*; a reading says what it *found*, and the two are not the same — `.ran` covers both a
+    /// clean pass and a pass that noticed something, and collapsing them would hand the arbiter a
+    /// clear signal for every stage that noticed a problem and carried on.
+    mutating func reserve(_ signal: AbstentionSignal) {
+        reservations.append(signal)
     }
 
     /// The first refusal, which is the one that stopped the turn.

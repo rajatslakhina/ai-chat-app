@@ -1,3 +1,4 @@
+import AbstentionPolicyKit
 import Foundation
 import SourceIndependenceKit
 
@@ -45,6 +46,8 @@ extension PreModelPipeline {
                 .sourceIndependence,
                 .skipped(reason: "\(sources.count) passage(s); independence is a question about several")
             )
+            Self.reserve(.unavailable("\(sources.count) passage(s); nothing to compare"),
+                         for: ReservationOrigin.independence, trace: &trace)
             return .notApplicable
         }
 
@@ -57,11 +60,15 @@ extension PreModelPipeline {
                 .noOp(reason: "\(report.establishedSourceCount) source(s) across \(sources.count) "
                     + "passage(s); the titles already said everything the text could")
             )
+            Self.reserve(Self.reading(for: report, passages: sources.count),
+                         for: ReservationOrigin.independence, trace: &trace)
             return .established(report)
         }
 
         if let refusal = Self.refusalForCollapsedCorroboration(report, sources: sources, merged: byText) {
             trace.record(.sourceIndependence, .refused(refusal))
+            Self.reserve(.refuse("\(sources.count) passages under different titles are one text"),
+                         for: ReservationOrigin.independence, trace: &trace)
             return .refused(refusal)
         }
 
@@ -70,6 +77,8 @@ extension PreModelPipeline {
             .ran(detail: "\(report.establishedSourceCount) source(s) across \(sources.count) passage(s); "
                 + "text matching merged \(byText.map(\.summary).joined(separator: " | "))")
         )
+        Self.reserve(Self.reading(for: report, passages: sources.count),
+                     for: ReservationOrigin.independence, trace: &trace)
         return .established(report)
     }
 
@@ -97,6 +106,24 @@ extension PreModelPipeline {
                 + "titles, and they are substantially the same writing — \(merged.count) of them "
                 + "matched on content. Answering would present one source as though several agreed.",
             recovery: .shortenConversation
+        )
+    }
+
+    /// What this stage found, short of the one thing it refuses on.
+    ///
+    /// Two readings are worth filing and neither has ever had anywhere to go. Fewer sources than
+    /// passages means something merged — the user's "N sources" chip is counting passages, not
+    /// voices. One source across several passages is the same statement in its strongest form.
+    /// Neither is grounds to stop a turn on its own; that judgement is deliberate and unchanged.
+    static func reading(for report: IndependenceReport, passages: Int) -> SignalReading {
+        if report.isSingleSource {
+            return .concern(.moderate, "all \(passages) passage(s) are one source")
+        }
+        let merged = passages - report.establishedSourceCount
+        guard merged > 0 else { return .clear }
+        return .concern(
+            .low,
+            "\(passages) passage(s) are \(report.establishedSourceCount) source(s); \(merged) merged"
         )
     }
 

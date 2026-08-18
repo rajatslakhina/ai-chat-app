@@ -1,3 +1,4 @@
+import AbstentionPolicyKit
 import AnswerabilityKit
 import Foundation
 
@@ -54,8 +55,11 @@ extension PreModelPipeline {
             // app actually cares about, and unlike a margin, no strength change can hide it.
             let disputed = Self.disputed(in: report)
             guard disputed.isEmpty else {
+                Self.reserve(.refuse("two-sided support on \(disputed.joined(separator: ", "))"),
+                             for: ReservationOrigin.answerability, trace: &trace)
                 return .refused(Self.contestedRefusal(aspects: disputed, trace: &trace))
             }
+            Self.reserve(.clear, for: ReservationOrigin.answerability, trace: &trace)
             trace.record(
                 .answerabilityGate,
                 .ran(detail: "\(Self.covered(report)) of \(report.assessments.count) aspect(s) covered "
@@ -64,21 +68,11 @@ extension PreModelPipeline {
             return .admitted
 
         case let .insufficient(missing):
-            // Refused only when every uncovered aspect is one this app's matcher reads reliably.
-            // An attribute aspect is matched with its anchors unkeyed, so absence there is a much
-            // weaker claim than absence of a subject. See the note below `gateAnswerability`.
-            guard Self.recallIsTrustworthy(for: report) else {
-                trace.record(
-                    .answerabilityGate,
-                    .ran(detail: "\(Self.covered(report)) of \(report.assessments.count) aspect(s) covered; "
-                        + "nothing found for: \(missing.joined(separator: ", ")); recorded rather than "
-                        + "refused - an attribute aspect is matched unkeyed")
-                )
-                return .admitted
-            }
-            return .refused(Self.insufficientRefusal(report: report, missing: missing, trace: &trace))
+            return Self.judgeCoverageGap(report: report, missing: missing, trace: &trace)
 
         case let .contested(aspects):
+            Self.reserve(.refuse("evidence disagrees about \(aspects.joined(separator: ", "))"),
+                         for: ReservationOrigin.answerability, trace: &trace)
             return .refused(Self.contestedRefusal(aspects: aspects, trace: &trace))
 
         case .undetermined(.noEvidenceOffered):
@@ -88,6 +82,8 @@ extension PreModelPipeline {
                 .answerabilityGate,
                 .skipped(reason: "no retrieved passages; turn is not evidence-backed")
             )
+            Self.reserve(.unavailable("turn is not evidence-backed"),
+                         for: ReservationOrigin.answerability, trace: &trace)
             return .admitted
 
         case let .undetermined(.tooFewAspects(found, required)):
@@ -98,8 +94,50 @@ extension PreModelPipeline {
                 .answerabilityGate,
                 .noOp(reason: "read \(found) aspect(s), \(required) required to rule; no opinion offered")
             )
+            Self.reserve(.unavailable("read \(found) of \(required) aspects needed to rule"),
+                         for: ReservationOrigin.answerability, trace: &trace)
             return .admitted
         }
+    }
+
+    /// A coverage gap, refused only when this app's matcher reads every missing aspect reliably.
+    ///
+    /// An attribute aspect is matched with its anchors unkeyed, so absence there is a much weaker
+    /// claim than absence of a subject. See the note below.
+    ///
+    /// The untrusted branch files `.unavailable`, not a concern, and the difference is the whole
+    /// point of the four-case vocabulary. This stage is not saying "I found a mild problem"; it is
+    /// saying **"I could not measure this reliably"** — an attribute aspect is matched with its
+    /// anchors unkeyed, so absence there is a claim about spelling. A reading the stage will not
+    /// stand behind must not be able to corroborate somebody else's, or two symptoms of one
+    /// recall gap add up to a refusal as though they were two independent judges.
+    ///
+    /// Filing it as a concern is exactly what was tried first, and `HybridRetrievalTests` refused
+    /// "how much am I spending, what is the ceiling" for the third time in this app's history —
+    /// the same query, a new mechanism. Those tests have now been right four times running.
+    private static func judgeCoverageGap(
+        report: AnswerabilityReport,
+        missing: [String],
+        trace: inout PipelineTrace
+    ) -> AnswerabilityResult {
+        guard Self.recallIsTrustworthy(for: report) else {
+            trace.record(
+                .answerabilityGate,
+                .ran(detail: "\(Self.covered(report)) of \(report.assessments.count) aspect(s) covered; "
+                    + "nothing found for: \(missing.joined(separator: ", ")); recorded rather than "
+                    + "refused - an attribute aspect is matched unkeyed")
+            )
+            Self.reserve(
+                .unavailable("cannot rule on coverage of \(missing.joined(separator: ", ")); an "
+                    + "attribute aspect is matched unkeyed, so absence is weak evidence"),
+                for: ReservationOrigin.answerability,
+                trace: &trace
+            )
+            return .admitted
+        }
+        Self.reserve(.refuse("nothing covers \(missing.joined(separator: ", "))"),
+                     for: ReservationOrigin.answerability, trace: &trace)
+        return .refused(Self.insufficientRefusal(report: report, missing: missing, trace: &trace))
     }
 
     // MARK: - Why absence is refused for some aspects and only recorded for others
@@ -220,6 +258,31 @@ extension PreModelPipeline {
     /// the temporal call put `PreModelPipeline` at 251 lines against a 250-line limit, and the fix
     /// for that is to move orchestration out, not to raise the number.
     func refusalBeforeSending(
+        sources: [RetrievedSource],
+        outbound: String,
+        trace: inout PipelineTrace
+    ) async -> Refusal? {
+        if let refusal = await firstStageRefusal(sources: sources, outbound: outbound, trace: &trace) {
+            // The arbiter still reports, and reports the truth: it did not rule, because there was
+            // nothing left for it to rule on. Leaving it unreached would show the Diagnostics
+            // reader a stage that silently did not run, which is the one thing that screen exists
+            // to prevent — and this app has five other stages that already look like that after an
+            // early refusal, so the reason is worth stating rather than inferring.
+            trace.record(
+                .abstentionArbiter,
+                .skipped(reason: "\(refusal.stage.title) already refused; a refusal is never overturned")
+            )
+            return refusal
+        }
+        return arbitrateReservations(trace: &trace)
+    }
+
+    /// The four rulings, in order, stopping at the first that refuses.
+    ///
+    /// Split out from ``refusalBeforeSending(sources:outbound:trace:)`` so the arbiter's own
+    /// reporting is not tangled with four early returns — and because `function_body_length` is a
+    /// fair signal that a function doing both had outgrown one body.
+    private func firstStageRefusal(
         sources: [RetrievedSource],
         outbound: String,
         trace: inout PipelineTrace

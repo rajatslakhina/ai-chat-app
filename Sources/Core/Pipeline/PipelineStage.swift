@@ -44,6 +44,11 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// document identifiers it is handed, and this app's retrieval layer supplies none.
     case sourceIndependence
     case verdictStability
+    /// How many of the four gates above are actually separate judges.
+    /// Runs between the gates and the arbiter because it changes what the arbiter is counting,
+    /// not what it decides: stability re-runs the answerability gate with evidence withheld, so
+    /// the two agreeing is one engine agreeing with itself and must not read as corroboration.
+    case signalDependence
     /// Whether the reservations the four gates above raised but did not block on add up.
     /// Runs last of the free stages, because it has nothing to say until they have all spoken —
     /// and it never overturns one of their refusals, only finds the turns none of them stopped.
@@ -122,6 +127,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .temporalValidity: return "TemporalValidityKit"
         case .sourceIndependence: return "SourceIndependenceKit"
         case .verdictStability: return "EvidenceSensitivityKit"
+        case .signalDependence: return "SignalDependenceKit"
         case .abstentionArbiter: return "AbstentionPolicyKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
@@ -151,6 +157,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .temporalValidity: return "Temporal validity"
         case .sourceIndependence: return "Source independence"
         case .verdictStability: return "Verdict stability"
+        case .signalDependence: return "Signal dependence"
         case .abstentionArbiter: return "Abstention arbiter"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
@@ -301,6 +308,15 @@ struct PipelineTrace: Sendable, Equatable {
     /// clear signal for every stage that noticed a problem and carried on.
     mutating func reserve(_ signal: AbstentionSignal) {
         reservations.append(signal)
+    }
+
+    /// Replaces the filed readings with one per independent voice.
+    ///
+    /// A replacement rather than a parallel store. The arbiter must rule on exactly one array or
+    /// its explanation can describe a set of findings the decision was not made from — the second
+    /// source of truth this ecosystem removed by hand on 08-18, reintroduced by the back door.
+    mutating func deflateReservations(to voices: [AbstentionSignal]) {
+        reservations = voices
     }
 
     /// The first refusal, which is the one that stopped the turn.

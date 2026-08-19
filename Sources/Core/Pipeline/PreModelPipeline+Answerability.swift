@@ -269,11 +269,19 @@ extension PreModelPipeline {
             // to prevent — and this app has five other stages that already look like that after an
             // early refusal, so the reason is worth stating rather than inferring.
             trace.record(
+                .signalDependence,
+                .skipped(reason: "\(refusal.stage.title) already refused; nothing left to count")
+            )
+            trace.record(
                 .abstentionArbiter,
                 .skipped(reason: "\(refusal.stage.title) already refused; a refusal is never overturned")
             )
             return refusal
         }
+        // Deflate before arbitrating, never after. The arbiter counts distinct origins, so a
+        // reduction applied to its ruling rather than to its input would be arguing with a
+        // decision instead of correcting the arithmetic it was made from.
+        await deflateSignalDependence(trace: &trace)
         return arbitrateReservations(trace: &trace)
     }
 

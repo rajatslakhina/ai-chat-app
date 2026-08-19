@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **681 passing**, 124 suites |
-| UI tests (XCUITest) | **re-run 2026-08-18: still failing, still pre-existing.** `DiagnosticsUITests` (all 3), `ModelPickerUITests` (all 4) and `LoginFlowUITests` (`testDemoCredentialsReachTheChatScreen`). **Confirmed against a clean clone of the previous commit** this time rather than a stash: `git clone` of `4fcdf49`, fresh DerivedData, UI target only — it fails the same tests with the same signatures (`the catalogue never rendered`, `promptTemplate is not listed as unreached`). Three unrelated screens failing to render at all is the shape of an environmental fault, and the executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, now 3/8+7/1). Still unfixed. |
-| `swiftlint --strict` | **0 violations**, 71 files |
-| Line coverage | **93.51%** — 9646/10316, unit tests only, up from 93.41%. `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148), `PreModelPipeline+SourceIndependence.swift` (99/99), `PreModelPipeline+TemporalValidity.swift` (100/100) and `PipelineStage.swift` (150/150) are all at **100.00%**; the code added this change has no uncovered lines. The 93.41% baseline was **reproduced rather than trusted** this run — a fresh clone of the previous commit, a clean DerivedData and a unit-only run returned 9496/10166 exactly. Measure unit-only against unit-only: the same DerivedData after a run that *includes* the UI suite reported 95.73% today, which is a different question. |
+| Unit + integration tests | **688 passing**, 125 suites |
+| UI tests (XCUITest) | **not re-run to completion for the 2026-08-19 change; unchanged since 2026-08-18.** A full-scheme run on 08-19 was started and stopped part-way, and `DiagnosticsUITests.testDiagnosticsIsReachableAndDismissable` failed in it with the same signature as before, so nothing here is known to have improved or regressed. The 08-18 finding stands as written: **still failing, still pre-existing.** `DiagnosticsUITests` (all 3), `ModelPickerUITests` (all 4) and `LoginFlowUITests` (`testDemoCredentialsReachTheChatScreen`). **Confirmed against a clean clone of the previous commit** this time rather than a stash: `git clone` of `4fcdf49`, fresh DerivedData, UI target only — it fails the same tests with the same signatures (`the catalogue never rendered`, `promptTemplate is not listed as unreached`). Three unrelated screens failing to render at all is the shape of an environmental fault, and the executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, now 3/8+7/1). Still unfixed. |
+| `swiftlint --strict` | **0 violations**, 72 files |
+| Line coverage | **93.53%** — 9686/10356, unit tests only, up from 93.51%. `PreModelPipeline+SignalDependence.swift` (27/27), `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148), `PreModelPipeline+SourceIndependence.swift` (99/99), `PreModelPipeline+TemporalValidity.swift` (100/100) and `PipelineStage.swift` (155/155) are all at **100.00%**; the code added this change has no uncovered lines. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle — chaining the two in one shell command reads a half-written bundle and under-reports, which cost real time on 08-18. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 37 packages do real work in the app.** 36 of them run in the send path and own a pipeline
+**All 39 packages do real work in the app.** 38 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,15 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+- **`xcodegen generate` must run after adding a *test* file, not only a source file.** On 08-19 a
+  new stage source file was added, `project.yml` was edited, `xcodegen` was run — and the stage's
+  test file was written afterwards. The build succeeded, every test passed, and the run reported
+  **681 tests in 124 suites: exactly the previous run's count.** Nothing failed, nothing warned,
+  and the new suite simply was not in the target. The tell is a test count that does not move when
+  you have just added tests, and it is worth checking for by name (`grep "Suite \"<new suite>\""`)
+  rather than by trusting a green run. A passing suite you never compiled is indistinguishable
+  from a passing suite you did.
 
 - **A finding a stage will not stand behind must not be able to corroborate another one.**
   `AbstentionPolicyKit` abstains when two distinct gates each raise a concern. Wiring it, the
@@ -614,7 +623,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 36 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 39 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

@@ -276,13 +276,24 @@ extension PreModelPipeline {
                 .abstentionArbiter,
                 .skipped(reason: "\(refusal.stage.title) already refused; a refusal is never overturned")
             )
+            trace.record(
+                .conformalGate,
+                .skipped(reason: "\(refusal.stage.title) already refused; nothing left to score")
+            )
             return refusal
         }
         // Deflate before arbitrating, never after. The arbiter counts distinct origins, so a
         // reduction applied to its ruling rather than to its input would be arguing with a
         // decision instead of correcting the arithmetic it was made from.
         await deflateSignalDependence(trace: &trace)
-        return arbitrateReservations(trace: &trace)
+        if let refusal = arbitrateReservations(trace: &trace) {
+            trace.record(
+                .conformalGate,
+                .skipped(reason: "the arbiter already refused; nothing left to score")
+            )
+            return refusal
+        }
+        return await gateOnCertifiedRisk(ledger: calibration, trace: &trace)
     }
 
     /// The four rulings, in order, stopping at the first that refuses.

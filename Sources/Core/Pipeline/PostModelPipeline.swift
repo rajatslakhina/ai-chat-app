@@ -1,5 +1,6 @@
 import ClaimConsistencyKit
 import ClaimSegmenterKit
+import ConformalGateKit
 import Foundation
 import GroundingKit
 import GuardrailKit
@@ -35,6 +36,9 @@ actor PostModelPipeline {
     /// `PostModelPipeline+Consistency.swift`, and Swift's `private` is file-scoped.
     let consistencyChecker: ConsistencyChecker?
     private let tracer: Tracer
+    /// The same ledger the pre-model gate reads from. This is the half that fills it: a turn is
+    /// only labelled once the stages that read the answer have ruled on it.
+    private let calibration: CalibrationStore
     private var tick = 0
     /// Spans this pipeline has closed. Counted here rather than read back from `Tracer`, whose
     /// only accessor wants a root id we do not hold — inventing one would report zero forever.
@@ -44,12 +48,14 @@ actor PostModelPipeline {
         guardrail: GuardrailPipeline,
         verifier: GroundingVerifier = GroundingVerifier(segmenter: ClaimSegmenterBridge()),
         consistencyChecker: ConsistencyChecker? = try? ConsistencyChecker(),
-        tracer: Tracer = Tracer()
+        tracer: Tracer = Tracer(),
+        calibration: CalibrationStore = ConformalLedger.shared
     ) {
         self.guardrail = guardrail
         self.verifier = verifier
         self.consistencyChecker = consistencyChecker
         self.tracer = tracer
+        self.calibration = calibration
     }
 
     /// Internal for the same reason as `consistencyChecker` — the stages that need a tick
@@ -65,6 +71,27 @@ actor PostModelPipeline {
     /// rather than run against nothing — an answer with no sources to check is not "ungrounded",
     /// it is unchecked, and reporting 0% grounded would be a claim the app cannot support.
     func review(
+        answer: String,
+        sources: [RetrievedSource],
+        trace: inout PipelineTrace
+    ) async -> AnswerReview {
+        let review = await verify(answer: answer, sources: sources, trace: &trace)
+        await label(trace: trace)
+        return review
+    }
+
+    /// Records what the verification stages just decided, as one labelled calibration point.
+    ///
+    /// Wraps ``verify(answer:sources:trace:)`` rather than living inside it because that function
+    /// returns from four places, and a label recorded at three of them would quietly train the
+    /// gate on the subset of turns that took those paths.
+    private func label(trace: PipelineTrace) async {
+        let id = "turn-\(await calibration.size())"
+        guard let point = ConformalCalibration.point(id: id, trace: trace) else { return }
+        await calibration.record(point)
+    }
+
+    private func verify(
         answer: String,
         sources: [RetrievedSource],
         trace: inout PipelineTrace

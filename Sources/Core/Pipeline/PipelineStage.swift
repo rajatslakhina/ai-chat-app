@@ -53,6 +53,11 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Runs last of the free stages, because it has nothing to say until they have all spoken —
     /// and it never overturns one of their refusals, only finds the turns none of them stopped.
     case abstentionArbiter
+    /// Whether this turn's readings score outside a threshold this app actually derived.
+    /// Runs last of the free stages because it needs the reservations in their deflated form,
+    /// and files no reservation of its own: its score is computed from the four gates above, so
+    /// a reading of its own would be their opinion arriving twice.
+    case conformalGate
     case workloadProfile
     case costForecast
     case budgetReserve
@@ -129,6 +134,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .verdictStability: return "EvidenceSensitivityKit"
         case .signalDependence: return "SignalDependenceKit"
         case .abstentionArbiter: return "AbstentionPolicyKit"
+        case .conformalGate: return "ConformalGateKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -159,6 +165,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .verdictStability: return "Verdict stability"
         case .signalDependence: return "Signal dependence"
         case .abstentionArbiter: return "Abstention arbiter"
+        case .conformalGate: return "Conformal gate"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

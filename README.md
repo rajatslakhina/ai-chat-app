@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **688 passing**, 125 suites |
-| UI tests (XCUITest) | **not re-run to completion for the 2026-08-19 change; unchanged since 2026-08-18.** A full-scheme run on 08-19 was started and stopped part-way, and `DiagnosticsUITests.testDiagnosticsIsReachableAndDismissable` failed in it with the same signature as before, so nothing here is known to have improved or regressed. The 08-18 finding stands as written: **still failing, still pre-existing.** `DiagnosticsUITests` (all 3), `ModelPickerUITests` (all 4) and `LoginFlowUITests` (`testDemoCredentialsReachTheChatScreen`). **Confirmed against a clean clone of the previous commit** this time rather than a stash: `git clone` of `4fcdf49`, fresh DerivedData, UI target only — it fails the same tests with the same signatures (`the catalogue never rendered`, `promptTemplate is not listed as unreached`). Three unrelated screens failing to render at all is the shape of an environmental fault, and the executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, now 3/8+7/1). Still unfixed. |
-| `swiftlint --strict` | **0 violations**, 72 files |
-| Line coverage | **93.53%** — 9686/10356, unit tests only, up from 93.51%. `PreModelPipeline+SignalDependence.swift` (27/27), `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148), `PreModelPipeline+SourceIndependence.swift` (99/99), `PreModelPipeline+TemporalValidity.swift` (100/100) and `PipelineStage.swift` (155/155) are all at **100.00%**; the code added this change has no uncovered lines. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle — chaining the two in one shell command reads a half-written bundle and under-reports, which cost real time on 08-18. |
+| Unit + integration tests | **699 passing**, 127 suites |
+| UI tests (XCUITest) | **not re-run for the 2026-08-20 change; unchanged since 2026-08-18.** This change touches no UI. The 08-19 note stands as written: **not re-run to completion for the 2026-08-19 change; unchanged since 2026-08-18.** A full-scheme run on 08-19 was started and stopped part-way, and `DiagnosticsUITests.testDiagnosticsIsReachableAndDismissable` failed in it with the same signature as before, so nothing here is known to have improved or regressed. The 08-18 finding stands as written: **still failing, still pre-existing.** `DiagnosticsUITests` (all 3), `ModelPickerUITests` (all 4) and `LoginFlowUITests` (`testDemoCredentialsReachTheChatScreen`). **Confirmed against a clean clone of the previous commit** this time rather than a stash: `git clone` of `4fcdf49`, fresh DerivedData, UI target only — it fails the same tests with the same signatures (`the catalogue never rendered`, `promptTemplate is not listed as unreached`). Three unrelated screens failing to render at all is the shape of an environmental fault, and the executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, now 3/8+7/1). Still unfixed. |
+| `swiftlint --strict` | **0 violations**, 74 files |
+| Line coverage | **93.54%** — 9768/10443, unit tests only, up from 93.53%. `PreModelPipeline+ConformalGate.swift` (39/39), `ConformalCalibration.swift` (23/23), `PreModelPipeline+SignalDependence.swift` (27/27), `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148), `PreModelPipeline+SourceIndependence.swift` (99/99), `PreModelPipeline+TemporalValidity.swift` (100/100) and `PipelineStage.swift` (157/157) are all at **100.00%**; the code added this change has no uncovered lines. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle — chaining the two in one shell command reads a half-written bundle and under-reports, which cost real time on 08-18. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 39 packages do real work in the app.** 38 of them run in the send path and own a pipeline
+**All 40 packages do real work in the app.** 39 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,26 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A gate that lets everything through because it is uncalibrated looks exactly like a gate that
+examined the turn and approved it.** The conformal gate's ordinary outcome for this app's first
+eighteen answered turns is `.noOp`, and it names the shortfall — `12 calibration points cannot
+certify alpha 0.050; 19 are needed` — rather than recording something that reads like an approval.
+The distinction only exists because `StageOutcome` has both `.ran` and `.noOp`; collapsing them
+would have hidden a stage that cannot do its job behind one that had nothing to do.
+
+**The app can only ever label the turns it answered.** A turn the gates refuse is never sent, never
+verified, and never labelled, so the calibration set is drawn from traffic that got through rather
+than from all traffic. The conformal guarantee is honest about the population it was calibrated on
+— and that population is not the one the gate meets. This is stated in `ConformalLedger` rather
+than fixed, because the fix is a feedback channel this app does not have.
+
+**A stage whose score is computed from other stages' readings must not file a reading of its own.**
+The conformal gate's nonconformity score is derived from the four gates' reservations. Filing a
+reservation would put their opinion in front of the arbiter twice — exactly the entanglement
+`signalDependence` runs immediately upstream to catch. It refuses on its own authority or says
+nothing.
+
 
 - **`xcodegen generate` must run after adding a *test* file, not only a source file.** On 08-19 a
   new stage source file was added, `project.yml` was edited, `xcodegen` was run — and the stage's
@@ -623,7 +643,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 39 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 40 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

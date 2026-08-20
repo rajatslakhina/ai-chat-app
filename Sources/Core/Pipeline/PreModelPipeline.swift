@@ -1,5 +1,6 @@
 import AgentMemoryKit
 import AnswerabilityKit
+import ConformalGateKit
 import ContextCompactionKit
 import EvidenceSensitivityKit
 import Foundation
@@ -76,6 +77,10 @@ actor PreModelPipeline {
     /// caller that configures a non-default gate can keep the two in step; a mismatch here would
     /// measure the stability of a ruling nobody made.
     let stabilityEngine: AnswerabilityEngine
+    /// Where labelled turns accumulate, and the only state in this actor that outlives a send.
+    /// Defaulted rather than threaded through every caller, and injected in tests so two of them
+    /// cannot certify against each other's turns.
+    let calibration: CalibrationStore
     var settings: PipelineSettings
 
     init(
@@ -95,6 +100,7 @@ actor PreModelPipeline {
             policy: .lenient,
             matcher: MorphologyEvidenceMatcher()
         ),
+        calibration: CalibrationStore = ConformalLedger.shared,
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -108,6 +114,7 @@ actor PreModelPipeline {
         self.answerability = answerability
         self.stability = stability
         self.stabilityEngine = stabilityEngine
+        self.calibration = calibration
         self.settings = settings
     }
 

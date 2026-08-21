@@ -276,10 +276,8 @@ extension PreModelPipeline {
                 .abstentionArbiter,
                 .skipped(reason: "\(refusal.stage.title) already refused; a refusal is never overturned")
             )
-            trace.record(
-                .conformalGate,
-                .skipped(reason: "\(refusal.stage.title) already refused; nothing left to score")
-            )
+            skipRiskStages(after: refusal.stage.title, trace: &trace)
+            await recordRefusedTurn(ledger: calibration, censoring: censoring, trace: trace)
             return refusal
         }
         // Deflate before arbitrating, never after. The arbiter counts distinct origins, so a
@@ -287,13 +285,26 @@ extension PreModelPipeline {
         // decision instead of correcting the arithmetic it was made from.
         await deflateSignalDependence(trace: &trace)
         if let refusal = arbitrateReservations(trace: &trace) {
-            trace.record(
-                .conformalGate,
-                .skipped(reason: "the arbiter already refused; nothing left to score")
-            )
+            skipRiskStages(after: "the arbiter", trace: &trace)
+            await recordRefusedTurn(ledger: calibration, censoring: censoring, trace: trace)
             return refusal
         }
-        return await gateOnCertifiedRisk(ledger: calibration, trace: &trace)
+        // The audit runs before the gate it qualifies, because a promise that does not reach this
+        // traffic is not something to enforce and then explain away afterwards.
+        let support = await qualifyCertifiedRisk(ledger: calibration, censoring: censoring, trace: &trace)
+        return await gateOnCertifiedRisk(ledger: calibration, enforcement: support, trace: &trace)
+    }
+
+    /// The two risk stages, told they will not run and why.
+    ///
+    /// One helper rather than two `trace.record` calls at each of two refusal sites. Both sites sit
+    /// on paths a unit test reaches rarely, and four near-identical records spread across them is
+    /// four lines that look covered because the line above them is.
+    private func skipRiskStages(after stage: String, trace: inout PipelineTrace) {
+        let qualify = "\(stage) already refused; no certificate to qualify"
+        let score = "\(stage) already refused; nothing left to score"
+        trace.record(.censoredFeedback, .skipped(reason: qualify))
+        trace.record(.conformalGate, .skipped(reason: score))
     }
 
     /// The four rulings, in order, stopping at the first that refuses.

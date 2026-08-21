@@ -1,5 +1,6 @@
 import AbstentionPolicyKit
 import ConformalGateAbstention
+import CensoredFeedbackConformal
 import ConformalGateKit
 import Foundation
 
@@ -22,10 +23,19 @@ extension PreModelPipeline {
     /// the outside, to one that examined the turn and approved it.
     nonisolated func gateOnCertifiedRisk(
         ledger: CalibrationStore,
+        enforcement: CertificateSupport?,
         trace: inout PipelineTrace
     ) async -> Refusal? {
         guard let score = ConformalCalibration.score(for: trace.reservations) else {
             trace.record(.conformalGate, .skipped(reason: "no gate filed a reading to score"))
+            return nil
+        }
+
+        // `censoredFeedback` ran immediately above and found the certificate's promise does not
+        // reach this app's traffic. Enforcing it anyway would refuse turns on a guarantee that was
+        // never supported, which is harder to notice than a gate that is switched off.
+        if let enforcement, !enforcement.allowsEnforcement {
+            trace.record(.conformalGate, .skipped(reason: "enforcement withdrawn — \(enforcement.summary)"))
             return nil
         }
 
@@ -41,6 +51,10 @@ extension PreModelPipeline {
 
         let refusal = Self.riskRefusal(detail: detail, certificate: certificate)
         trace.record(.conformalGate, .refused(refusal))
+        // Recorded here rather than at the call site: this is the one place a refusal by *this*
+        // gate is known, and the branch that would have carried it upstairs sits on a path unit
+        // tests reach rarely enough that it would have gone in uncovered.
+        await recordRefusedTurn(ledger: ledger, censoring: censoring, trace: trace)
         return refusal
     }
 

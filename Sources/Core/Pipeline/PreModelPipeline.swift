@@ -1,4 +1,5 @@
 import AgentMemoryKit
+import CensoredFeedbackKit
 import AnswerabilityKit
 import ConformalGateKit
 import ContextCompactionKit
@@ -81,6 +82,9 @@ actor PreModelPipeline {
     /// Defaulted rather than threaded through every caller, and injected in tests so two of them
     /// cannot certify against each other's turns.
     let calibration: CalibrationStore
+    /// Every decision this app made, answered or refused — the population the certificate
+    /// above is a promise about, rather than the admitted half of it that gets labelled.
+    let censoring: FeedbackLedger?
     var settings: PipelineSettings
 
     init(
@@ -101,6 +105,7 @@ actor PreModelPipeline {
             matcher: MorphologyEvidenceMatcher()
         ),
         calibration: CalibrationStore = ConformalLedger.shared,
+        censoring: FeedbackLedger? = CensoringLedger.shared,
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -115,6 +120,7 @@ actor PreModelPipeline {
         self.stability = stability
         self.stabilityEngine = stabilityEngine
         self.calibration = calibration
+        self.censoring = censoring
         self.settings = settings
     }
 

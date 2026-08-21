@@ -58,6 +58,11 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// and files no reservation of its own: its score is computed from the four gates above, so
     /// a reading of its own would be their opinion arriving twice.
     case conformalGate
+    /// Whether the population the gate above was calibrated on can support its promise.
+    /// Runs immediately before it, and is the only stage here whose effect is to stop a gate
+    /// refusing — permitted for one reason: this app only ever learns about turns it answered,
+    /// so a certificate computed from that log is a promise about the traffic that got through.
+    case censoredFeedback
     case workloadProfile
     case costForecast
     case budgetReserve
@@ -135,6 +140,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .signalDependence: return "SignalDependenceKit"
         case .abstentionArbiter: return "AbstentionPolicyKit"
         case .conformalGate: return "ConformalGateKit"
+        case .censoredFeedback: return "CensoredFeedbackKit"
         case .toolAuthority: return "ToolAuthorityKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
@@ -166,6 +172,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .signalDependence: return "Signal dependence"
         case .abstentionArbiter: return "Abstention arbiter"
         case .conformalGate: return "Conformal gate"
+        case .censoredFeedback: return "Censored feedback"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

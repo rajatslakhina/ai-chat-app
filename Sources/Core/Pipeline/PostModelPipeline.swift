@@ -1,3 +1,4 @@
+import CensoredFeedbackKit
 import ClaimConsistencyKit
 import ClaimSegmenterKit
 import ConformalGateKit
@@ -39,6 +40,9 @@ actor PostModelPipeline {
     /// The same ledger the pre-model gate reads from. This is the half that fills it: a turn is
     /// only labelled once the stages that read the answer have ruled on it.
     private let calibration: CalibrationStore
+    /// The other half of the same ledger: this records that the turn was answered at all,
+    /// which is what makes the refusals recorded pre-model countable against something.
+    private let censoring: FeedbackLedger?
     private var tick = 0
     /// Spans this pipeline has closed. Counted here rather than read back from `Tracer`, whose
     /// only accessor wants a root id we do not hold — inventing one would report zero forever.
@@ -49,13 +53,15 @@ actor PostModelPipeline {
         verifier: GroundingVerifier = GroundingVerifier(segmenter: ClaimSegmenterBridge()),
         consistencyChecker: ConsistencyChecker? = try? ConsistencyChecker(),
         tracer: Tracer = Tracer(),
-        calibration: CalibrationStore = ConformalLedger.shared
+        calibration: CalibrationStore = ConformalLedger.shared,
+        censoring: FeedbackLedger? = CensoringLedger.shared
     ) {
         self.guardrail = guardrail
         self.verifier = verifier
         self.consistencyChecker = consistencyChecker
         self.tracer = tracer
         self.calibration = calibration
+        self.censoring = censoring
     }
 
     /// Internal for the same reason as `consistencyChecker` — the stages that need a tick
@@ -89,6 +95,14 @@ actor PostModelPipeline {
         let id = "turn-\(await calibration.size())"
         guard let point = ConformalCalibration.point(id: id, trace: trace) else { return }
         await calibration.record(point)
+        // The same turn, in the log that also holds the refusals. Recorded here rather than beside
+        // the point above so both halves of the population are written under the same condition:
+        // a turn that cannot carry a label is not in the population either half is about.
+        if let censoring {
+            try? await censoring.record(
+                CensoringFeedback.answered(id: id, wasWrong: point.wasWrong)
+            )
+        }
     }
 
     private func verify(

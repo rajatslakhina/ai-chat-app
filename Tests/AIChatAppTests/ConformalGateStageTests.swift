@@ -53,6 +53,7 @@ struct ConformalGateStageTests {
         var trace = PipelineTrace()
         let refusal = await pipeline(ledger: ledger()).gateOnCertifiedRisk(
             ledger: ledger(),
+            enforcement: nil,
             trace: &trace
         )
         #expect(refusal == nil)
@@ -68,7 +69,7 @@ struct ConformalGateStageTests {
         let store = ledger()
         var trace = PipelineTrace()
         PreModelPipeline.reserve(.refuse("everything is stale"), for: answerability, trace: &trace)
-        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, trace: &trace)
+        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, enforcement: nil, trace: &trace)
         #expect(refusal == nil)
         guard case let .noOp(reason) = trace.outcome(for: .conformalGate) else {
             Issue.record("expected a no-op naming the reason it could not judge")
@@ -87,7 +88,7 @@ struct ConformalGateStageTests {
         await fill(store, count: 12)
         var trace = PipelineTrace()
         PreModelPipeline.reserve(.refuse("everything is stale"), for: answerability, trace: &trace)
-        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, trace: &trace)
+        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, enforcement: nil, trace: &trace)
         #expect(refusal == nil)
         guard case let .noOp(reason) = trace.outcome(for: .conformalGate) else {
             Issue.record("expected a no-op naming the shortfall")
@@ -103,7 +104,7 @@ struct ConformalGateStageTests {
         var trace = PipelineTrace()
         PreModelPipeline.reserve(.clear, for: answerability, trace: &trace)
         PreModelPipeline.reserve(.clear, for: independence, trace: &trace)
-        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, trace: &trace)
+        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, enforcement: nil, trace: &trace)
         #expect(refusal == nil)
         guard case let .ran(detail) = trace.outcome(for: .conformalGate) else {
             Issue.record("expected the stage to record that it judged the score")
@@ -119,7 +120,7 @@ struct ConformalGateStageTests {
         var trace = PipelineTrace()
         PreModelPipeline.reserve(.refuse("all passages are stale"), for: answerability, trace: &trace)
         PreModelPipeline.reserve(.refuse("nothing survived"), for: independence, trace: &trace)
-        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, trace: &trace)
+        let refusal = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, enforcement: nil, trace: &trace)
         guard let refusal else {
             Issue.record("a score of 1.0 must be outside any threshold certified at alpha 0.05")
             return
@@ -139,7 +140,7 @@ struct ConformalGateStageTests {
         var trace = PipelineTrace()
         PreModelPipeline.reserve(.concern(.low, "thin"), for: answerability, trace: &trace)
         let before = trace.reservations.count
-        _ = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, trace: &trace)
+        _ = await pipeline(ledger: store).gateOnCertifiedRisk(ledger: store, enforcement: nil, trace: &trace)
         #expect(trace.reservations.count == before)
     }
 }

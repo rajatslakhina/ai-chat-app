@@ -141,6 +141,9 @@ packages:
   ConformalGateKit:
     url: https://github.com/rajatslakhina/conformal-gate-kit
     from: 1.0.0
+  CensoredFeedbackKit:
+    url: https://github.com/rajatslakhina/censored-feedback-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -271,6 +274,10 @@ targets:
         product: ConformalGateKit
       - package: ConformalGateKit
         product: ConformalGateAbstention
+      - package: CensoredFeedbackKit
+        product: CensoredFeedbackKit
+      - package: CensoredFeedbackKit
+        product: CensoredFeedbackConformal
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

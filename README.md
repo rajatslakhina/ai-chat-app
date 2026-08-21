@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **699 passing**, 127 suites |
-| UI tests (XCUITest) | **not re-run for the 2026-08-20 change; unchanged since 2026-08-18.** This change touches no UI. The 08-19 note stands as written: **not re-run to completion for the 2026-08-19 change; unchanged since 2026-08-18.** A full-scheme run on 08-19 was started and stopped part-way, and `DiagnosticsUITests.testDiagnosticsIsReachableAndDismissable` failed in it with the same signature as before, so nothing here is known to have improved or regressed. The 08-18 finding stands as written: **still failing, still pre-existing.** `DiagnosticsUITests` (all 3), `ModelPickerUITests` (all 4) and `LoginFlowUITests` (`testDemoCredentialsReachTheChatScreen`). **Confirmed against a clean clone of the previous commit** this time rather than a stash: `git clone` of `4fcdf49`, fresh DerivedData, UI target only — it fails the same tests with the same signatures (`the catalogue never rendered`, `promptTemplate is not listed as unreached`). Three unrelated screens failing to render at all is the shape of an environmental fault, and the executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, now 3/8+7/1). Still unfixed. |
-| `swiftlint --strict` | **0 violations**, 74 files |
-| Line coverage | **93.54%** — 9768/10443, unit tests only, up from 93.53%. `PreModelPipeline+ConformalGate.swift` (39/39), `ConformalCalibration.swift` (23/23), `PreModelPipeline+SignalDependence.swift` (27/27), `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148), `PreModelPipeline+SourceIndependence.swift` (99/99), `PreModelPipeline+TemporalValidity.swift` (100/100) and `PipelineStage.swift` (157/157) are all at **100.00%**; the code added this change has no uncovered lines. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle — chaining the two in one shell command reads a half-written bundle and under-reports, which cost real time on 08-18. |
+| Unit + integration tests | **711 passing**, 130 suites |
+| UI tests (XCUITest) | **run for the 2026-08-21 change, and the whole target is down.** All four classes fail — `DiagnosticsUITests` (3), `LoginFlowUITests` (7), `ModelPickerUITests` (5) and now `SettingsUITests` (9) — every one of them at a `waitForExistence` for a screen that never rendered. This change touches no UI code at all: it adds a pipeline stage, an enum case and a ledger. `LoginFlowUITests` and `ModelPickerUITests` cannot reach any of it, and they fail too, which is the shape of the environmental fault this table has recorded since 2026-08-18 rather than a regression. **Not confirmed against a clean clone this run** — the 08-18 confirmation stands as the last one actually performed: `git clone` of `4fcdf49`, fresh DerivedData, UI target only, same tests, same signatures. Executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, 3/8+7/1, now 24). Still unfixed, and still not diagnosed. |
+| `swiftlint --strict` | **0 violations**, 76 files |
+| Line coverage | **93.61%** — 9854/10527, unit tests only, up from 93.54%. `PreModelPipeline+CensoredFeedback.swift` (38/38), `CensoringLedger.swift` (17/17), `PreModelPipeline+ConformalGate.swift` (51/51), `ConformalCalibration.swift` (23/23), `PreModelPipeline+SignalDependence.swift` (27/27), `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148) and `PipelineStage.swift` (159/159) are all at **100.00%**; the code added this change has no uncovered lines. `PreModelPipeline+Answerability.swift` rose from 92.72% to **96.84%**: the first draft of this change added five lines to an arbiter-refusal branch unit tests reach rarely, which dropped the total to 93.53%. Folding the two skip records into one helper and moving the refused-turn recording inside `gateOnCertifiedRisk` — a file at 100% that tests call directly — left that branch smaller than it was before. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle, and from a **unit-only** run: a full-scheme bundle folds in the UI target's coverage and reports 95.57%, which is not the same number and not comparable to the line above it. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 40 packages do real work in the app.** 39 of them run in the send path and own a pipeline
+**All 41 packages do real work in the app.** 40 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -197,8 +197,26 @@ would have hidden a stage that cannot do its job behind one that had nothing to 
 **The app can only ever label the turns it answered.** A turn the gates refuse is never sent, never
 verified, and never labelled, so the calibration set is drawn from traffic that got through rather
 than from all traffic. The conformal guarantee is honest about the population it was calibrated on
-— and that population is not the one the gate meets. This is stated in `ConformalLedger` rather
-than fixed, because the fix is a feedback channel this app does not have.
+— and that population is not the one the gate meets. This was stated in `ConformalLedger` rather
+than fixed for one change, and **`censoredFeedback` now closes it**: every refused turn that
+anything scored is recorded too, and the audit decides whether the certificate's promise reaches
+the traffic the gate actually sees. What could not be fixed is the part that needs a feedback
+channel — the app still cannot learn what a refused turn *would* have done. The difference is that
+the gap is now measured and priced rather than described.
+
+**A refusal that rests on nothing is harder to notice than a gate that is switched off.**
+`censoredFeedback` is the only stage in this pipeline whose effect is to stop a gate refusing, and
+that direction deserves suspicion: a stage that loosens gates is a lever somebody will reach for.
+It is bounded to one gate — the conformal one, whose entire claim is a numerical guarantee — and it
+withdraws enforcement only when the arithmetic shows that guarantee was computed over a population
+this app does not meet. It cannot touch the four judging gates, and it produces no refusal of its
+own.
+
+**A stage that costs nothing to add still has to be recorded on every path.** `censoredFeedback`
+runs between the arbiter and the conformal gate, so both early-refusal paths in
+`refusalBeforeSending` had to learn to record it as `.skipped` — the same six lines the conformal
+gate already needed one change earlier. A stage missing from the trace on some paths is a stage the
+Diagnostics reader cannot tell apart from one that silently did not run.
 
 **A stage whose score is computed from other stages' readings must not file a reading of its own.**
 The conformal gate's nonconformity score is derived from the four gates' reservations. Filing a
@@ -643,7 +661,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 40 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 41 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

@@ -7,6 +7,9 @@ import SwiftUI
 /// every file that imports it. Two same-named types in one file is a compiler error with a
 /// confusing message; renaming ours is a one-word decision that avoids it everywhere.
 enum AppDestination: Hashable {
+    /// A thread. Carried as a destination rather than presented by its own
+    /// `navigationDestination(item:)`, which is the whole of the fix described on ``ChatScaffold``.
+    case conversation(UUID)
     case models
     case settings
     case diagnostics
@@ -22,7 +25,18 @@ struct ChatScaffold: View {
     @Environment(ConversationStore.self) private var conversations
     let composition: Composition
 
-    @State private var openConversationID: UUID?
+    /// Every screen currently on the stack, thread included.
+    ///
+    /// One path and one destination registration rather than a `navigationDestination(item:)` for
+    /// the thread and a `navigationDestination(for:)` for everything else. The two together looked
+    /// equivalent and were not: the thread was pushed by the `item:` modifier, and the `for:`
+    /// registration was not in scope from inside it, so the three toolbar links in
+    /// ``ConversationScreen`` rendered normally and did nothing when tapped. Model, Diagnostics and
+    /// Settings were unreachable from a conversation for as long as both modifiers coexisted.
+    ///
+    /// The profile link kept working throughout, which is what made this hard to see: it lives on
+    /// ``ChatListView``, the same view that carried the registration, so it was always in scope.
+    @State private var path: [AppDestination] = []
     /// Owned here rather than inside `ConversationScreen`, and injected on the whole stack.
     ///
     /// `DiagnosticsView` reads the model from the environment, and a pushed destination only sees
@@ -33,11 +47,8 @@ struct ChatScaffold: View {
     var body: some View {
         Group {
             if let model {
-                NavigationStack {
+                NavigationStack(path: $path) {
                     ChatListView(openConversationID: opening)
-                        .navigationDestination(item: opening) { id in
-                            ConversationScreen(conversationID: id, effortBox: composition.effort)
-                        }
                         .navigationDestination(for: AppDestination.self, destination: destination)
                 }
                 .environment(model)
@@ -56,10 +67,17 @@ struct ChatScaffold: View {
     /// and the destination second means the environment is already correct when the push happens.
     private var opening: Binding<UUID?> {
         Binding(
-            get: { openConversationID },
+            get: {
+                for case let .conversation(id) in path { return id }
+                return nil
+            },
             set: { id in
-                if let id { build(id) }
-                openConversationID = id
+                guard let id else {
+                    path.removeAll()
+                    return
+                }
+                build(id)
+                path.append(.conversation(id))
             }
         )
     }
@@ -97,6 +115,8 @@ struct ChatScaffold: View {
     @ViewBuilder
     private func destination(_ destination: AppDestination) -> some View {
         switch destination {
+        case let .conversation(id):
+            ConversationScreen(conversationID: id, effortBox: composition.effort)
         case .models:
             ModelPickerView(source: composition.catalog)
         case .settings:

@@ -19,9 +19,9 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
 | Unit + integration tests | **725 passing**, 131 suites |
-| UI tests (XCUITest) | **run for the 2026-08-21 change, and the whole target is down.** All four classes fail — `DiagnosticsUITests` (3), `LoginFlowUITests` (7), `ModelPickerUITests` (5) and now `SettingsUITests` (9) — every one of them at a `waitForExistence` for a screen that never rendered. This change touches no UI code at all: it adds a pipeline stage, an enum case and a ledger. `LoginFlowUITests` and `ModelPickerUITests` cannot reach any of it, and they fail too, which is the shape of the environmental fault this table has recorded since 2026-08-18 rather than a regression. **Not confirmed against a clean clone this run** — the 08-18 confirmation stands as the last one actually performed: `git clone` of `4fcdf49`, fresh DerivedData, UI target only, same tests, same signatures. Executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, 3/8+7/1, now 24). Still unfixed, and still not diagnosed. |
+| UI tests (XCUITest) | **24 passing, 0 failing — the whole target is green for the first time since 2026-08-18.** It was never an environmental fault. Every one of those failures was a real navigation regression in `ChatScaffold`: the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and the `for:` registration was not in scope from inside the screen the `item:` modifier pushed. The three `NavigationLink`s in the `ConversationScreen` toolbar — Model, Diagnostics, Settings — rendered normally and did nothing when tapped. `profileButton` kept working throughout because it lives on `ChatListView`, the same view that carried the registration, which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
 | `swiftlint --strict` | **0 violations**, 76 files |
-| Line coverage | **93.68%** — 9968/10641, unit tests only, up from 93.61%. The two files added this change are both at **100.00%**: `PreModelPipeline+ExplorationChannel.swift` (86/86) and `ExplorationBudget.swift` (14/14). `PipelineStage.swift` (161/161), `PreModelPipeline+CensoredFeedback.swift` (38/38) and `PreModelPipeline+ConformalGate.swift` remain at 100.00%. The stage file first came back at 96.34% with two lines uncovered — the `.notRefused` arm of its declining switch, which the caller's ordering makes unreachable. Rather than delete it, it was re-read: `.notRefused` is the gate refusing a turn whose score sits *inside* the certified threshold, which is the refusal and the score disagreeing and a real state worth reporting. A test now produces it. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle, and from a **unit-only** run: a full-scheme bundle folds in the UI target's coverage of the same app code and is not comparable. |
+| Line coverage | **93.96%** — 10003/10646, unit tests only, up from 93.68%. The navigation fix touches one file, `AppNavigation.swift`, which sits at 24.07% against 24.15% before it — a view-layer file exercised by XCUITest rather than by the unit target, so a unit-only run reports it as a gap either way. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle, and from a **unit-only** run: a full-scheme bundle folds in the UI target's coverage of the same app code and is not comparable. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
 **All 42 packages do real work in the app.** 41 of them run in the send path and own a pipeline
@@ -186,6 +186,28 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A whole test target failing is evidence of a big bug, not of a broken environment.** For four runs
+this README recorded the XCUITest target as down "in its entirety" and reasoned from the breadth of
+it: classes that could not reach the changed code were failing too, so the cause had to be
+environmental. That inference is backwards. Breadth is what a bug in shared navigation *looks* like
+— every screen reached through the chat toolbar was unreachable, which is most of the suite. The
+suite was reporting a real regression accurately for four runs while the summary called it noise.
+The tell was available the whole time and was never looked at: `ScaffoldUITests` passed throughout,
+and it is the only class that navigates from the list rather than from inside a thread.
+
+**"Not confirmed against a clean clone this run" is where it went wrong.** An earlier entry in this
+very section says a UI failure is not pre-existing until you have run it without your change, and
+that it costs about two minutes. The next four runs quoted the *previous* run's confirmation instead
+of performing one. A verification that is inherited rather than repeated is a claim about history,
+not about the code in front of you.
+
+**Reordering two modifiers was the wrong first fix, and running it was still worth it.** The
+hypothesis was that `.navigationDestination(for:)` had to be declared before
+`.navigationDestination(item:)`. Swapping them changed nothing — the test failed identically — which
+refuted order-dependence and pointed at the mixing itself. Unifying both onto one path-based
+registration then passed. Two experiments, one refuted and one confirmed, is the difference between
+knowing the cause and having a fix that happens to work.
 
 **A stage that loosens a gate is safest when the ordering makes it impossible to loosen the wrong
 one.** `explorationChannel` is the only stage here that overrides a refusal the certificate
@@ -619,9 +641,10 @@ Both were judged and rejected rather than overlooked:
 including the three touched this change. 28 files sit below it, and they divide into two groups
 that want different answers:
 
-**The view layer, uncovered because the UI suite is red.** These lines are exercised by XCUITest,
-not by the unit target, so a unit-only run reports them as gaps. Fixing the UI suite moves them,
-not new tests.
+**The view layer, exercised by XCUITest rather than by the unit target.** A unit-only run reports
+these as gaps whatever the UI suite is doing. The suite is now green, which does not move these
+numbers — the two targets are measured separately and only the unit-only figure is comparable
+across runs.
 
 | File | Coverage |
 |---|---|

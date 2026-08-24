@@ -144,6 +144,9 @@ packages:
   CensoredFeedbackKit:
     url: https://github.com/rajatslakhina/censored-feedback-kit
     from: 1.0.0
+  ExplorationChannelKit:
+    url: https://github.com/rajatslakhina/exploration-channel-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -278,6 +281,10 @@ targets:
         product: CensoredFeedbackKit
       - package: CensoredFeedbackKit
         product: CensoredFeedbackConformal
+      - package: ExplorationChannelKit
+        product: ExplorationChannelKit
+      - package: ExplorationChannelKit
+        product: ExplorationChannelCensored
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

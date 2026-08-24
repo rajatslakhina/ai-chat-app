@@ -292,7 +292,14 @@ extension PreModelPipeline {
         // The audit runs before the gate it qualifies, because a promise that does not reach this
         // traffic is not something to enforce and then explain away afterwards.
         let support = await qualifyCertifiedRisk(ledger: calibration, censoring: censoring, trace: &trace)
-        return await gateOnCertifiedRisk(ledger: calibration, enforcement: support, trace: &trace)
+        let refusal = await gateOnCertifiedRisk(ledger: calibration, enforcement: support, trace: &trace)
+        // The only stage that can withdraw this refusal, and the only refusal it can withdraw.
+        return await exploreRefusedTurn(
+            refusal: refusal,
+            ledger: calibration,
+            channel: exploration,
+            trace: &trace
+        )
     }
 
     /// The two risk stages, told they will not run and why.
@@ -305,6 +312,10 @@ extension PreModelPipeline {
         let score = "\(stage) already refused; nothing left to score"
         trace.record(.censoredFeedback, .skipped(reason: qualify))
         trace.record(.conformalGate, .skipped(reason: score))
+        trace.record(
+            .explorationChannel,
+            .skipped(reason: "\(stage) already refused; only a certified-risk refusal is explorable")
+        )
     }
 
     /// The four rulings, in order, stopping at the first that refuses.

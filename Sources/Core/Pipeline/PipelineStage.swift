@@ -63,6 +63,12 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// refusing — permitted for one reason: this app only ever learns about turns it answered,
     /// so a certificate computed from that log is a promise about the traffic that got through.
     case censoredFeedback
+    /// Whether to answer a turn the gate above refused, deliberately, to find out if it was right.
+    /// Runs immediately after it and is the only stage here that overrides a *supported* refusal —
+    /// permitted because this app labels only the turns it answered, so the refused half stays
+    /// unmeasured forever unless something admits part of it on purpose. Structurally it can see
+    /// no other gate's refusal: every one of them returns before this runs.
+    case explorationChannel
     case workloadProfile
     case costForecast
     case budgetReserve
@@ -106,6 +112,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// The package that owns this stage, shown in Diagnostics so the mapping is explicit.
     var package: String {
         switch self {
+        case .explorationChannel: return "ExplorationChannelKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -173,6 +180,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .abstentionArbiter: return "Abstention arbiter"
         case .conformalGate: return "Conformal gate"
         case .censoredFeedback: return "Censored feedback"
+        case .explorationChannel: return "Exploration channel"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

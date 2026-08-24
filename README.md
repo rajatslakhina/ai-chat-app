@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **711 passing**, 130 suites |
+| Unit + integration tests | **725 passing**, 131 suites |
 | UI tests (XCUITest) | **run for the 2026-08-21 change, and the whole target is down.** All four classes fail — `DiagnosticsUITests` (3), `LoginFlowUITests` (7), `ModelPickerUITests` (5) and now `SettingsUITests` (9) — every one of them at a `waitForExistence` for a screen that never rendered. This change touches no UI code at all: it adds a pipeline stage, an enum case and a ledger. `LoginFlowUITests` and `ModelPickerUITests` cannot reach any of it, and they fail too, which is the shape of the environmental fault this table has recorded since 2026-08-18 rather than a regression. **Not confirmed against a clean clone this run** — the 08-18 confirmation stands as the last one actually performed: `git clone` of `4fcdf49`, fresh DerivedData, UI target only, same tests, same signatures. Executed/failed counts have varied on every run (8/22, 19, 24/43, 24/46, 5/15, 1, 3/8+7/1, now 24). Still unfixed, and still not diagnosed. |
 | `swiftlint --strict` | **0 violations**, 76 files |
-| Line coverage | **93.61%** — 9854/10527, unit tests only, up from 93.54%. `PreModelPipeline+CensoredFeedback.swift` (38/38), `CensoringLedger.swift` (17/17), `PreModelPipeline+ConformalGate.swift` (51/51), `ConformalCalibration.swift` (23/23), `PreModelPipeline+SignalDependence.swift` (27/27), `PreModelPipeline+Abstention.swift` (59/59), `PreModelPipeline+VerdictStability.swift` (148/148) and `PipelineStage.swift` (159/159) are all at **100.00%**; the code added this change has no uncovered lines. `PreModelPipeline+Answerability.swift` rose from 92.72% to **96.84%**: the first draft of this change added five lines to an arbiter-refusal branch unit tests reach rarely, which dropped the total to 93.53%. Folding the two skip records into one helper and moving the refused-turn recording inside `gateOnCertifiedRisk` — a file at 100% that tests call directly — left that branch smaller than it was before. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle, and from a **unit-only** run: a full-scheme bundle folds in the UI target's coverage and reports 95.57%, which is not the same number and not comparable to the line above it. |
+| Line coverage | **93.68%** — 9968/10641, unit tests only, up from 93.61%. The two files added this change are both at **100.00%**: `PreModelPipeline+ExplorationChannel.swift` (86/86) and `ExplorationBudget.swift` (14/14). `PipelineStage.swift` (161/161), `PreModelPipeline+CensoredFeedback.swift` (38/38) and `PreModelPipeline+ConformalGate.swift` remain at 100.00%. The stage file first came back at 96.34% with two lines uncovered — the `.notRefused` arm of its declining switch, which the caller's ordering makes unreachable. Rather than delete it, it was re-read: `.notRefused` is the gate refusing a turn whose score sits *inside* the certified threshold, which is the refusal and the score disagreeing and a real state worth reporting. A test now produces it. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle, and from a **unit-only** run: a full-scheme bundle folds in the UI target's coverage of the same app code and is not comparable. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 41 packages do real work in the app.** 40 of them run in the send path and own a pipeline
+**All 42 packages do real work in the app.** 41 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,38 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A stage that loosens a gate is safest when the ordering makes it impossible to loosen the wrong
+one.** `explorationChannel` is the only stage here that overrides a refusal the certificate
+genuinely supports, and the first instinct was to write a rule — *only explore conformal refusals*
+— and trust it. The rule is there, but it is not what makes the stage safe. Every judging gate and
+the arbiter `return` before this stage runs, so their refusals cannot reach it at all. The guard is
+a second line against a future edit reordering the pipeline; the ordering is the actual guarantee.
+A constraint the type system or the control flow enforces survives a refactor that a documented
+rule does not.
+
+**An unreachable branch is sometimes a misread branch.** The stage's declining switch came back
+with two uncovered lines on the `.notRefused` arm, which the caller's own guard makes impossible —
+the seventh run in a row to turn up dead code behind a line that looked covered. The reflex by now
+is to delete it. Reading it again first was worth more: `.notRefused` is reached when the gate
+refuses a turn whose score sits *inside* the certified threshold, which is not an impossible state
+but the refusal and the score disagreeing. It is now a `.skipped` that names the disagreement, and
+a test produces it. Deleting it would have removed a real diagnostic to satisfy a coverage number.
+
+**Exploration buys a chance, not a label.** `recordExploredTurn` logs the turn as `.censored` with
+admission probability `omega` rather than waiting for an outcome, and that ordering is deliberate:
+the answer has not been produced yet, let alone verified. What changed at the moment of admission
+is that the turn *had a chance*, and that single fact is what gives its region a finite
+inverse-probability weight. `CensoringFeedback.refused` logs zero and nothing can ever be
+reweighted from it. The label may arrive later or never; the chance is the part worth recording
+immediately.
+
+**The app still cannot tell a user their answer was an exploration.** When the channel admits a
+turn, the user receives an answer the app had decided not to give, and nothing on screen says so.
+This app's only channel for that kind of statement is a `Refusal`, and inventing a second one
+inside a pipeline stage would be a UI decision made in the wrong place. The admission is in the
+`PipelineTrace` and on the Diagnostics screen, which is an audit trail and not a disclosure. Naming
+the gap is worth more than quietly leaving it.
 
 **A gate that lets everything through because it is uncalibrated looks exactly like a gate that
 examined the turn and approved it.** The conformal gate's ordinary outcome for this app's first
@@ -661,7 +693,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 41 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 42 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

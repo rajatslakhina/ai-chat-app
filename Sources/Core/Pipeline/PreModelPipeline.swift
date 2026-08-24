@@ -1,3 +1,4 @@
+import ExplorationChannelKit
 import AgentMemoryKit
 import CensoredFeedbackKit
 import AnswerabilityKit
@@ -85,6 +86,9 @@ actor PreModelPipeline {
     /// Every decision this app made, answered or refused — the population the certificate
     /// above is a promise about, rather than the admitted half of it that gets labelled.
     let censoring: FeedbackLedger?
+    /// The exploration budget. Optional and injected exactly as `censoring` is, so two tests
+    /// cannot spend each other's.
+    let exploration: ExplorationChannel?
     var settings: PipelineSettings
 
     init(
@@ -106,6 +110,7 @@ actor PreModelPipeline {
         ),
         calibration: CalibrationStore = ConformalLedger.shared,
         censoring: FeedbackLedger? = CensoringLedger.shared,
+        exploration: ExplorationChannel? = ExplorationBudget.shared,
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -121,6 +126,7 @@ actor PreModelPipeline {
         self.stabilityEngine = stabilityEngine
         self.calibration = calibration
         self.censoring = censoring
+        self.exploration = exploration
         self.settings = settings
     }
 

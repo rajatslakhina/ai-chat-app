@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **725 passing**, 131 suites |
+| Unit + integration tests | **735 passing**, 132 suites |
 | UI tests (XCUITest) | **24 passing, 0 failing — the whole target is green for the first time since 2026-08-18.** It was never an environmental fault. Every one of those failures was a real navigation regression in `ChatScaffold`: the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and the `for:` registration was not in scope from inside the screen the `item:` modifier pushed. The three `NavigationLink`s in the `ConversationScreen` toolbar — Model, Diagnostics, Settings — rendered normally and did nothing when tapped. `profileButton` kept working throughout because it lives on `ChatListView`, the same view that carried the registration, which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 76 files |
-| Line coverage | **93.96%** — 10003/10646, unit tests only, up from 93.68%. The navigation fix touches one file, `AppNavigation.swift`, which sits at 24.07% against 24.15% before it — a view-layer file exercised by XCUITest rather than by the unit target, so a unit-only run reports it as a gap either way. Measured in a **separate invocation** from the `xcodebuild` that wrote the result bundle, and from a **unit-only** run: a full-scheme bundle folds in the UI target's coverage of the same app code and is not comparable. |
+| `swiftlint --strict` | **0 violations**, 79 files |
+| Line coverage | **93.69%** — 10053/10730, unit tests only, against a **measured** baseline of 93.64% (9969/10646) at the previous commit. The 93.96% this table recorded last run does not reproduce: a like-for-like unit-only run of that exact commit, on this machine today, reports 93.64% on the same 10646-line denominator. Rather than compare against a figure that will not reproduce, this run measured the parent commit in a `git worktree` and compared the two the same way, in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 42 packages do real work in the app.** 41 of them run in the send path and own a pipeline
+**All 43 packages do real work in the app.** 42 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -233,6 +233,30 @@ is that the turn *had a chance*, and that single fact is what gives its region a
 inverse-probability weight. `CensoringFeedback.refused` logs zero and nothing can ever be
 reweighted from it. The label may arrive later or never; the chance is the part worth recording
 immediately.
+
+**A label that is never routed back is spend with no evidence, and the comment saying otherwise
+was half true.** `recordExploredTurn` has always ended with "the label arrives later or not at
+all", and until this change it was never *at all*: every exploration this app paid for sat in the
+channel's ledger as an admission with no outcome attached, because the only place the verdict
+exists is the far end of the turn and nothing carried it back. `labelReturn` closes it. The id
+travels on `PipelineTrace` as a typed field rather than in a `detail` string, because the stage
+that admits and the stage that learns the verdict are at opposite ends of the pipeline and
+recovering an id by parsing prose is how a label ends up on the wrong admission.
+
+**A recorded coverage figure is not a baseline until it reproduces.** This table said 93.96% and
+the honest comparison for a new change is against that number — except a like-for-like run of the
+same commit reports 93.64%, on an identical denominator. Thirty-four lines' difference on
+unchanged code. So the number to beat was measured rather than read: a `git worktree` at the parent
+commit, the same command, the same machine, the same hour. The lesson is the one this file keeps
+relearning from a different direction — **a figure carried forward in prose is a claim, and the
+cheapest way to find out whether it is a measurement is to take it again.**
+
+**`-enableCodeCoverage YES` is not implied by the coverage script.** `Scripts/coverage.sh` with
+`SKIP_TEST_RUN=1` reads whatever result bundle is newest, and a plain `xcodebuild test` writes one
+without full coverage instrumentation. That bundle does not fail — it reports a *lower* number off
+partial data, which reads exactly like a regression. Two readings this run (92.25%, then 93.67%)
+were that, and neither was real. Pass the flag on the run that writes the bundle you intend to
+measure.
 
 **The app still cannot tell a user their answer was an exploration.** When the channel admits a
 turn, the user receives an answer the app had decided not to give, and nothing on screen says so.
@@ -637,8 +661,8 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.41%** — 9496/10166 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
-including the three touched this change. 28 files sit below it, and they divide into two groups
+**93.69%** — 10053/10730 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+including `PostModelPipeline+LabelReturn.swift` added this change and the three it touched. 28 files sit below it, and they divide into two groups
 that want different answers:
 
 **The view layer, exercised by XCUITest rather than by the unit target.** A unit-only run reports
@@ -716,7 +740,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 42 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 43 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

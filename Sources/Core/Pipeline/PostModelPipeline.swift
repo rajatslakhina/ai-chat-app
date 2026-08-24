@@ -39,10 +39,13 @@ actor PostModelPipeline {
     private let tracer: Tracer
     /// The same ledger the pre-model gate reads from. This is the half that fills it: a turn is
     /// only labelled once the stages that read the answer have ruled on it.
-    private let calibration: CalibrationStore
+    /// Internal rather than private: `label(trace:)` lives in
+    /// `PostModelPipeline+LabelReturn.swift`, and Swift's `private` is file-scoped.
+    let calibration: CalibrationStore
     /// The other half of the same ledger: this records that the turn was answered at all,
     /// which is what makes the refusals recorded pre-model countable against something.
-    private let censoring: FeedbackLedger?
+    /// Internal for the same reason as `calibration` above.
+    let censoring: FeedbackLedger?
     private var tick = 0
     /// Spans this pipeline has closed. Counted here rather than read back from `Tracer`, whose
     /// only accessor wants a root id we do not hold — inventing one would report zero forever.
@@ -82,27 +85,8 @@ actor PostModelPipeline {
         trace: inout PipelineTrace
     ) async -> AnswerReview {
         let review = await verify(answer: answer, sources: sources, trace: &trace)
-        await label(trace: trace)
+        await label(trace: &trace)
         return review
-    }
-
-    /// Records what the verification stages just decided, as one labelled calibration point.
-    ///
-    /// Wraps ``verify(answer:sources:trace:)`` rather than living inside it because that function
-    /// returns from four places, and a label recorded at three of them would quietly train the
-    /// gate on the subset of turns that took those paths.
-    private func label(trace: PipelineTrace) async {
-        let id = "turn-\(await calibration.size())"
-        guard let point = ConformalCalibration.point(id: id, trace: trace) else { return }
-        await calibration.record(point)
-        // The same turn, in the log that also holds the refusals. Recorded here rather than beside
-        // the point above so both halves of the population are written under the same condition:
-        // a turn that cannot carry a label is not in the population either half is about.
-        if let censoring {
-            try? await censoring.record(
-                CensoringFeedback.answered(id: id, wasWrong: point.wasWrong)
-            )
-        }
     }
 
     private func verify(

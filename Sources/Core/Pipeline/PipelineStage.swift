@@ -92,6 +92,19 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case citationBinding
     /// Whether each claim can be read on its own, or only makes sense inside the answer.
     case claimDecontextualization
+    /// Attaching this turn's verdict back to the admission that bought it, and saying what the
+    /// admissions still unlabelled do to the number the gate is judged on.
+    ///
+    /// `explorationChannel` records that a refused turn *had a chance* and leaves its loss unknown,
+    /// because at that point the answer does not exist. This is where the answer exists and has
+    /// just been judged, so this is where the loop closes. It runs after the judging stages for
+    /// that reason and not for convenience — a verdict routed before it was reached would be a
+    /// label for a turn nobody had checked.
+    ///
+    /// It never refuses. An exploration whose labels are outstanding is a fact about earlier
+    /// turns, and withholding *this* answer over it would punish the wrong request; the stages that
+    /// could act on the finding all run before the money is spent.
+    case labelReturn
 
     // Acting on the answer
     case toolAuthority
@@ -113,6 +126,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     var package: String {
         switch self {
         case .explorationChannel: return "ExplorationChannelKit"
+        case .labelReturn: return "LabelReturnKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -181,6 +195,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .conformalGate: return "Conformal gate"
         case .censoredFeedback: return "Censored feedback"
         case .explorationChannel: return "Exploration channel"
+        case .labelReturn: return "Label return"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"
@@ -314,8 +329,21 @@ struct PipelineTrace: Sendable, Equatable {
     /// mean something none of them meant alone.
     private(set) var reservations: [AbstentionSignal] = []
 
+    /// The exploration admission this turn was answered under, if it was.
+    ///
+    /// A typed field rather than something read back out of a `detail` string. The stage that
+    /// admits the turn and the stage that learns the verdict are at opposite ends of the pipeline,
+    /// and the id is the only thing that connects them; recovering it by parsing prose is how a
+    /// label ends up attached to the wrong admission.
+    private(set) var explorationID: String?
+
     init(records: [StageRecord] = []) {
         self.records = records
+    }
+
+    /// Note that this turn was answered as a deliberate exploration.
+    mutating func noteExploration(id: String) {
+        explorationID = id
     }
 
     mutating func record(_ stage: PipelineStage, _ outcome: StageOutcome, durationMs: Int = 0) {

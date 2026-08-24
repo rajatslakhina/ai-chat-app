@@ -79,6 +79,9 @@ extension PreModelPipeline {
         }
 
         await recordExploredTurn(id: id, probability: probability)
+        // Carried to `labelReturn` at the far end of the turn, which is the only stage that will
+        // ever know whether this exploration was worth buying.
+        trace.noteExploration(id: id)
         trace.record(
             .explorationChannel,
             .ran(

@@ -150,6 +150,9 @@ packages:
   LabelReturnKit:
     url: https://github.com/rajatslakhina/label-return-kit
     from: 1.0.0
+  DelaySignalKit:
+    url: https://github.com/rajatslakhina/delay-signal-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -292,6 +295,10 @@ targets:
         product: LabelReturnKit
       - package: LabelReturnKit
         product: LabelReturnExploration
+      - package: DelaySignalKit
+        product: DelaySignalKit
+      - package: DelaySignalKit
+        product: DelaySignalReturn
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

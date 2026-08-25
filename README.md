@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **735 passing**, 132 suites |
+| Unit + integration tests | **745 passing**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
 | UI tests (XCUITest) | **24 passing, 0 failing — the whole target is green for the first time since 2026-08-18.** It was never an environmental fault. Every one of those failures was a real navigation regression in `ChatScaffold`: the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and the `for:` registration was not in scope from inside the screen the `item:` modifier pushed. The three `NavigationLink`s in the `ConversationScreen` toolbar — Model, Diagnostics, Settings — rendered normally and did nothing when tapped. `profileButton` kept working throughout because it lives on `ChatListView`, the same view that carried the registration, which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
 | `swiftlint --strict` | **0 violations**, 79 files |
-| Line coverage | **93.69%** — 10053/10730, unit tests only, against a **measured** baseline of 93.64% (9969/10646) at the previous commit. The 93.96% this table recorded last run does not reproduce: a like-for-like unit-only run of that exact commit, on this machine today, reports 93.64% on the same 10646-line denominator. Rather than compare against a figure that will not reproduce, this run measured the parent commit in a `git worktree` and compared the two the same way, in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data. |
+| Line coverage | **93.73%** — 10126/10803, unit tests only, up from **93.69%** (10119/10801) measured the same way on this machine this run. Taken in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data, which reads exactly like a regression in whatever you just changed. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 43 packages do real work in the app.** 42 of them run in the send path and own a pipeline
+**All 44 packages do real work in the app.** 43 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,30 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A package can be wired in correctly and still have nothing to do here, and that is a result rather
+than a failure.** `delaySignal` reads how long each verification took, to find out whether the labels
+`labelReturn` is waiting on are late or gone. This app verifies **inline** — an exploration is
+admitted in `PreModelPipeline` and labelled in `PostModelPipeline` of the same turn — so every delay
+it can generate is the same number, the identifiability condition cannot be met at any sample size,
+and the stage skips with that measured. The useful half is the second sentence of the skip: the
+admissions still unlabelled here are **not a queue**. They are turns that never reached a verdict, and
+a reader who takes them for a backlog will wait for labels nobody is sending. Recording the measured
+skip took about as long as a token call would have and says something true.
+
+**An arm that only an array can reach needs a function that takes an array.** The audit's
+"ledger could not be read" arm cannot fire through an `ExplorationLedger`: that actor keys entries by
+id and carries a validated probability, so neither thing the audit throws on can occur. The previous
+run's answer to the same shape was to collapse the guard. Collapsing was wrong here, because the arm
+is real — `ExplorationReturnAudit` takes a plain array, and an array can hold a duplicate id. Adding
+an entry-list overload made the arm reachable from a test instead of unreachable in the send path,
+which is the difference between a branch that is covered and one that is merely reported as covered.
+
+**Coverage is a measurement of your instrument first.** Two numbers moved this run before any code
+did: a full-suite run reports higher than a unit-only run because XCUITest exercises the view layer,
+and a bundle written without `-enableCodeCoverage YES` reports lower off partial data. Comparing
+across either difference produces a "regression" that is entirely an artefact of how it was taken.
+The baseline and the new figure have to come from the same command, and this run took both.
 
 **A whole test target failing is evidence of a big bug, not of a broken environment.** For four runs
 this README recorded the XCUITest target as down "in its entirety" and reasoned from the breadth of
@@ -661,7 +685,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.69%** — 10053/10730 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.73%** — 10126/10803 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including `PostModelPipeline+LabelReturn.swift` added this change and the three it touched. 28 files sit below it, and they divide into two groups
 that want different answers:
 
@@ -740,7 +764,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 43 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 44 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

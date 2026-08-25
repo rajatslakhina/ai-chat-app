@@ -106,6 +106,19 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// could act on the finding all run before the money is spent.
     case labelReturn
 
+    /// Asking whether the labels that have not come back are late or gone.
+    ///
+    /// `labelReturn` reports how much of the explored population is still unlabelled and brackets
+    /// the risk accordingly, holding the bracket open for whatever those labels turn out to say.
+    /// That is the correct move when they might still arrive. This stage measures whether they
+    /// might — a return process whose delay depends on the outcome makes the floor optimistic in a
+    /// way no bracket width announces, and a return process with no delay at all makes an
+    /// outstanding label something other than a slow one.
+    ///
+    /// Off the critical path, after the answer is on screen, because nothing it finds is about the
+    /// turn it runs on.
+    case delaySignal
+
     // Acting on the answer
     case toolAuthority
     case toolDispatch
@@ -127,6 +140,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .explorationChannel: return "ExplorationChannelKit"
         case .labelReturn: return "LabelReturnKit"
+        case .delaySignal: return "DelaySignalKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -196,6 +210,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .censoredFeedback: return "Censored feedback"
         case .explorationChannel: return "Exploration channel"
         case .labelReturn: return "Label return"
+        case .delaySignal: return "Delay signal"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

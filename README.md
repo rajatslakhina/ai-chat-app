@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **745 passing**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
-| UI tests (XCUITest) | **24 passing, 0 failing — the whole target is green for the first time since 2026-08-18.** It was never an environmental fault. Every one of those failures was a real navigation regression in `ChatScaffold`: the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and the `for:` registration was not in scope from inside the screen the `item:` modifier pushed. The three `NavigationLink`s in the `ConversationScreen` toolbar — Model, Diagnostics, Settings — rendered normally and did nothing when tapped. `profileButton` kept working throughout because it lives on `ChatListView`, the same view that carried the registration, which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 79 files |
-| Line coverage | **93.73%** — 10126/10803, unit tests only, up from **93.69%** (10119/10801) measured the same way on this machine this run. Taken in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data, which reads exactly like a regression in whatever you just changed. |
+| Unit + integration tests | **756 passing**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
+| UI tests (XCUITest) | **24 passing, 0 failing.** One wait was raised from 15s to 20s on 2026-08-26, matching every other reachability assertion in that file — `testDemoCredentialsReachTheChatScreen` timed out twice in the full suite, on 08-25 and again on 08-26, both times after the simulator had just run 750-odd unit tests, and both times passing in about 13s with the UI target run on its own. A two-to-one margin against a loaded machine is not a margin, and the assertion is about whether login *reaches* the chat screen rather than how fast. Green since 2026-08-18: It was never an environmental fault. Every one of those failures was a real navigation regression in `ChatScaffold`: the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and the `for:` registration was not in scope from inside the screen the `item:` modifier pushed. The three `NavigationLink`s in the `ConversationScreen` toolbar — Model, Diagnostics, Settings — rendered normally and did nothing when tapped. `profileButton` kept working throughout because it lives on `ChatListView`, the same view that carried the registration, which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
+| `swiftlint --strict` | **0 violations**, 81 files |
+| Line coverage | **93.77%** — 10186/10863, unit tests only, up from **93.73%** (10126/10803) measured the same way on this machine. Taken in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data, which reads exactly like a regression in whatever you just changed. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 44 packages do real work in the app.** 43 of them run in the send path and own a pipeline
+**All 45 packages do real work in the app.** 44 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,25 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**Wiring a package into this app is the cheapest bug-finder the packages have.** `DelayShapeKit`
+shipped at 1.0.0 able to fit a delay distribution and rank four candidate shapes. Pointed at this
+app's ledger — where every label arrives exactly one tick after its admission — all four families
+scored a log-likelihood of **exactly 0.000**, because under the truncated likelihood a single-valued
+delay has probability one under any shape. AIC then separated them on parameter count alone and the
+exponential "won" with `rate 0.1000`, which is the untouched midpoint of the search bounds. The
+package handed that back as a fitted shape, with the verdict that reads as *the incumbent held* —
+a positive finding. Nothing in its own 78-test suite caught it, because every fixture there had a
+delay distribution in it. 1.0.1 added `minimumDistinctDelays` and refuses. The lesson is not about
+that package: **a library's test suite is written by someone who knows what the input is supposed to
+look like, and an app is not.**
+
+**Two gates that look like one, and the order between them is the whole content.** Too few labels
+and labels that are all the same are different failures with different remedies, and merging them
+sends an operator to fix the wrong thing — told "insufficient evidence", they wait for traffic that
+cannot help. But the check runs volume-first anyway, because three returns that happen to share a
+tick really is just a small sample. Only once you have enough of them does sameness mean anything.
+
 
 **A package can be wired in correctly and still have nothing to do here, and that is a result rather
 than a failure.** `delaySignal` reads how long each verification took, to find out whether the labels
@@ -685,7 +704,7 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.73%** — 10126/10803 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+**93.77%** — 10186/10863 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
 including `PostModelPipeline+LabelReturn.swift` added this change and the three it touched. 28 files sit below it, and they divide into two groups
 that want different answers:
 
@@ -764,7 +783,7 @@ rather than gamed.
 
 ```
 AIChatApp/
-├── project.yml                 XcodeGen — 44 packages + swift-snapshot-testing
+├── project.yml                 XcodeGen — 45 packages + swift-snapshot-testing
 ├── Secrets.xcconfig            gitignored
 ├── Secrets.example.xcconfig    committed
 ├── Config/                     Base / Debug / Release xcconfig

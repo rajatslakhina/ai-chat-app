@@ -115,6 +115,7 @@ actor MetadataPipeline {
         }
         await capture(userText: userText, assistantText: assistantText, trace: &trace)
         await auditDelaySignal(trace: &trace)
+        await auditDelayShape(trace: &trace)
         let answers = await runAsks(userText: userText, assistantText: assistantText, trace: &trace)
         let drafts = await decodeDrafts(answers, trace: &trace)
         return await assemble(drafts, userText: userText, trace: &trace)

@@ -75,7 +75,14 @@ final class LoginFlowUITests: XCTestCase {
 
         // Signing in lands on the list, and the list is where a chat is started from.
         openChat(app)
-        XCTAssertTrue(app.staticTexts["chatEmptyState"].waitForExistence(timeout: 15))
+        // 20 rather than 15, matching every other reachability wait in this file.
+        //
+        // This assertion is about whether login *reaches* the chat screen, not how fast. At 15 it
+        // was the tightest wait here and it timed out twice — once on 2026-08-25 and again on
+        // 2026-08-26 — both times in the full suite, after the simulator had just run 750-odd unit
+        // tests, and both times passing in about 13s when the UI target is run on its own. The
+        // margin was two-to-one against a machine under load, which is not a margin.
+        XCTAssertTrue(app.staticTexts["chatEmptyState"].waitForExistence(timeout: 20))
     }
 
     /// A restored session must land in the app, not bounce through login.

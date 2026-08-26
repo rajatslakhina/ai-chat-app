@@ -119,6 +119,17 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// turn it runs on.
     case delaySignal
 
+    /// Asking whether the delay the stage above reads has any shape in it at all.
+    ///
+    /// `delaySignal` skips because it cannot separate the two classes by their delays. That is one
+    /// estimator's identifiability condition. This is the more basic version: is there a delay
+    /// *distribution* of any kind here, and if there is, is the constant hazard every correction in
+    /// this pipeline assumes actually the right one? The two failures have different remedies, and
+    /// only one of them is waiting for more labels.
+    ///
+    /// Off the critical path, beside `delaySignal`, for the same reason.
+    case delayShape
+
     // Acting on the answer
     case toolAuthority
     case toolDispatch
@@ -141,6 +152,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .explorationChannel: return "ExplorationChannelKit"
         case .labelReturn: return "LabelReturnKit"
         case .delaySignal: return "DelaySignalKit"
+        case .delayShape: return "DelayShapeKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -211,6 +223,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .explorationChannel: return "Exploration channel"
         case .labelReturn: return "Label return"
         case .delaySignal: return "Delay signal"
+        case .delayShape: return "Delay shape"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

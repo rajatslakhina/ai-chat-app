@@ -187,6 +187,16 @@ Three properties are load-bearing, and each has a test:
 
 ## What was learned the hard way
 
+**Clear the whole DerivedData tree or none of it — half a tree fails as a toolchain error.** Twice
+on 2026-08-26 a build died with `fatal error: module file '.../ExplicitPrecompiledModules/
+_DarwinFoundation3-*.pcm' not found`, which reads like a broken Xcode install and is not. `/tmp` had
+been swept, leaving SwiftPM's checkout directories present but empty; clearing just
+`SourcePackages/` fixed the resolution error and left `Build/Intermediates.noindex` behind, still
+pointing at precompiled modules that no longer existed. Delete the entire `-derivedDataPath` and
+build again. The first error names packages, the second names the SDK, and they are the same fault
+one step apart.
+
+
 **Wiring a package into this app is the cheapest bug-finder the packages have.** `DelayShapeKit`
 shipped at 1.0.0 able to fit a delay distribution and rank four candidate shapes. Pointed at this
 app's ledger — where every label arrives exactly one tick after its admission — all four families

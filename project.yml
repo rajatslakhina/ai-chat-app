@@ -156,6 +156,9 @@ packages:
   DelayShapeKit:
     url: https://github.com/rajatslakhina/delay-shape-kit
     from: 1.0.1
+  DelayCurveKit:
+    url: https://github.com/rajatslakhina/delay-curve-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -306,6 +309,10 @@ targets:
         product: DelayShapeKit
       - package: DelayShapeKit
         product: DelayShapeSignal
+      - package: DelayCurveKit
+        product: DelayCurveKit
+      - package: DelayCurveKit
+        product: DelayCurveShape
       - package: SpotlightRAGKit
         product: SpotlightRAG
       - package: EvalHarnessKit

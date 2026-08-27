@@ -130,6 +130,18 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Off the critical path, beside `delaySignal`, for the same reason.
     case delayShape
 
+    /// Asking what the labels that *did* come back say, with no family in the way.
+    ///
+    /// `delaySignal` needs two separable rates and `delayShape` needs one of four families to fit.
+    /// A product-limit estimate needs neither, so this stage can produce a curve where both of them
+    /// decline — and the interesting part is that being able to produce one is not the same as
+    /// being allowed to spend it. A survival estimate assumes the requests still outstanding are
+    /// like the ones that returned, only later. Here they are not: they never reached a verdict.
+    /// Nothing in the data says so, which is exactly why the stage has to.
+    ///
+    /// Off the critical path, beside the two above, for the same reason.
+    case delayCurve
+
     // Acting on the answer
     case toolAuthority
     case toolDispatch
@@ -153,6 +165,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .labelReturn: return "LabelReturnKit"
         case .delaySignal: return "DelaySignalKit"
         case .delayShape: return "DelayShapeKit"
+        case .delayCurve: return "DelayCurveKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -224,6 +237,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .labelReturn: return "Label return"
         case .delaySignal: return "Delay signal"
         case .delayShape: return "Delay shape"
+        case .delayCurve: return "Delay curve"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

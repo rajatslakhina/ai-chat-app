@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **756 passing**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
-| UI tests (XCUITest) | **24 passing, 0 failing.** One wait was raised from 15s to 20s on 2026-08-26, matching every other reachability assertion in that file — `testDemoCredentialsReachTheChatScreen` timed out twice in the full suite, on 08-25 and again on 08-26, both times after the simulator had just run 750-odd unit tests, and both times passing in about 13s with the UI target run on its own. A two-to-one margin against a loaded machine is not a margin, and the assertion is about whether login *reaches* the chat screen rather than how fast. Green since 2026-08-18: It was never an environmental fault. Every one of those failures was a real navigation regression in `ChatScaffold`: the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and the `for:` registration was not in scope from inside the screen the `item:` modifier pushed. The three `NavigationLink`s in the `ConversationScreen` toolbar — Model, Diagnostics, Settings — rendered normally and did nothing when tapped. `profileButton` kept working throughout because it lives on `ChatListView`, the same view that carried the registration, which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 81 files |
-| Line coverage | **93.77%** — 10186/10863, unit tests only, up from **93.73%** (10126/10803) measured the same way on this machine. Taken in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data, which reads exactly like a regression in whatever you just changed. |
+| Unit + integration tests | **769 passing in 135 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
+| UI tests (XCUITest) | **24 passing, 0 failing when the target is run on its own** — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
+| `swiftlint --strict` | **0 violations**, 82 files |
+| Line coverage | **96.32%** — 10534/10936, **full suite** (both targets), `-enableCodeCoverage YES`, read in a separate invocation from the `xcodebuild` that wrote the bundle. The **unit-only** figure on the same tree is **92.39%** (10104/10936). Both are recorded because neither on its own is comparable to anything unless its basis is stated, and the previously recorded 93.77% "unit tests only" reproduced as neither — see the note below. `MetadataPipeline+DelayCurve.swift`, the file this change adds, is at **100.00% (70/70)**, as are its two sibling stages. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 45 packages do real work in the app.** 44 of them run in the send path and own a pipeline
+**All 46 packages do real work in the app.** 45 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,31 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A coverage figure needs its measurement basis written next to it, or it is not a baseline.**
+This README recorded 93.77% as "unit tests only". On the same machine, this tree measures **96.32%
+full-suite** and **92.39% unit-only** — the recorded number reproduced as neither, and it sits
+almost exactly between them. The two modes differ by nearly four points because XCUITest is the
+only thing that exercises `AppNavigation` (24.07% unit-only), `ModelPickerView` (43.85%) and
+`ChatView` (78.51%). `Scripts/coverage.sh` runs the **full** `test` action by default, so a figure
+produced by the script unmodified is a full-suite figure whatever the row says — which is the most
+likely reading of how 93.77% was labelled. Both numbers are now recorded with their basis, because
+the failure mode here is not measuring wrong, it is measuring fine and comparing across two
+different questions.
+
+
+**A package that can compute where its siblings cannot is not thereby the one to trust.**
+`delaySignal` needs two separable rates and `delayShape` needs one of four families to fit; both
+decline on this app's ledger and say why. A product-limit estimate needs neither, so `delayCurve`
+produces a perfectly well-formed curve here — and it is wrong in a way nothing in the data reveals.
+Every label and every cutoff land in the same tick, so the estimator finds an event at its support
+limit and reports the distribution **complete**, claiming everything resolved by t1 while a share
+of the admissions never resolved at all. The assumption it breaks is non-informative censoring: an
+unlabelled admission here is a turn that never reached a verdict, not a slow one. The stage skips
+with that spelled out rather than shortened, because the short version is the sentence `delayShape`
+already prints, and because *being able to produce a number* and *being entitled to it* came apart
+here in the only direction that matters.
+
 
 **Clear the whole DerivedData tree or none of it — half a tree fails as a toolchain error.** Twice
 on 2026-08-26 a build died with `fatal error: module file '.../ExplicitPrecompiledModules/

@@ -21,7 +21,7 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Unit + integration tests | **769 passing in 135 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
 | UI tests (XCUITest) | **24 passing, 0 failing when the target is run on its own** — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
 | `swiftlint --strict` | **0 violations**, 82 files |
-| Line coverage | **96.32%** — 10534/10936, **full suite** (both targets), `-enableCodeCoverage YES`, read in a separate invocation from the `xcodebuild` that wrote the bundle. The **unit-only** figure on the same tree is **92.39%** (10104/10936). Both are recorded because neither on its own is comparable to anything unless its basis is stated, and the previously recorded 93.77% "unit tests only" reproduced as neither — see the note below. `MetadataPipeline+DelayCurve.swift`, the file this change adds, is at **100.00% (70/70)**, as are its two sibling stages. |
+| Line coverage | **93.81%** — 10259/10936, unit tests only, **clean DerivedData**, up from **93.77%** (10186/10863) — which was re-measured this run from a fresh checkout of the parent commit and reproduced to the digit. Taken in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data, which reads exactly like a regression in whatever you just changed. The same tree measures **96.32%** full-suite; the two modes differ by ~2.5 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before the numbers can be compared. `MetadataPipeline+DelayCurve.swift` is at **100.00% (70/70)**, as are both sibling stages. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
 **All 46 packages do real work in the app.** 45 of them run in the send path and own a pipeline
@@ -187,16 +187,20 @@ Three properties are load-bearing, and each has a test:
 
 ## What was learned the hard way
 
-**A coverage figure needs its measurement basis written next to it, or it is not a baseline.**
-This README recorded 93.77% as "unit tests only". On the same machine, this tree measures **96.32%
-full-suite** and **92.39% unit-only** — the recorded number reproduced as neither, and it sits
-almost exactly between them. The two modes differ by nearly four points because XCUITest is the
-only thing that exercises `AppNavigation` (24.07% unit-only), `ModelPickerView` (43.85%) and
-`ChatView` (78.51%). `Scripts/coverage.sh` runs the **full** `test` action by default, so a figure
-produced by the script unmodified is a full-suite figure whatever the row says — which is the most
-likely reading of how 93.77% was labelled. Both numbers are now recorded with their basis, because
-the failure mode here is not measuring wrong, it is measuring fine and comparing across two
-different questions.
+**One `-derivedDataPath` reused across different `-only-testing` scopes gives a coverage figure
+that is wrong and looks plausible.** This run measured 92.39% unit-only and spent an hour treating
+it as a regression against a recorded 93.77%. It was not a regression and it was not the missing
+`-enableCodeCoverage YES` flag this README already warns about — that flag was passed. The bundle
+had simply been written into a DerivedData that had already served a `-only-testing:AIChatAppUITests`
+run, a full run, and two unit-only runs, and `Scripts/coverage.sh` takes the newest `.xcresult` under
+it without knowing which scope produced which. The same tree in a **clean** DerivedData measures
+**93.81%**, and the parent commit measured the same way returns **93.77%** — the recorded figure
+exactly. So the honest procedure is now three things rather than two: separate invocation, explicit
+`-enableCodeCoverage YES`, **and a DerivedData that has only ever seen the scope you are measuring**.
+`DERIVED_DATA=/tmp/aichatapp-dd-$(date +%s) ./Scripts/coverage.sh` costs one clean build and removes
+the whole class of error. What made this expensive was that the wrong number was *close* — 1.4 points
+low, in the right ballpark, moving in the direction a real regression would move.
+
 
 
 **A package that can compute where its siblings cannot is not thereby the one to trust.**

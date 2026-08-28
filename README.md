@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **769 passing in 135 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
+| Unit + integration tests | **778 passing in 136 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
 | UI tests (XCUITest) | **24 passing, 0 failing when the target is run on its own** — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 82 files |
-| Line coverage | **93.81%** — 10259/10936, unit tests only, **clean DerivedData**, up from **93.77%** (10186/10863) — which was re-measured this run from a fresh checkout of the parent commit and reproduced to the digit. Taken in a **separate invocation** from the `xcodebuild` that wrote the bundle and with `-enableCodeCoverage YES` passed explicitly — without that flag the bundle is written anyway and `xccov` reports a lower number off partial data, which reads exactly like a regression in whatever you just changed. The same tree measures **96.32%** full-suite; the two modes differ by ~2.5 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before the numbers can be compared. `MetadataPipeline+DelayCurve.swift` is at **100.00% (70/70)**, as are both sibling stages. |
+| `swiftlint --strict` | **0 violations**, 83 files |
+| Line coverage | **93.84%** — 10349/11028, unit tests only, **clean DerivedData**, up from **93.81%** (10259/10936), which was re-measured this run from a fresh checkout of the parent commit and reproduced **to the digit**. The standing procedure is three things and all three matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, and a DerivedData that has only ever seen the scope you are measuring. A fourth was added on 2026-08-28: **run it twice.** The first clean unit-only reading of this tree came back **92.41%**, 1.4 points *below* baseline, and the whole deficit was `ModelPickerView.swift` at **43.85% (132/301)** — a file this change never touches — which returned to its usual **95.35% (287/301)** on the very next identical run. That file's coverage is **non-deterministic between runs**, and since it is 301 lines it moves the total by more than a point on its own. A single low reading is not evidence of a regression until it reproduces. The same tree measures ~96.3% full-suite; the two modes differ by ~2.5 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. `MetadataPipeline+DelayCurve.swift` is at **100.00% (70/70)**, as are both other sibling stages; the new `MetadataPipeline+CurveDivergence.swift` reads **97.75% (87/89)** — and `xccov`'s own line view shows **84 executable lines with none at zero hits**, so the two-line shortfall is file-level accounting rather than an untested branch. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 46 packages do real work in the app.** 45 of them run in the send path and own a pipeline
+**All 47 packages do real work in the app.** 46 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,28 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A single low coverage reading is not a regression until it reproduces.** (2026-08-28) The first
+clean unit-only measurement of the `curveDivergence` change came back at **92.41%**, 1.4 points below
+the recorded 93.81%. Every documented precaution had been taken: separate invocation, explicit
+`-enableCodeCoverage YES`, a DerivedData directory created fresh for that one scope. The parent
+commit, checked out fresh and measured the same way, returned **93.81%** exactly — so the procedure
+was sound and the deficit looked real. It was not. The entire 1.4 points was `ModelPickerView.swift`
+reading **43.85% (132/301)** instead of its usual **95.35% (287/301)**, and an identical rerun in
+another fresh DerivedData put it back. That file is 301 lines, so on its own it moves the total by
+more than a point. **`ModelPickerView.swift`'s coverage is non-deterministic between runs** — a
+distinct trap from the DerivedData-scope one below, and one that mimics a regression just as
+convincingly. Measure twice before believing a drop, and diff per-file rather than reading the total.
+
+**A package's own test suite cannot catch a wrong premise.** (2026-08-28) `CurveDivergenceKit` 1.0.0
+shipped with a refusal that declined whenever one arm had no label inside the shared window. It had
+tests, they passed, and they agreed with it — because the same person wrote the refusal and the
+tests, on the same wrong reasoning. It took running the package against a real panel in
+`llm-ecosystem-demo` for the refusal to fire on that project's strongest result and expose the error:
+an arm that has resolved nothing has a curve flat at one, and a flat line against a fallen curve is
+the *largest* separation two survival curves can show. Fixed in 1.0.1. The lesson is about where
+that class of bug is findable, not about survival analysis.
+
 
 **One `-derivedDataPath` reused across different `-only-testing` scopes gives a coverage figure
 that is wrong and looks plausible.** This run measured 92.39% unit-only and spent an hour treating

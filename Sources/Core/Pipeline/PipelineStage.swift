@@ -142,6 +142,23 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Off the critical path, beside the two above, for the same reason.
     case delayCurve
 
+    /// Comparing two classes' delay curves without reducing either to a number.
+    ///
+    /// `delayCurve` estimates one curve. This asks whether two of them differ, and it asks with a
+    /// supremum rather than an area, so a crossing cannot cancel the way a restricted mean's can.
+    /// It also reports the tick the largest gap lands on, which is the part a single summary cannot
+    /// produce.
+    ///
+    /// In this app it does not get to. Every admission is timestamped `admitted 0, returned 1`, so
+    /// the shared window is one tick wide and a supremum over one tick is a difference of two
+    /// proportions wearing a survival test's clothes. Worse, the two classes this app could form
+    /// differ in their *labelling* rate by construction — an explored turn is bought precisely to
+    /// obtain a label — so the test would report a large, highly significant separation that is an
+    /// artifact of how the arms were built rather than a fact about delay.
+    ///
+    /// Off the critical path, beside the three above, for the same reason.
+    case curveDivergence
+
     // Acting on the answer
     case toolAuthority
     case toolDispatch
@@ -166,6 +183,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .delaySignal: return "DelaySignalKit"
         case .delayShape: return "DelayShapeKit"
         case .delayCurve: return "DelayCurveKit"
+        case .curveDivergence: return "CurveDivergenceKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -238,6 +256,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .delaySignal: return "Delay signal"
         case .delayShape: return "Delay shape"
         case .delayCurve: return "Delay curve"
+        case .curveDivergence: return "Curve divergence"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

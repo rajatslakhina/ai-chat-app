@@ -106,7 +106,7 @@ struct CurveDivergenceStageTests {
     /// The arms come back with no censoring in them, which is the half of the refusal a longer
     /// clock would not fix. Pinned directly so the claim in the skip text is not only prose.
     @Test("forming the arms deletes every censored observation")
-    func armsAreUncensoredByConstruction() async {
+    func armsAreUncensoredByConstruction() async throws {
         let ledger = ExplorationLedger()
         let ids = (0..<9).map { "explore-\($0)" }
         await admitted(ids, into: ledger)
@@ -117,8 +117,7 @@ struct CurveDivergenceStageTests {
             await ledger.label(id, loss: 0)
         }
         let split = MetadataPipeline.divergenceSample(entries: await ledger.allEntries)
-        let unwrapped = try? #require(split)
-        guard let unwrapped else { return }
+        let unwrapped = try #require(split)
         #expect(unwrapped.dropped == 4)
         #expect(unwrapped.sample.first.outstandingCount == 0)
         #expect(unwrapped.sample.second.outstandingCount == 0)

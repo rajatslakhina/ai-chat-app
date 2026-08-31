@@ -162,6 +162,9 @@ packages:
   CurveDivergenceKit:
     url: https://github.com/rajatslakhina/curve-divergence-kit
     from: 1.0.2
+  LabelClockKit:
+    url: https://github.com/rajatslakhina/label-clock-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -316,6 +319,8 @@ targets:
         product: DelayCurveKit
       - package: CurveDivergenceKit
         product: CurveDivergenceKit
+      - package: LabelClockKit
+        product: LabelClockKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -118,6 +118,7 @@ actor MetadataPipeline {
         await auditDelayShape(trace: &trace)
         await auditDelayCurve(trace: &trace)
         await auditCurveDivergence(trace: &trace)
+        await auditLabelClock(trace: &trace)
         let answers = await runAsks(userText: userText, assistantText: assistantText, trace: &trace)
         let drafts = await decodeDrafts(answers, trace: &trace)
         return await assemble(drafts, userText: userText, trace: &trace)

@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **778 passing in 136 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
-| UI tests (XCUITest) | **24 passing, 0 failing when the target is run on its own** — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 83 files |
-| Line coverage | **93.84%** — 10349/11028, unit tests only, **clean DerivedData**, up from **93.81%** (10259/10936), which was re-measured this run from a fresh checkout of the parent commit and reproduced **to the digit**. The standing procedure is three things and all three matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, and a DerivedData that has only ever seen the scope you are measuring. A fourth was added on 2026-08-28: **run it twice.** The first clean unit-only reading of this tree came back **92.41%**, 1.4 points *below* baseline, and the whole deficit was `ModelPickerView.swift` at **43.85% (132/301)** — a file this change never touches — which returned to its usual **95.35% (287/301)** on the very next identical run. That file's coverage is **non-deterministic between runs**, and since it is 301 lines it moves the total by more than a point on its own. A single low reading is not evidence of a regression until it reproduces. The same tree measures ~96.3% full-suite; the two modes differ by ~2.5 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. `MetadataPipeline+DelayCurve.swift` is at **100.00% (70/70)**, as are both other sibling stages; the new `MetadataPipeline+CurveDivergence.swift` reads **97.75% (87/89)** — and `xccov`'s own line view shows **84 executable lines with none at zero hits**, so the two-line shortfall is file-level accounting rather than an untested branch. |
+| Unit + integration tests | **788 passing in 137 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
+| UI tests (XCUITest) | **24 passing, 0 failing** — clean inside the full suite on 2026-08-31, the second consecutive run without the flake. It did appear once earlier the same day, on the run immediately before this one, so it is **still recorded as flaky rather than fixed**: two green full-suite runs do not retire a load-dependent failure that has come and gone across five sessions. Historically: 24 passing, 0 failing when the target is run on its own — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
+| `swiftlint --strict` | **0 violations**, 84 files |
+| Line coverage | **93.90%** — 10447/11126, unit tests only, **clean DerivedData**, up from **93.84%** (10349/11028). The standing procedure is now four things and all four matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, a DerivedData that has only ever seen the scope you are measuring, and — added 2026-08-28 — **run it twice and diff per file before believing a drop.** That fourth rule earned its place again on 2026-08-31: the first clean unit-only reading came back **92.46%**, 1.38 points below baseline, and the entire deficit was once more `ModelPickerView.swift` at **43.85% (132/301)** — the identical figure recorded on 08-28, in a file this change does not touch — which returned to **95.35% (287/301)** on the next identical run. **That flake now reproduces to the digit**, which makes it a deterministic-per-outcome coin flip rather than noise, and it is still undiagnosed. The same tree measures ~96.3% full-suite; the two modes differ by ~2.5 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. The new `MetadataPipeline+LabelClock.swift` reads **100.00% (95/95)**, as do all three of `DelaySignal`, `DelayShape` and `DelayCurve`; `MetadataPipeline+CurveDivergence.swift` holds at 97.75% (87/89), a file-level accounting gap rather than an untested branch. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 47 packages do real work in the app.** 46 of them run in the send path and own a pipeline
+**All 48 packages do real work in the app.** 47 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,31 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**Two remedies bundled into one refusal look like one problem with no remedy.** (2026-08-31) Four
+delay stages in a row — `delaySignal`, `delayShape`, `delayCurve`, `curveDivergence` — each declined
+for a reason of its own, and each reason ended in the same sentence: this app records *whether a
+verdict arrived* and *what it said* in one field. Written out four times in four doc comments, that
+reads as a single wall. It is two walls with different heights. The **cohort** half has a remedy
+available today: `admissionProbability` is fixed when the turn is admitted, and swapping the cohort
+onto it turns `0 of 10 admissions censorable` into `3 of 10` on the same entries — measured, in
+`labelClock`, not argued. The **clock** half does not: every admission is timestamped `admitted 0,
+returned 1`, so follow-up is one tick wide whatever the cohort is. Stating them together hid that
+one of them was cheap. A stage that measures a shared premise is worth more than a fifth stage that
+restates it.
+
+**A recovered number is not a green light, and has to say so in the same breath.** (2026-08-31) The
+admission-time cohort this app owns is *whether the turn was explored* — and an explored turn is
+bought precisely to obtain a label, so its labelling rate differs from the other arm's by
+construction. Recovering the censoring makes the **schema** right without making the **comparison**
+valid. `clockRemainder` prints both sentences and a test pins both, because a detail string that
+reported the first number alone would read as a stage handing something on.
+
+**The `ModelPickerView` coverage flake reproduces to the digit.** (2026-08-31) 08-28 recorded it as
+non-deterministic. Today it came back at **43.85% (132/301)** — the same figure, not a nearby one —
+and returned to **95.35% (287/301)** on the next identical run, moving the total 1.38 points. Two
+outcomes, both exact, is a coin flip between two states rather than noise, which is a different and
+more findable bug than "flaky". Still undiagnosed; recorded so the next run does not re-derive it.
 
 **A single low coverage reading is not a regression until it reproduces.** (2026-08-28) The first
 clean unit-only measurement of the `curveDivergence` change came back at **92.41%**, 1.4 points below
@@ -765,9 +790,9 @@ Both were judged and rejected rather than overlooked:
 
 ## Coverage
 
-**93.77%** — 10186/10863 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
-including `PostModelPipeline+LabelReturn.swift` added this change and the three it touched. 28 files sit below it, and they divide into two groups
-that want different answers:
+**93.90%** — 10447/11126 lines, unit tests only. Every file in `Sources/Core/Pipeline/` is at 100%,
+as is `Sources/Core/Metadata/MetadataPipeline+LabelClock.swift` (95/95) added this change. 28 files
+sit below it, and they divide into two groups that want different answers:
 
 **The view layer, exercised by XCUITest rather than by the unit target.** A unit-only run reports
 these as gaps whatever the UI suite is doing. The suite is now green, which does not move these

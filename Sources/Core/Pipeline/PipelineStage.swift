@@ -159,6 +159,27 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Off the critical path, beside the three above, for the same reason.
     case curveDivergence
 
+    /// Measuring the defect the four stages above it keep describing.
+    ///
+    /// `delaySignal`, `delayShape`, `delayCurve` and `curveDivergence` each decline for a reason of
+    /// their own, and each of their reasons ends in the same place: this app records *whether a
+    /// verdict arrived* and *what the verdict said* in one field. `curveDivergence` says so in
+    /// prose. This stage says so in numbers, and then separates the one defect into the two it
+    /// actually is.
+    ///
+    /// The first is the cohort, and it is fixable. `admissionProbability` is decided when the turn
+    /// is admitted, so a cohort taken from it exists before any label does — and the audit reports
+    /// how many admissions become censorable the moment the cohort stops being the outcome.
+    ///
+    /// The second is the clock, and it is not fixable here. Every admission is timestamped
+    /// `admitted 0, returned 1`, so follow-up is one tick wide whatever the cohort is, and no
+    /// landmark can fall inside it. Bundling the two together, as the four stages above do, hides
+    /// that one of them has a remedy available today.
+    ///
+    /// Off the critical path with its siblings, and like them it never produces a `Refusal`: this
+    /// is a statement about the app's own schema, not about anything the user did or can undo.
+    case labelClock
+
     // Acting on the answer
     case toolAuthority
     case toolDispatch
@@ -184,6 +205,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .delayShape: return "DelayShapeKit"
         case .delayCurve: return "DelayCurveKit"
         case .curveDivergence: return "CurveDivergenceKit"
+        case .labelClock: return "LabelClockKit"
         case .promptTemplate: return "PromptTemplateKit"
         case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
         case .transcriptCapture: return "EvalHarness"
@@ -257,6 +279,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .delayShape: return "Delay shape"
         case .delayCurve: return "Delay curve"
         case .curveDivergence: return "Curve divergence"
+        case .labelClock: return "Label clock"
         case .workloadProfile: return "Workload profile"
         case .costForecast: return "Cost forecast"
         case .budgetReserve: return "Budget reserve"

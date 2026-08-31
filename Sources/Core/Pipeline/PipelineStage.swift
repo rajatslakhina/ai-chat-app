@@ -182,6 +182,25 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
 
     // Acting on the answer
     case toolAuthority
+    /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.
+    ///
+    /// `ToolCallContext.forTurn` stamps **every** argument `.untrusted(source:)` the moment the
+    /// turn carried any retrieved passage, without asking whether the argument bytes came from one.
+    /// That is a single field answering two questions — the same defect `labelClock` measured for
+    /// the delay family, in a different part of the app. Content trust asks whether these bytes
+    /// came out of a passage; selection trust asks whether the session that chose them had read
+    /// one. They are not the same question and the field cannot hold both answers.
+    ///
+    /// The over-tainting has a cost the user sees. Every capability here is `maxProvenance:
+    /// .modelAuthored`, so one retrieved passage denies the turn's calculator call even when its
+    /// arguments appear nowhere in that passage. This stage reports how many of the turn's
+    /// arguments are genuinely content-derived and how many are merely under a poisoned floor.
+    ///
+    /// It never gates, and that is not a hedge. `SelectionTrustKit` gates commits; every tool this
+    /// app registers is read-only, and reads are inert in that package by design because a read's
+    /// result leaves through the model and containing it is an egress problem. So there is nothing
+    /// here for it to refuse, it says so by name, and it never loosens what `toolAuthority` decided.
+    case selectionTrust
     case toolDispatch
     case agentLoop
     case batchInference
@@ -242,6 +261,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .conformalGate: return "ConformalGateKit"
         case .censoredFeedback: return "CensoredFeedbackKit"
         case .toolAuthority: return "ToolAuthorityKit"
+        case .selectionTrust: return "SelectionTrustKit"
         case .toolDispatch: return "ToolRegistryKit"
         case .agentLoop: return "AgentLoopKit"
         case .batchInference: return "BatchInferenceKit"
@@ -297,6 +317,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
         case .claimDecontextualization: return "Claim decontextualization"
         case .sourceConflict: return "Source conflict"
         case .toolAuthority: return "Tool authority"
+        case .selectionTrust: return "Selection trust"
         case .toolDispatch: return "Tool dispatch"
         case .agentLoop: return "Agent loop"
         case .batchInference: return "Batch inference"

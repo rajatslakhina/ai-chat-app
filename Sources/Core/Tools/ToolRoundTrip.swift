@@ -22,17 +22,22 @@ enum ToolActivity: Sendable, Equatable {
 struct ToolCallContext: Sendable, Equatable {
     let conversationID: String
     let provenance: Provenance
+    /// The passages this turn actually retrieved, carried so the selection-trust stage can ask
+    /// whether an argument's bytes appear in one. `provenance` above collapses that question into
+    /// a single stamp; keeping the passages is what lets the two be separated.
+    var sources: [RetrievedSource] = []
 
     /// Arguments the model composed are `.modelAuthored`; arguments composed after retrieval
     /// injected passages are `.untrusted`, named for the passage that ranked highest. That is the
     /// distinction the whole authority layer turns on, and only this app can make it.
     static func forTurn(conversationID: String, sources: [RetrievedSource]) -> ToolCallContext {
         guard let first = sources.first else {
-            return ToolCallContext(conversationID: conversationID, provenance: .modelAuthored)
+            return ToolCallContext(conversationID: conversationID, provenance: .modelAuthored, sources: [])
         }
         return ToolCallContext(
             conversationID: conversationID,
-            provenance: .untrusted(source: first.id)
+            provenance: .untrusted(source: first.id),
+            sources: sources
         )
     }
 }
@@ -136,10 +141,19 @@ actor ToolRoundTrip {
             known: known,
             in: context
         )
+        let selection = await SelectionTrustGate.record(
+            for: SelectionTrustGate.read(
+                toolName: toolName,
+                argumentsJSON: argumentsJSON,
+                sources: context.sources
+            ),
+            toolName: toolName
+        )
         guard authority.proceed else {
             return ToolCallResolution(
                 records: [
                     authority.record,
+                    selection,
                     Self.record(.toolDispatch, .skipped(reason: "the call was not authorized"))
                 ],
                 observation: nil,
@@ -148,7 +162,7 @@ actor ToolRoundTrip {
             )
         }
         var resolution = await dispatch(id: id, toolName: toolName, argumentsJSON: argumentsJSON)
-        resolution.records.insert(authority.record, at: 0)
+        resolution.records.insert(contentsOf: [authority.record, selection], at: 0)
         return resolution
     }
 

@@ -168,6 +168,9 @@ packages:
   ArgumentAttributionKit:
     url: https://github.com/rajatslakhina/argument-attribution-kit
     from: 1.0.0
+  EffectiveVoteKit:
+    url: https://github.com/rajatslakhina/effective-vote-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -331,6 +334,8 @@ targets:
         product: SelectionTrustKit
       - package: ArgumentAttributionKit
         product: ArgumentAttributionKit
+      - package: EffectiveVoteKit
+        product: EffectiveVoteKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

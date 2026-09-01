@@ -180,6 +180,27 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// is a statement about the app's own schema, not about anything the user did or can undo.
     case labelClock
 
+    /// The declared dependence graph in `PreModelPipeline.dependenceGraph`, measured instead of
+    /// trusted.
+    ///
+    /// That graph is load-bearing and its own doc comment says so: a guessed edge loosens the
+    /// arbiter, and the arbiter is the one place in this pipeline that can stop a turn nobody else
+    /// would. Two edges are declared there — `verdictStability` derives from `answerabilityGate`,
+    /// and `sourceIndependence` shares an input with `temporalValidity` at `0.6`, above the `0.5`
+    /// collapse threshold. Both are argued from construction and neither has ever been checked
+    /// against what the four gates actually did, because until now nothing here could check one.
+    ///
+    /// This accumulates the four gates' readings across turns and measures their pairwise
+    /// agreement, then holds the declared strengths against it. It is off the critical path with
+    /// its siblings and, like them, never produces a `Refusal`: it is a statement about this app's
+    /// own wiring and there is nothing in it for a user to undo.
+    ///
+    /// It will report `.skipped` on most installs for a long time, and that is the honest reading
+    /// rather than a defect. Most turns in a chat client carry no retrieved evidence, all four
+    /// gates correctly record themselves as skipped, and a turn where no gate spoke is not an
+    /// observation of the panel. The stage says how many turns it is still waiting for.
+    case effectiveVote
+
     // Acting on the answer
     case toolAuthority
     /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.

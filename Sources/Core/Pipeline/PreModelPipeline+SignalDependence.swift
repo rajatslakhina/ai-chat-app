@@ -48,6 +48,11 @@ extension PreModelPipeline {
             return
         }
 
+        // The readings are recorded before they are deflated, on purpose. Deflation merges two
+        // judges into one voice using the declared strength, and a history of already-merged
+        // voices could never be used to check whether that strength was right.
+        await PanelHistoryStore.shared.record(filed)
+
         let panel = await AbstentionSignalReducer().reduce(filed, using: Self.dependenceGraph)
         guard panel.report.isDeflated else {
             trace.record(

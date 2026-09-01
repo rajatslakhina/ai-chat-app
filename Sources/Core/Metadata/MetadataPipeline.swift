@@ -109,6 +109,11 @@ actor MetadataPipeline {
         assistantText: String,
         trace: inout PipelineTrace
     ) async -> ChatMetadata? {
+        // Runs before the guard, unlike its siblings, because it audits gate readings accumulated
+        // over earlier turns and has nothing to do with this turn's answer text. A turn that
+        // produced no answer still observed the panel, and reporting on the path that returns nil
+        // is the difference between a stage that had nothing to say and one nobody called.
+        await auditEffectiveVote(trace: &trace)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

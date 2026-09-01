@@ -193,8 +193,8 @@ substring containment, skipping anything under four characters — a rule whose 
 the weak half of that stage. Pointing `ArgumentAttributionKit` at the same arguments showed the rule
 fails in **both** directions on this app's own fixtures, and the two failures are opposite: `4200`
 against a passage that spells the number out is **missed entirely**, while `days` against "within 5
-working days" is **counted as evidence** at 2.4 bits, which is roughly the evidentiary weight of a
-coin landing twice. A matcher that can be wrong in both directions cannot be made safe by tightening
+working days" is **counted as evidence** at 3.22 bits, which is roughly the evidentiary weight of a
+coin landing three times. A matcher that can be wrong in both directions cannot be made safe by tightening
 it in one, and the only way to see that was to run a second matcher beside it and print where they
 disagree. The new stage does not replace the old one — it audits it, on every call, in the trace.
 

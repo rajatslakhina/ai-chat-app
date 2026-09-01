@@ -165,6 +165,9 @@ packages:
   LabelClockKit:
     url: https://github.com/rajatslakhina/label-clock-kit
     from: 1.0.0
+  ArgumentAttributionKit:
+    url: https://github.com/rajatslakhina/argument-attribution-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -326,6 +329,8 @@ targets:
         product: LabelClockKit
       - package: SelectionTrustKit
         product: SelectionTrustKit
+      - package: ArgumentAttributionKit
+        product: ArgumentAttributionKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -149,11 +149,20 @@ actor ToolRoundTrip {
             ),
             toolName: toolName
         )
+        let attribution = await ArgumentAttributionGate.record(
+            for: ArgumentAttributionGate.read(
+                toolName: toolName,
+                argumentsJSON: argumentsJSON,
+                sources: context.sources
+            ),
+            toolName: toolName
+        )
         guard authority.proceed else {
             return ToolCallResolution(
                 records: [
                     authority.record,
                     selection,
+                    attribution,
                     Self.record(.toolDispatch, .skipped(reason: "the call was not authorized"))
                 ],
                 observation: nil,
@@ -162,7 +171,7 @@ actor ToolRoundTrip {
             )
         }
         var resolution = await dispatch(id: id, toolName: toolName, argumentsJSON: argumentsJSON)
-        resolution.records.insert(contentsOf: [authority.record, selection], at: 0)
+        resolution.records.insert(contentsOf: [authority.record, selection, attribution], at: 0)
         return resolution
     }
 

@@ -201,6 +201,22 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// result leaves through the model and containing it is an egress problem. So there is nothing
     /// here for it to refuse, it says so by name, and it never loosens what `toolAuthority` decided.
     case selectionTrust
+    /// The matcher `selectionTrust` depends on, audited by the ladder that replaces it.
+    ///
+    /// That stage answers "did this argument come from a passage" with case-folded substring
+    /// containment, skipping anything under four characters — a rule its own doc comment calls the
+    /// weak half of the stage. Two failures follow from it and neither is visible from inside it: a
+    /// number the model wrote in digits and the passage wrote in words is missed, and a
+    /// four-character coincidence is counted as evidence.
+    ///
+    /// This stage asks the same question with four rungs and prices what they locate in bits, so
+    /// the two cases stop weighing the same. It reports where the two matchers disagree, which is
+    /// the only part a reader cannot get from either stage alone.
+    ///
+    /// The semantic rung is deliberately not installed: this app's tool arguments are short numeric
+    /// expressions, and a trigram score between `2+2` and a prose passage is noise. Like its
+    /// neighbour it never gates, and it never claims an argument was *not* derived.
+    case argumentAttribution
     case toolDispatch
     case agentLoop
     case batchInference
@@ -213,120 +229,6 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case budgetSettle
     case tracing
 
-    var id: String { rawValue }
-
-    /// The package that owns this stage, shown in Diagnostics so the mapping is explicit.
-    var package: String {
-        switch self {
-        case .explorationChannel: return "ExplorationChannelKit"
-        case .labelReturn: return "LabelReturnKit"
-        case .delaySignal: return "DelaySignalKit"
-        case .delayShape: return "DelayShapeKit"
-        case .delayCurve: return "DelayCurveKit"
-        case .curveDivergence: return "CurveDivergenceKit"
-        case .labelClock: return "LabelClockKit"
-        case .promptTemplate: return "PromptTemplateKit"
-        case .lexicalRetrieval, .rankFusion: return "SpotlightRAGKit"
-        case .transcriptCapture: return "EvalHarness"
-        case .guardrailInput, .guardrailOutput: return "GuardrailKit"
-        case .semanticRoute: return "SemanticRouterKit"
-        case .idempotencyGuard: return "IdempotencyKit"
-        case .cacheLookup: return "ResponseCacheKit"
-        case .memoryRecall: return "AgentMemoryKit"
-        case .retrieval: return "RetrievalKit"
-        case .contextCompaction: return "ContextCompactionKit"
-        case .workloadProfile: return "WorkloadProfilerKit"
-        case .costForecast: return "CostEstimatorKit"
-        case .budgetReserve, .budgetSettle: return "QuotaGovernorKit"
-        case .retryPolicy: return "RetryPolicyKit"
-        case .providerRouting: return "ProviderGatewayKit"
-        case .streamAggregation: return "StreamAggregatorKit"
-        case .sessionDelivery: return "RealtimeSessionKit"
-        case .structuredDecode: return "StructuredOutputKit"
-        case .outputRepair: return "OutputRepairKit"
-        case .schemaMigration: return "SchemaMigrationKit"
-        case .grounding: return "GroundingKit"
-        case .claimSegmentation: return "ClaimSegmenterKit"
-        case .claimConsistency: return "ClaimConsistencyKit"
-        case .citationBinding: return "CitationBindingKit"
-        case .claimDecontextualization: return "ClaimDecontextualizerKit"
-        case .sourceConflict: return "SourceConflictKit"
-        case .evidenceKeying: return "MorphologyMatchKit"
-        case .answerabilityGate: return "AnswerabilityKit"
-        case .temporalValidity: return "TemporalValidityKit"
-        case .sourceIndependence: return "SourceIndependenceKit"
-        case .verdictStability: return "EvidenceSensitivityKit"
-        case .signalDependence: return "SignalDependenceKit"
-        case .abstentionArbiter: return "AbstentionPolicyKit"
-        case .conformalGate: return "ConformalGateKit"
-        case .censoredFeedback: return "CensoredFeedbackKit"
-        case .toolAuthority: return "ToolAuthorityKit"
-        case .selectionTrust: return "SelectionTrustKit"
-        case .toolDispatch: return "ToolRegistryKit"
-        case .agentLoop: return "AgentLoopKit"
-        case .batchInference: return "BatchInferenceKit"
-        case .metering: return "TokenMeterKit"
-        case .tracing: return "TraceKit"
-        }
-    }
-
-    /// What this stage is for, in the words a Diagnostics reader needs.
-    var title: String {
-        switch self {
-        case .promptTemplate: return "Prompt template"
-        case .guardrailInput: return "Input guardrail"
-        case .semanticRoute: return "Semantic route"
-        case .idempotencyGuard: return "Idempotency guard"
-        case .cacheLookup: return "Cache lookup"
-        case .memoryRecall: return "Memory recall"
-        case .retrieval: return "Retrieval"
-        case .lexicalRetrieval: return "Lexical retrieval"
-        case .rankFusion: return "Rank fusion"
-        case .transcriptCapture: return "Transcript capture"
-        case .contextCompaction: return "Context compaction"
-        case .evidenceKeying: return "Evidence keying"
-        case .answerabilityGate: return "Answerability gate"
-        case .temporalValidity: return "Temporal validity"
-        case .sourceIndependence: return "Source independence"
-        case .verdictStability: return "Verdict stability"
-        case .signalDependence: return "Signal dependence"
-        case .abstentionArbiter: return "Abstention arbiter"
-        case .conformalGate: return "Conformal gate"
-        case .censoredFeedback: return "Censored feedback"
-        case .explorationChannel: return "Exploration channel"
-        case .labelReturn: return "Label return"
-        case .delaySignal: return "Delay signal"
-        case .delayShape: return "Delay shape"
-        case .delayCurve: return "Delay curve"
-        case .curveDivergence: return "Curve divergence"
-        case .labelClock: return "Label clock"
-        case .workloadProfile: return "Workload profile"
-        case .costForecast: return "Cost forecast"
-        case .budgetReserve: return "Budget reserve"
-        case .retryPolicy: return "Retry policy"
-        case .providerRouting: return "Provider routing"
-        case .streamAggregation: return "Stream aggregation"
-        case .sessionDelivery: return "Session delivery"
-        case .structuredDecode: return "Structured decode"
-        case .outputRepair: return "Output repair"
-        case .schemaMigration: return "Schema migration"
-        case .grounding: return "Grounding"
-        case .claimSegmentation: return "Claim segmentation"
-        case .claimConsistency: return "Claim consistency"
-        case .citationBinding: return "Citation binding"
-        case .claimDecontextualization: return "Claim decontextualization"
-        case .sourceConflict: return "Source conflict"
-        case .toolAuthority: return "Tool authority"
-        case .selectionTrust: return "Selection trust"
-        case .toolDispatch: return "Tool dispatch"
-        case .agentLoop: return "Agent loop"
-        case .batchInference: return "Batch inference"
-        case .guardrailOutput: return "Output guardrail"
-        case .metering: return "Metering"
-        case .budgetSettle: return "Budget settle"
-        case .tracing: return "Tracing"
-        }
-    }
 }
 
 /// A refusal, in the shape the chat UI can render.

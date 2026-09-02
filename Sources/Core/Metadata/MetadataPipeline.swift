@@ -115,6 +115,7 @@ actor MetadataPipeline {
         // is the difference between a stage that had nothing to say and one nobody called.
         await auditEffectiveVote(trace: &trace)
         await auditProxyLabel(trace: &trace)
+        await auditSampleWidth(trace: &trace)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

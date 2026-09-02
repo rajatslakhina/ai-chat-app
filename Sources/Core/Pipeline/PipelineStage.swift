@@ -215,6 +215,23 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// refusal that stops `effectiveVote` switching basis. It never gates, and like its metadata
     /// siblings it produces no `Refusal`.
     case proxyLabel
+    /// How much of what the two stages above report is the panel, and how much is the turn count.
+    ///
+    /// `effectiveVote` measures a correlation for every pair of gates and publishes an interval
+    /// with it. That interval comes from `EffectiveVoteKit`'s Fisher transform, which clamps to
+    /// `-1...1` — the bound on *any* correlation, not the bound on one this table could have
+    /// produced. Fix a pair's row and column totals and phi becomes linear in a single cell, so
+    /// the attainable range closes in hard the moment those totals are lopsided. In a chat client
+    /// they always are: gates fire on a small minority of turns.
+    ///
+    /// So this stage checks each published interval against what the margins can actually express,
+    /// and turns `effectiveVote`'s "not enough turns" into a count. That refusal currently names
+    /// the figure it is withholding and never says how many turns would let it publish, which is
+    /// the one thing a reader can act on.
+    ///
+    /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
+    /// about this app's own measurements and there is nothing in it for a user to undo.
+    case sampleWidth
 
     // Acting on the answer
     case toolAuthority

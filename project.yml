@@ -171,6 +171,9 @@ packages:
   EffectiveVoteKit:
     url: https://github.com/rajatslakhina/effective-vote-kit
     from: 1.0.0
+  ProxyLabelKit:
+    url: https://github.com/rajatslakhina/proxy-label-kit
+    from: 1.0.1
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -336,6 +339,8 @@ targets:
         product: ArgumentAttributionKit
       - package: EffectiveVoteKit
         product: EffectiveVoteKit
+      - package: ProxyLabelKit
+        product: ProxyLabelKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

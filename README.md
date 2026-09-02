@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **815 passing in 141 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
+| Unit + integration tests | **826 passing in 144 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
 | UI tests (XCUITest) | **24 passing, 0 failing** — clean inside the full suite. On 2026-08-31 the flake was exercised three times in one session: `testDemoCredentialsReachTheChatScreen` failed once inside the full suite, then passed **7/7 in isolation** immediately afterwards, then passed inside a second full suite. One appearance in three full runs, and it is **still recorded as flaky rather than fixed**: two green full-suite runs do not retire a load-dependent failure that has come and gone across five sessions. Historically: 24 passing, 0 failing when the target is run on its own — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 89 files |
-| Line coverage | **94.06%** — 10760/11439, unit tests only, **clean DerivedData**, up from **94.01%** (10658/11337). The standing procedure is four things and all four matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, a DerivedData that has only ever seen the scope you are measuring, and — added 2026-08-28 — **run it twice and diff per file before believing a drop.** On 2026-09-01 both independent fresh-DerivedData runs returned **94.01% (10658/11337)** and the per-file diff between them was ordering only, with `ModelPickerView.swift` at its healthy **95.35% (287/301)** in both — so the two-state coin flip recorded on 08-28 and reproduced to the digit on 08-31 did not fire in either run. It remains undiagnosed and the rule stays. The same tree measures **96.44% (10929/11333)** full-suite; the two modes differ by ~2.4 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. `Sources/Core/Metadata/MetadataPipeline+EffectiveVote.swift` and `Sources/Core/Pipeline/PanelHistoryStore.swift` added this change read **100.00% (61/61)** and **100.00% (29/29)**; `Sources/Core/Tools/ArgumentAttributionGate.swift` holds at **100.00% (93/93)**, `ToolRoundTrip.swift` holds at **100.00% (212/212)**, and the two halves of the split `PipelineStage` read 100.00% (68/68 and 112/112); `MetadataPipeline+CurveDivergence.swift` still holds at 97.75% (87/89), a file-level accounting gap rather than an untested branch. |
+| `swiftlint --strict` | **0 violations**, 90 files |
+| Line coverage | **94.09%** — 10844/11525, unit tests only, **clean DerivedData**, up from **94.06%** (10760/11439). The standing procedure is four things and all four matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, a DerivedData that has only ever seen the scope you are measuring, and — added 2026-08-28 — **run it twice and diff per file before believing a drop.** On 2026-09-02 that fourth rule earned its place for the first time. The first fresh-DerivedData unit-only run returned **92.74% (10684/11521)** — *lower* than the previous session, on a change that only added code — and the entire difference was `ModelPickerView.swift` at **43.85% (132/301)** against its healthy **95.35% (287/301)**. That is the two-state coin flip recorded on 08-28, in its bad state, worth 1.34 points on its own. A second independent run returned **94.08% (10839/11521)** with that file back at 95.35%, and the run after the last fix returned **94.09% (10844/11525)**. Had the rule not existed, the honest-looking move would have been to report a regression this change did not cause. It remains undiagnosed and the rule stays. The same tree measures **96.47% (11114/11521)** full-suite; the two modes differ by ~2.4 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. `Sources/Core/Metadata/MetadataPipeline+ProxyLabel.swift` added this change reads **100.00% (49/49)** and `Sources/Core/Pipeline/PanelHistoryStore.swift` holds at **100.00% (52/52)** after gaining the outcome half; `PipelineStage.swift` and `PipelineStage+Catalog.swift` read 100.00% (71/71 and 116/116); `MetadataPipeline+CurveDivergence.swift` still holds at 97.75% (87/89), a file-level accounting gap rather than an untested branch. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 51 packages do real work in the app.** 50 of them run in the send path and own a pipeline
+**All 52 packages do real work in the app.** 51 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,33 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**Two independent fresh-DerivedData coverage runs, and this time they disagreed.** (2026-09-02)
+The twice-and-diff rule has been in this file since 08-28 and had never once changed an answer. It
+did here. The first unit-only run on a clean DerivedData came back at **92.74%**, below the previous
+session's 94.06%, on a change that added code and deleted none. The whole gap was
+`ModelPickerView.swift` at **43.85%** instead of its usual **95.35%** — 167 lines, 1.34 points, and
+nothing to do with the change in flight. The second run returned 94.08% with that file healthy. A
+procedure that only ever confirms what you already believe is indistinguishable from no procedure
+until the day it does not, and the cost of not having it here would have been reporting a regression
+that did not exist.
+
+**A downstream outcome is evidence about the turn, not about a judge, and that is not a detail.**
+(2026-09-02) `checkConsistency` already decides per turn whether an answer contradicted its own
+sources, so deriving a correctness label for every gate that admitted the evidence is one line of
+code. Using it is the hard part. One outcome labels all four gates at once, so any error in it is
+shared by every one of them, and shared label noise does not blur an error correlation toward zero
+the way independent noise does — it manufactures one. The new `proxyLabel` stage therefore derives
+the labels, names the regime, and reports the exact refusal that stops `effectiveVote` switching
+basis, rather than switching it. The tempting version of this change would have looked like an
+improvement and would have invented dependence between gates that share nothing.
+
+**The turn id had to travel in the trace, and there was already a precedent for it.** (2026-09-02)
+The gates are recorded before the model and the outcome arrives after it, and the only thing tying
+the two to the same turn is an id. Attaching an outcome to "whatever the store saw last" is correct
+right up until two turns overlap. `PipelineTrace.explorationID` had solved exactly this problem
+before, for exactly this reason, so `panelTurnID` follows it rather than inventing a second
+mechanism. Reading the file for prior art was faster than the plumbing would have been.
 
 **A stage that runs after an early return does not run on the path that takes it.** (2026-09-01)
 `MetadataPipeline.generate` bails out before every audit stage when the turn produced no answer
@@ -916,6 +943,13 @@ rather than gamed.
 - **Effort is one value for the provider.** `ReasoningEffortBox` is per-provider, not
   per-request — `LLMRequest` cannot carry it without forking ProviderGatewayKit. Two conversations
   sending at the same instant would share whichever was set last; this app sends one turn at a time.
+- **No audited subset, so the derived correctness labels cannot be priced.** The `proxyLabel`
+  stage derives a label for every gate on every turn that had an outcome, and then refuses to do
+  anything with them: pricing needs somebody to read turns and record which gate was actually
+  right, and there is no screen, store or gesture for that. `MetadataPipeline.auditedTurns` is an
+  empty `AuditSample` named so the gap is visible, and the stage takes one as a parameter so the
+  day a review surface exists it starts pricing without being rewritten. Until then
+  `effectiveVote` stays on vote agreement, which is the weaker of its two bases.
 - **A real corpus.** `AppKnowledge` is four passages about the app itself.
 - **CoreSpotlight.** The app uses `InMemorySearchIndex`; CoreSpotlight does not index reliably in
   a simulator.

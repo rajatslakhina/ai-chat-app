@@ -44,6 +44,12 @@ extension PostModelPipeline {
         do {
             let consistency = try await consistencyChecker.check(pairs, policy: .standard, at: nextTick())
             let contradicted = consistency.count(of: .contradicts)
+            // The one downstream outcome this app already produces about an answer it shipped.
+            // Filed against the turn the gates were recorded under, which is why the id travels
+            // in the trace rather than being inferred from ordering.
+            if let turn = trace.panelTurnID {
+                await PanelHistoryStore.shared.recordOutcome(turn: turn, contradicted: contradicted > 0)
+            }
             guard contradicted > 0 else {
                 return recordAgreement(consistency, pairs: pairs.count, trace: &trace)
             }

@@ -200,6 +200,21 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// gates correctly record themselves as skipped, and a turn where no gate spoke is not an
     /// observation of the panel. The stage says how many turns it is still waiting for.
     case effectiveVote
+    /// Whether the label the stage above says it does not have could be derived from what
+    /// happened after the answer shipped.
+    ///
+    /// It can. `checkConsistency` already decides, per turn, whether the answer contradicted its
+    /// own sources, which is a downstream outcome arriving against the **turn**. Deriving a
+    /// correctness label from it is one line. Being allowed to *use* that label is not: an
+    /// outcome scoped to the turn labels all four gates at once, so any error in it is shared by
+    /// every one of them, and shared label noise does not blur an error correlation the way
+    /// independent noise does — it manufactures one. Pricing that requires an audited subset,
+    /// which is somebody reading turns, and this app has no surface for it.
+    ///
+    /// So this stage derives the labels, names the regime they landed in, and reports the exact
+    /// refusal that stops `effectiveVote` switching basis. It never gates, and like its metadata
+    /// siblings it produces no `Refusal`.
+    case proxyLabel
 
     // Acting on the answer
     case toolAuthority
@@ -365,6 +380,14 @@ struct PipelineTrace: Sendable, Equatable {
     /// label ends up attached to the wrong admission.
     private(set) var explorationID: String?
 
+    /// The id `PanelHistoryStore` filed this turn's gate readings under, if any were filed.
+    ///
+    /// The same reason `explorationID` is here. The stage that records what the gates said runs
+    /// before the model and the stage that learns whether the answer held up runs after it, and
+    /// this id is the only thing tying the two to the same turn. Attaching an outcome to
+    /// "whatever the store saw last" would be correct only until two turns overlap.
+    private(set) var panelTurnID: String?
+
     init(records: [StageRecord] = []) {
         self.records = records
     }
@@ -372,6 +395,11 @@ struct PipelineTrace: Sendable, Equatable {
     /// Note that this turn was answered as a deliberate exploration.
     mutating func noteExploration(id: String) {
         explorationID = id
+    }
+
+    /// Note which panel observation this turn's gate readings were filed as.
+    mutating func notePanelTurn(id: String) {
+        panelTurnID = id
     }
 
     mutating func record(_ stage: PipelineStage, _ outcome: StageOutcome, durationMs: Int = 0) {

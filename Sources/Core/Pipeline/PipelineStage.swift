@@ -232,6 +232,23 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
     /// about this app's own measurements and there is nothing in it for a user to undo.
     case sampleWidth
+    /// The level the three stages above quote everything at, and none of them holds.
+    ///
+    /// `effectiveVote` publishes a coefficient and a 95% interval for **every pair** of the four
+    /// evidence gates. `proxyLabel` bounds those readings against derived labels. `sampleWidth`
+    /// prices each one against the turn count. Six pairs, three readings apiece, every one at a
+    /// nominal 95% — and none of them has ever been told that five others were published beside it.
+    ///
+    /// Six intervals at 95% do not make a 95% page. The chance that all six cover is far below
+    /// that, and the largest of the six was picked out of six candidates by the same quantity it
+    /// is being quoted on. This stage corrects for the six: it counts how much of the family is
+    /// dependent by construction rather than assuming that away, corrects the p-values under a
+    /// procedure valid at that dependence, says what six null readings would have put at the top
+    /// of the page, and re-quotes the strongest interval at the level the whole page needs.
+    ///
+    /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
+    /// about this app's own measurements, and there is nothing in it for a user to undo.
+    case familyError
 
     // Acting on the answer
     case toolAuthority

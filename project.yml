@@ -177,6 +177,9 @@ packages:
   SampleWidthKit:
     url: https://github.com/rajatslakhina/sample-width-kit
     from: 1.0.0
+  FamilyErrorKit:
+    url: https://github.com/rajatslakhina/family-error-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -346,6 +349,8 @@ targets:
         product: ProxyLabelKit
       - package: SampleWidthKit
         product: SampleWidthKit
+      - package: FamilyErrorKit
+        product: FamilyErrorKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

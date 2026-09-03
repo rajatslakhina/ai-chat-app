@@ -18,13 +18,13 @@ Measured on Swift 6.2.4 / Xcode 26.3 / macOS 26.5.2, iPhone 17 Pro simulator.
 | Gate | Result |
 |---|---|
 | `xcodebuild build` | 0 errors, 0 warnings |
-| Unit + integration tests | **835 passing in 145 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
+| Unit + integration tests | **848 passing in 146 suites**, 2 skipped (`LiveOpenRouterTests`, which need a real key) |
 | UI tests (XCUITest) | **24 passing, 0 failing** — clean inside the full suite. On 2026-08-31 the flake was exercised three times in one session: `testDemoCredentialsReachTheChatScreen` failed once inside the full suite, then passed **7/7 in isolation** immediately afterwards, then passed inside a second full suite. One appearance in three full runs, and it is **still recorded as flaky rather than fixed**: two green full-suite runs do not retire a load-dependent failure that has come and gone across five sessions. Historically: 24 passing, 0 failing when the target is run on its own — and `testDemoCredentialsReachTheChatScreen` failed once again on 2026-08-27 inside the full suite, the third run in a row it has appeared. It is recorded as **still flaky rather than fixed**. 08-25 diagnosed it as load-dependent; 08-26 raised its wait from 15s to 20s to match every other reachability assertion in the file and called it green; 08-27 it timed out at 20s anyway, on a machine that had just built four packages and run the suite three times, then passed isolated with all 24 green in 268s. The wait is not the problem and raising it a third time would be a third guess. What is actually established: it is load-dependent, it is not caused by whatever change is in flight (verified isolated against the change each time), and the real fix is probably to stop the UI target inheriting a simulator that has just chewed through 750-odd unit tests. Earlier history: green since 2026-08-18, when a run of failures turned out not to be environmental at all but a real navigation regression in `ChatScaffold` — the thread was pushed by `.navigationDestination(item:)` while every other screen was registered on `.navigationDestination(for:)`, and that registration was not in scope from inside the pushed screen, so the Model, Diagnostics and Settings toolbar links rendered and did nothing. `profileButton` kept working because it lives on `ChatListView`, which carried the registration — which is what made the suite look chronically and inexplicably red. Fixed by unifying both onto one path-based registration. |
-| `swiftlint --strict` | **0 violations**, 91 files |
-| Line coverage | **94.14%** — 10932/11613, unit tests only, **clean DerivedData**, up from **94.09%** (10844/11525). The standing procedure is four things and all four matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, a DerivedData that has only ever seen the scope you are measuring, and — added 2026-08-28 — **run it twice and diff per file before believing a drop.** On 2026-09-02 that fourth rule earned its place for the first time. The first fresh-DerivedData unit-only run returned **92.74% (10684/11521)** — *lower* than the previous session, on a change that only added code — and the entire difference was `ModelPickerView.swift` at **43.85% (132/301)** against its healthy **95.35% (287/301)**. That is the two-state coin flip recorded on 08-28, in its bad state, worth 1.34 points on its own. A second independent run returned **94.08% (10839/11521)** with that file back at 95.35%, and the run after the last fix returned **94.09% (10844/11525)**. Had the rule not existed, the honest-looking move would have been to report a regression this change did not cause. It remains undiagnosed and the rule stays. The same tree measures **96.47% (11114/11521)** full-suite; the two modes differ by ~2.4 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. On 2026-09-02's second run the fourth rule was applied as routine and both independent runs returned **94.14% (10932/11613)** with `ModelPickerView.swift` at its healthy 95.35% in both, so the coin flip stayed in its good state. `Sources/Core/Metadata/MetadataPipeline+SampleWidth.swift` added this change reads **100.00% (85/85)** after a dead branch was fixed rather than excluded; `Sources/Core/Metadata/MetadataPipeline+ProxyLabel.swift` holds at **100.00% (49/49)** and `Sources/Core/Pipeline/PanelHistoryStore.swift` holds at **100.00% (52/52)** after gaining the outcome half; `PipelineStage.swift` and `PipelineStage+Catalog.swift` read 100.00% (71/71 and 116/116); `MetadataPipeline+CurveDivergence.swift` still holds at 97.75% (87/89), a file-level accounting gap rather than an untested branch. |
+| `swiftlint --strict` | **0 violations**, 92 files |
+| Line coverage | **94.22%** — 11108/11789, unit tests only, **clean DerivedData**, up from **94.14%** (10932/11613). The standing procedure is four things and all four matter: a **separate invocation** from the `xcodebuild` that wrote the bundle, `-enableCodeCoverage YES` passed explicitly, a DerivedData that has only ever seen the scope you are measuring, and — added 2026-08-28 — **run it twice and diff per file before believing a drop.** On 2026-09-02 that fourth rule earned its place for the first time. The first fresh-DerivedData unit-only run returned **92.74% (10684/11521)** — *lower* than the previous session, on a change that only added code — and the entire difference was `ModelPickerView.swift` at **43.85% (132/301)** against its healthy **95.35% (287/301)**. That is the two-state coin flip recorded on 08-28, in its bad state, worth 1.34 points on its own. A second independent run returned **94.08% (10839/11521)** with that file back at 95.35%, and the run after the last fix returned **94.09% (10844/11525)**. Had the rule not existed, the honest-looking move would have been to report a regression this change did not cause. It remains undiagnosed and the rule stays. The same tree measures **96.47% (11114/11521)** full-suite; the two modes differ by ~2.4 points because XCUITest is the only thing exercising `AppNavigation`, `ModelPickerView` and `ChatView`, so the mode has to match before numbers can be compared. On 2026-09-02's second run the fourth rule was applied as routine and both independent runs returned **94.14% (10932/11613)** with `ModelPickerView.swift` at its healthy 95.35% in both, so the coin flip stayed in its good state. `Sources/Core/Metadata/MetadataPipeline+SampleWidth.swift` added this change reads **100.00% (85/85)** after a dead branch was fixed rather than excluded; `Sources/Core/Metadata/MetadataPipeline+ProxyLabel.swift` holds at **100.00% (49/49)** and `Sources/Core/Pipeline/PanelHistoryStore.swift` holds at **100.00% (52/52)** after gaining the outcome half; `PipelineStage.swift` and `PipelineStage+Catalog.swift` read 100.00% (71/71 and 116/116); `MetadataPipeline+CurveDivergence.swift` still holds at 97.75% (87/89), a file-level accounting gap rather than an untested branch. On 2026-09-03 two independent fresh-DerivedData unit-only runs both returned **94.22% (11108/11789)**, up from **94.14% (10932/11613)**, with `ModelPickerView.swift` at its healthy 95.35% (287/301) in both — the coin flip stayed in its good state for a second consecutive session. `Sources/Core/Metadata/MetadataPipeline+FamilyError.swift` added this change reads **100.00% (173/173)**. |
 | Verified against the live API | Yes — real answers, real token counts, real cost |
 
-**All 53 packages do real work in the app.** 52 of them run in the send path and own a pipeline
+**All 54 packages do real work in the app.** 53 of them run in the send path and own a pipeline
 stage; `EvalHarness` does both — it captures golden cases at runtime *and* gates regressions in
 `Tests/`. See [Coverage](#coverage).
 
@@ -186,6 +186,58 @@ Three properties are load-bearing, and each has a test:
 ---
 
 ## What was learned the hard way
+
+**A `??` default nobody can reach is an untestable claim, and the region view is the only thing that sees it.** (2026-09-03) After `familyError`'s dead `try?` fallbacks were removed the file read **95.81% (160/167)** with **zero fully-uncovered lines**. The remaining seven were *partial regions*: six `?? 0` and `?? 1` defaults on a coefficient that a prior `filter` had already guaranteed non-nil, spread across five call sites. Unwrapping once at the boundary into a small `MeasuredPair` removed all six and took the file to **100.00% (173/173)**. The two coverage views disagree for a real reason worth knowing: `xccov view --archive --file` counts **lines** and reported 137 executable with none uncovered, while `xccov view --report --json` — which `Scripts/coverage.sh` reads — counts **regions** and reported 167 with seven short. Only the second can see an unreachable default on a line that also does real work.
+
+**A `try?` over a constant is not defensive, it is a string no reader will ever see.** (2026-09-03)
+`familyError` shipped its first draft with `guard let graph = try? PairOverlapGraph(judgeCount:
+familyJudgeCount) else { return "the panel's shape could not be counted" }` in two helpers.
+`familyJudgeCount` is `4`, so neither fallback could ever be produced and neither could be tested.
+The repair was not a test: the graph is now built **once**, at the top of the stage, `judgeCount` is
+injectable so a panel below two judges is reachable, and that state is recorded as a real
+`.failed` outcome instead of a sentence about not being able to count. **Turning an impossible
+fallback into a reachable failure made the stage honest about a state it could previously only
+have lied about.**
+
+**Six intervals at 95% are not a 95% page, and nothing in this app had ever counted them.**
+(2026-09-03) `effectiveVote` publishes a coefficient and an interval for every pair of the four
+evidence gates, `proxyLabel` bounds those readings against derived labels, and `sampleWidth` prices
+each one against the turn count. Six pairs, three readings apiece, every one at a nominal 95% — and
+not one of them was ever told that five others were published beside it. The new `familyError` stage
+corrects for the six. It does not re-measure anything: the coefficients, tables and intervals are
+the ones `EffectiveVoteKit` already produced.
+
+**The family is the panel's shape, not the count of pairs that produced a number.** A pair is only
+measurable when both its gates have spoken often enough, so the measurable set is a filtered subset
+and correcting for it would divide by the flattering number. `MetadataPipeline.familyJudgeCount` is
+read as `4` — the panel's shape — so the correction always divides by six whatever it could measure,
+and unmeasurable pairs enter at `p = 1`. `Family.unreportedCount` is how a reader sees that
+assumption being made rather than having to trust it.
+
+**Independence was never available here, and it is a count rather than an argument.**
+(2026-09-03) Pairs `answerability x temporal` and `answerability x stability` are computed from an
+overlapping set of judgements, so they are dependent by construction. `PairOverlapGraph(judgeCount:
+4)` reports six pairs, fifteen unordered pairings among them, and **twelve of those fifteen share a
+gate — 80% overlap**. That is why the stage corrects under Benjamini-Yekutieli and not the more
+powerful Benjamini-Hochberg the LLM-evaluation literature reaches for: BH is valid under positive
+regression dependence, which this panel does not satisfy. The price is `H(6) = 2.4500`.
+
+**A stage that quotes the turn count where it means the pair count flatters its own reading.**
+(2026-09-03) The first draft of `familyError` handed `NullMaximum` the history length. A pair is
+measured only on turns where **both** of its gates spoke, which in this app is a fraction of the
+turns recorded, and a larger `n` shrinks the ceiling that the largest reading has to clear. The
+stage would have made its own headline number look more impressive than the evidence behind it —
+the exact direction of error the stage exists to catch. It now quotes the pair's own sample size
+and prints it: *"the largest reading is X on N shared turn(s)"*. **The sample size of a pairwise
+statistic is not the sample size of the corpus, and the difference always runs in the flattering
+direction.**
+
+**The largest reading on a page can be the one member a correction cannot touch.** (2026-09-03)
+`answerability x stability` is the declared `derives` edge and reaches `|phi| == 1.0000` on a panel
+where the two gates agree exactly. `atanh` is unbounded there, so it has no widenable interval —
+and it is the row a reader is most likely to be looking at. The stage names it as unwidenable
+rather than dropping it, which is the same rule scenario 51 of the umbrella demo learned the hard
+way: **a gap that looks like an absence is worse than a refusal that looks like a problem.**
 
 **An interval clamped to `-1...1` is not clamped to anything this table could produce.**
 (2026-09-02) `effectiveVote` publishes a confidence interval for every pair of gates, built by

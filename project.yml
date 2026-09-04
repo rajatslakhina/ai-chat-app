@@ -180,6 +180,9 @@ packages:
   FamilyErrorKit:
     url: https://github.com/rajatslakhina/family-error-kit
     from: 1.0.0
+  EffectiveComparisonKit:
+    url: https://github.com/rajatslakhina/effective-comparison-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -351,6 +354,8 @@ targets:
         product: SampleWidthKit
       - package: FamilyErrorKit
         product: FamilyErrorKit
+      - package: EffectiveComparisonKit
+        product: EffectiveComparisonKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -250,6 +250,29 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// about this app's own measurements, and there is nothing in it for a user to undo.
     case familyError
 
+    /// The denominator ``familyError`` had to assume, measured instead.
+    ///
+    /// Benjamini-Yekutieli is valid under arbitrary dependence and charges `H(m)` for it. That is
+    /// the right default when the dependence cannot be seen. On this panel it can: four gates make
+    /// six comparisons, twelve of the fifteen pairings among them share a gate, and the design
+    /// fixes the correlation between two that do. Priced rather than assumed, the multiplier falls
+    /// by roughly a factor of three.
+    ///
+    /// The stage also records the distinction that would otherwise have gone wrong quietly. The
+    /// spectral estimators return the panel's **rank** — the number of gates every comparison is
+    /// built from — and a multiplicity threshold is a statement about the family's **maximum**,
+    /// whose count is a different and usually larger number. Spending the rank would loosen the
+    /// threshold past what the dependence supports, so `MultiplicityBudget` refuses to be built
+    /// from one and this stage quotes both.
+    ///
+    /// It is also the only stage in this family that has something to say on a fresh install: its
+    /// correction comes from the panel's shape rather than from readings, so the effective count
+    /// is knowable before a single turn has been observed.
+    ///
+    /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
+    /// about this app's own measurements, and there is nothing in it for a user to undo.
+    case effectiveComparison
+
     // Acting on the answer
     case toolAuthority
     /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.
@@ -299,42 +322,6 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case budgetSettle
     case tracing
 
-}
-
-/// A refusal, in the shape the chat UI can render.
-///
-/// Every field exists because a refusal the user cannot act on is barely better than a silent
-/// one: `headline` says what happened, `explanation` says why, and `recovery` says what to do
-/// about it. A stage that refuses without filling these in fails review.
-struct Refusal: Sendable, Equatable {
-    let stage: PipelineStage
-    let headline: String
-    let explanation: String
-    let recovery: RecoveryAction?
-
-    enum RecoveryAction: Sendable, Equatable {
-        case openSettings(field: String)
-        case retryLater(after: Duration?)
-        case switchModel
-        case shortenConversation
-        case approveTool(name: String)
-        case addCredit
-    }
-
-    /// The button title for `recovery`, or nil when nothing can be done from here.
-    var recoveryTitle: String? {
-        switch recovery {
-        case .openSettings: return "Open Settings"
-        case let .retryLater(after):
-            guard let after else { return "Try again" }
-            return "Try again in \(after.components.seconds)s"
-        case .switchModel: return "Choose another model"
-        case .shortenConversation: return "Start a new conversation"
-        case let .approveTool(name): return "Approve \(name)"
-        case .addCredit: return "Add credit"
-        case nil: return nil
-        }
-    }
 }
 
 /// What a stage did.

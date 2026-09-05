@@ -183,6 +183,9 @@ packages:
   EffectiveComparisonKit:
     url: https://github.com/rajatslakhina/effective-comparison-kit
     from: 1.0.0
+  ObservedNullKit:
+    url: https://github.com/rajatslakhina/observed-null-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -356,6 +359,8 @@ targets:
         product: FamilyErrorKit
       - package: EffectiveComparisonKit
         product: EffectiveComparisonKit
+      - package: ObservedNullKit
+        product: ObservedNullKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

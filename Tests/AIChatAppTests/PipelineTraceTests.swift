@@ -39,9 +39,9 @@ struct PipelineStageTests {
             "ExplorationChannelKit", "LabelReturnKit", "DelaySignalKit", "DelayShapeKit",
             "DelayCurveKit", "CurveDivergenceKit", "LabelClockKit", "SelectionTrustKit",
             "ArgumentAttributionKit", "EffectiveVoteKit", "ProxyLabelKit", "SampleWidthKit",
-            "FamilyErrorKit", "EffectiveComparisonKit"
+            "FamilyErrorKit", "EffectiveComparisonKit", "ObservedNullKit"
         ]
-        #expect(expected.count == 55)
+        #expect(expected.count == 56)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")

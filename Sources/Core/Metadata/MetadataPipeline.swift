@@ -118,6 +118,7 @@ actor MetadataPipeline {
         await auditSampleWidth(trace: &trace)
         await auditFamilyError(trace: &trace)
         await auditEffectiveComparison(trace: &trace)
+        await auditObservedNull(trace: &trace)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

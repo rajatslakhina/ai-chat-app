@@ -273,6 +273,21 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// about this app's own measurements, and there is nothing in it for a user to undo.
     case effectiveComparison
 
+    /// Whether the distribution `effectiveComparison` draws its threshold from is one this
+    /// panel could have produced.
+    ///
+    /// Its sibling corrects the family for the dependence panel geometry implies, and spends a
+    /// Gaussian copula fitted to that structure. Two things ride underneath: that the family's
+    /// null is Gaussian, and that a correlation of one half is reachable for gates with these
+    /// agreement rates. Both are checkable once the panel has graded anything, and this stage
+    /// checks them by resampling the grades instead of modelling them.
+    ///
+    /// It is deliberately the quieter of the two on a fresh install. `effectiveComparison` knows
+    /// its answer from the shape alone; this one cannot, because the shape is the assumption it
+    /// exists to test. Like its metadata siblings it produces no `Refusal`: it reports on this
+    /// app's own measurements, and there is nothing in it for a user to undo.
+    case observedNull
+
     // Acting on the answer
     case toolAuthority
     /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.

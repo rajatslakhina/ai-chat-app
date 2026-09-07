@@ -189,6 +189,9 @@ packages:
   ChanceAgreementKit:
     url: https://github.com/rajatslakhina/chance-agreement-kit
     from: 1.0.0
+  PanelDesignKit:
+    url: https://github.com/rajatslakhina/panel-design-kit
+    from: 1.1.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -366,6 +369,8 @@ targets:
         product: ObservedNullKit
       - package: ChanceAgreementKit
         product: ChanceAgreementKit
+      - package: PanelDesignKit
+        product: PanelDesignKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

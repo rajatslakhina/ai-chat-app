@@ -21,7 +21,7 @@ struct PipelineStageTests {
     }
 
     /// The count that makes "all 55 packages are wired in" checkable rather than claimed.
-    @Test("the stages cover all 56 ecosystem packages, each at least once")
+    @Test("the stages cover all 57 ecosystem packages, each at least once")
     func coversEveryPackage() {
         let packages = Set(PipelineStage.allCases.map(\.package))
         let expected: Set<String> = [
@@ -39,9 +39,10 @@ struct PipelineStageTests {
             "ExplorationChannelKit", "LabelReturnKit", "DelaySignalKit", "DelayShapeKit",
             "DelayCurveKit", "CurveDivergenceKit", "LabelClockKit", "SelectionTrustKit",
             "ArgumentAttributionKit", "EffectiveVoteKit", "ProxyLabelKit", "SampleWidthKit",
-            "FamilyErrorKit", "EffectiveComparisonKit", "ObservedNullKit", "ChanceAgreementKit"
+            "FamilyErrorKit", "EffectiveComparisonKit", "ObservedNullKit", "ChanceAgreementKit",
+            "PanelDesignKit"
         ]
-        #expect(expected.count == 57)
+        #expect(expected.count == 58)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")

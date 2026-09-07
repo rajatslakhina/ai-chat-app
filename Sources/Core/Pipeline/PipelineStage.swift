@@ -303,6 +303,21 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// measurements, and there is nothing in it for a user to undo.
     case chanceAgreement
 
+    /// Whether the **fixture** those five readings are computed over can carry what they measure.
+    ///
+    /// Every stage above prices something about how much two gates agree, and all of them price
+    /// it over the same grid of which gate affirmed which turn. None of them asks whether that
+    /// grid can hold an association at all. It frequently cannot: two gates whose affirm-rates
+    /// are far apart are forced to agree on a fixed share of turns before either has spoken, a
+    /// gate that affirmed every turn pins the rate to the other gate's marginal outright, and a
+    /// pair whose joint counts are the products of their marginals has an association of exactly
+    /// nil rather than of nearly nil.
+    ///
+    /// It is the only stage here that reports on the panel rather than on the gates, which is
+    /// why it runs last among them. Like its metadata siblings it produces no `Refusal`: nothing
+    /// in it is a decision a user could undo.
+    case panelDesign
+
     // Acting on the answer
     case toolAuthority
     /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.

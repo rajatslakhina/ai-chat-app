@@ -186,6 +186,9 @@ packages:
   ObservedNullKit:
     url: https://github.com/rajatslakhina/observed-null-kit
     from: 1.0.0
+  ChanceAgreementKit:
+    url: https://github.com/rajatslakhina/chance-agreement-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -361,6 +364,8 @@ targets:
         product: EffectiveComparisonKit
       - package: ObservedNullKit
         product: ObservedNullKit
+      - package: ChanceAgreementKit
+        product: ChanceAgreementKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

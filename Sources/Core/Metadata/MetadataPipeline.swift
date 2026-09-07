@@ -122,6 +122,7 @@ actor MetadataPipeline {
         await auditChanceAgreement(trace: &trace)
         await auditPanelDesign(trace: &trace)
         await auditSquareDesign(trace: &trace)
+        await auditAssociationFit(trace: &trace)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

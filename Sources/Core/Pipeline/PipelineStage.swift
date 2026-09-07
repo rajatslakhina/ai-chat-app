@@ -337,6 +337,25 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// measurements, and there is nothing in it for a user to undo.
     case squareDesign
 
+    /// Which of that panel's cells the target agreement rate never chose.
+    ///
+    /// `squareDesign` repairs a fixture to a target **agreement rate**. On a three-way panel that
+    /// pins one number out of nine, and its construction reaches a diagonal by pushing mass into
+    /// corners — so the association a repaired fixture carries is an artefact of the method rather
+    /// than a decision anybody took. Every coefficient the stages above publish is sensitive to
+    /// the eight cells nobody chose.
+    ///
+    /// This stage states the association and lets the agreement rate follow, fitting a control
+    /// structure onto the gates' own verdict rates by iterative proportional fitting — which moves
+    /// the margins and provably cannot move the odds ratios, because row and column scalings
+    /// cancel out of every one of them. It then prices the step every fixture in this app
+    /// eventually takes: **a fit is real-valued and a panel is made of whole turns, and the
+    /// margins survive that exactly while the association does not.**
+    ///
+    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
+    /// measurements, and there is nothing in it for a user to undo.
+    case associationFit
+
     // Acting on the answer
     case toolAuthority
     /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.

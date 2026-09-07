@@ -195,6 +195,9 @@ packages:
   SquareDesignKit:
     url: https://github.com/rajatslakhina/square-design-kit
     from: 1.0.0
+  AssociationFitKit:
+    url: https://github.com/rajatslakhina/association-fit-kit
+    from: 1.1.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -376,6 +379,8 @@ targets:
         product: PanelDesignKit
       - package: SquareDesignKit
         product: SquareDesignKit
+      - package: AssociationFitKit
+        product: AssociationFitKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

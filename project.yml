@@ -192,6 +192,9 @@ packages:
   PanelDesignKit:
     url: https://github.com/rajatslakhina/panel-design-kit
     from: 1.1.0
+  SquareDesignKit:
+    url: https://github.com/rajatslakhina/square-design-kit
+    from: 1.0.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -371,6 +374,8 @@ targets:
         product: ChanceAgreementKit
       - package: PanelDesignKit
         product: PanelDesignKit
+      - package: SquareDesignKit
+        product: SquareDesignKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

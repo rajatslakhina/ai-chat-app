@@ -318,6 +318,25 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// in it is a decision a user could undo.
     case panelDesign
 
+    /// Which agreement counts the gates' **three-way** verdicts can reach, and which they cannot.
+    ///
+    /// `panelDesign` audits the affirm grid — every verdict collapsed to affirmed or not — because
+    /// that is the basis its five siblings measure on. The gates do not cast two-way verdicts.
+    /// They affirm, deny or abstain, and the collapse throws the third case away before anything
+    /// looks at it. On the square panel the discarded case restores, two questions become
+    /// answerable that were not: **which counts inside the attainable range no panel reaches**,
+    /// and what a fixture built to a target agreement on these same verdict rates would look like.
+    ///
+    /// `PanelDesignKit` prices the range at every category count and then declines both: above two
+    /// categories `admits(count:)` returns `nil` and its builder throws. The general case is a
+    /// transportation problem with a forbidden diagonal and a prescribed trace, and it has a closed
+    /// form — a per-category floor on the diagonal, summed against the target. This stage is that
+    /// closed form applied to the panel this app actually accumulated.
+    ///
+    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
+    /// measurements, and there is nothing in it for a user to undo.
+    case squareDesign
+
     // Acting on the answer
     case toolAuthority
     /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.

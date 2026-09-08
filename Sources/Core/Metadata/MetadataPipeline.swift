@@ -124,6 +124,7 @@ actor MetadataPipeline {
         await auditSquareDesign(trace: &trace)
         await auditAssociationFit(trace: &trace)
         await auditAssociationTransport(trace: &trace)
+        await auditExactAssociation(trace: &trace)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

@@ -198,6 +198,9 @@ packages:
   AssociationFitKit:
     url: https://github.com/rajatslakhina/association-fit-kit
     from: 1.1.0
+  ExactAssociationKit:
+    url: https://github.com/rajatslakhina/exact-association-kit
+    from: 1.0.0
   AssociationTransportKit:
     url: https://github.com/rajatslakhina/association-transport-kit
     from: 1.1.0
@@ -386,6 +389,8 @@ targets:
         product: AssociationFitKit
       - package: AssociationTransportKit
         product: AssociationTransportKit
+      - package: ExactAssociationKit
+        product: ExactAssociationKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

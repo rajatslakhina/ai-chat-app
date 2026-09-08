@@ -377,6 +377,29 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
     /// measurements, and there is nothing in it for a user to undo.
     case associationTransport
+    /// What the intervals `associationTransport` reports were worth.
+    ///
+    /// That stage puts a **Woolf** interval around every block of the joint table: the log odds
+    /// ratio plus or minus `1.96` standard errors, where the error is the square root of the
+    /// summed reciprocals of four counts. It is the standard choice in the applied literature and
+    /// it is **asymptotic** — a normal approximation on the log scale, valid in the limit of large
+    /// counts. This panel is a few dozen turns with empty cells in it, which is precisely the
+    /// regime where that approximation is known to be poor, and nothing in this app has ever said
+    /// by how much.
+    ///
+    /// Conditioning a two-by-two block on **all four** of its margins removes every nuisance
+    /// parameter and leaves the odds ratio alone, over a finite support. Probabilities can then be
+    /// summed rather than approximated, and two things come out that the asymptotic side cannot
+    /// produce. The first is that some blocks have **no odds ratio at all**: a zero margin
+    /// determines the block's counts, so an interval reported for it is fiction rather than an
+    /// approximation, and the stage above reached one only by adding half an item to cells nobody
+    /// landed in. The second is a direction — swept over every small table, the exact interval is
+    /// never the narrower of the two, so the asymptotic reading does not err in both directions
+    /// here, it errs toward confidence.
+    ///
+    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
+    /// measurements, and there is nothing in it for a user to undo.
+    case exactAssociation
 
     // Acting on the answer
     case toolAuthority

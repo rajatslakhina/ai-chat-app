@@ -198,6 +198,9 @@ packages:
   AssociationFitKit:
     url: https://github.com/rajatslakhina/association-fit-kit
     from: 1.1.0
+  AssociationTransportKit:
+    url: https://github.com/rajatslakhina/association-transport-kit
+    from: 1.1.0
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
@@ -381,6 +384,8 @@ targets:
         product: SquareDesignKit
       - package: AssociationFitKit
         product: AssociationFitKit
+      - package: AssociationTransportKit
+        product: AssociationTransportKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

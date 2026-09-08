@@ -355,6 +355,28 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
     /// measurements, and there is nothing in it for a user to undo.
     case associationFit
+    /// The structure `associationFit` designs, measured on the panel this app actually has.
+    ///
+    /// That stage states an association and fits it onto the gates' own verdict **margins**. A
+    /// margin says how often each gate said each thing; an association lives in how often they
+    /// said them **together**, and nothing in this app has ever built the joint table that holds
+    /// that. So every structure the stages above reason about is one somebody chose, and the one
+    /// the panel already carries has never been read.
+    ///
+    /// This stage cross-tabulates a pair of gates and reads it. Two things come out that a
+    /// designed structure cannot have. The first is a decision: a count of zero means either
+    /// "these gates cannot produce this pair" or "they have not yet", the arithmetic cannot tell
+    /// them apart, and the two readings give different structures — one of which cannot be seeded
+    /// at all when a whole verdict category is empty, which on this panel it is.
+    ///
+    /// The second is an interval. A local odds ratio read off a real panel is an estimate, and
+    /// this app's panel is small. **A block whose interval covers `1.0` is one the panel cannot
+    /// distinguish from independence**, and reporting a structure without saying which of its
+    /// blocks are in that state is reporting noise with a decimal point on it.
+    ///
+    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
+    /// measurements, and there is nothing in it for a user to undo.
+    case associationTransport
 
     // Acting on the answer
     case toolAuthority

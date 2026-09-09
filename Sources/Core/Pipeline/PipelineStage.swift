@@ -400,6 +400,27 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
     /// measurements, and there is nothing in it for a user to undo.
     case exactAssociation
+    /// What `exactAssociation`'s exactness is conditional on, and how often the condition fails.
+    ///
+    /// That stage's interval is exact because it conditions on all four margins of the block,
+    /// which removes the nuisance parameter and leaves a distribution over a finite support. The
+    /// move is free under exactly one of the three designs a two-by-two table can arise from: the
+    /// one that fixed both margins in advance. This panel fixed neither. Each turn is judged by
+    /// two gates, no margin is chosen before the data arrive, and the design is total-fixed.
+    ///
+    /// The difference is measurable rather than arguable, because coverage is a finite sum over
+    /// the tables a design can produce and those can be enumerated. Two things come out. The
+    /// **exact interval over-covers**: it delivers more than the 95% it claims, and the excess is
+    /// width a reader paid for without being told. And its guarantee is **conditional on the block
+    /// being readable at all** — a table with a zero margin has no odds ratio, the exact side
+    /// declines it, and a declined table is not a covered one. On a sparse panel that condition
+    /// fails often enough that the exact interval's unconditional coverage falls below its own
+    /// claim while its coverage among tables it read stays above it. Both numbers are correct and
+    /// this app had no way to say either.
+    ///
+    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
+    /// measurements, and there is nothing in it for a user to undo.
+    case conditioningCost
 
     // Acting on the answer
     case toolAuthority

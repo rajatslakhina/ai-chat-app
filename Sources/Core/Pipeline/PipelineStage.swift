@@ -421,6 +421,24 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
     /// measurements, and there is nothing in it for a user to undo.
     case conditioningCost
+    /// The same question `exactAssociation` asks, without the assumption `conditioningCost` priced.
+    ///
+    /// Fisher's interval is exact because it conditions on all four margins, which removes the
+    /// nuisance parameter. That is free only when the design fixed those margins, and the previous
+    /// stage measured what it costs here when they were not. Barnard's test keeps the parameter and
+    /// maximises the null probability over it instead, so its guarantee is about a design rather
+    /// than about a table.
+    ///
+    /// It is honest about which design. A panel of turns cross-classified by two gates is
+    /// total-fixed; the reading here is the row-fixed one `conditioningCost` already prices, taken
+    /// from the size side rather than the coverage side. The stage says so in its own detail rather
+    /// than letting the reader assume the guarantee reaches further than it does.
+    ///
+    /// It also reports the width of the bracket its p-value is known to. Every method of this kind
+    /// maximises on a grid, and a grid maximum is a lower bound on a supremum, so quoting one as a
+    /// p-value errs towards rejecting. The grid is laid out so that the remainder is an arithmetic
+    /// fact, and the caller names the precision rather than a subinterval count.
+    case unconditionalExact
 
     // Acting on the answer
     case toolAuthority

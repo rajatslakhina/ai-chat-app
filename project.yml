@@ -204,6 +204,9 @@ packages:
   ConditioningCostKit:
     url: https://github.com/rajatslakhina/conditioning-cost-kit
     from: 1.0.0
+  UnconditionalExactKit:
+    url: https://github.com/rajatslakhina/unconditional-exact-kit
+    from: 1.0.0
   AssociationTransportKit:
     url: https://github.com/rajatslakhina/association-transport-kit
     from: 1.1.0
@@ -396,6 +399,8 @@ targets:
         product: ExactAssociationKit
       - package: ConditioningCostKit
         product: ConditioningCostKit
+      - package: UnconditionalExactKit
+        product: UnconditionalExactKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

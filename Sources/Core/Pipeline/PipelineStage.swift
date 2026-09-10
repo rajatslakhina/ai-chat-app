@@ -439,6 +439,14 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// p-value errs towards rejecting. The grid is laid out so that the remainder is an arithmetic
     /// fact, and the caller names the precision rather than a subinterval count.
     case unconditionalExact
+    /// The parameter `unconditionalExact` left out, and the design this panel actually has.
+    ///
+    /// Barnard's test keeps the one nuisance parameter a *row-fixed* design leaves. A panel of
+    /// turns cross-classified by two gates fixes neither margin, so its null leaves **two** and
+    /// the honest supremum is over a square — the gap the previous stage names and does not close.
+    /// Reading the panel as row-fixed anyway is not conservative in either direction, so this
+    /// stage measures which way on the block it has. Like its siblings it raises no `Refusal`.
+    case totalFixedExact
 
     // Acting on the answer
     case toolAuthority

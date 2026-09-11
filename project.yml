@@ -210,6 +210,9 @@ packages:
   TotalFixedExactKit:
     url: https://github.com/rajatslakhina/total-fixed-exact-kit
     from: 1.0.0
+  RestrictionRuleKit:
+    url: https://github.com/rajatslakhina/restriction-rule-kit
+    from: 1.0.0
   AssociationTransportKit:
     url: https://github.com/rajatslakhina/association-transport-kit
     from: 1.1.0
@@ -406,6 +409,8 @@ targets:
         product: UnconditionalExactKit
       - package: TotalFixedExactKit
         product: TotalFixedExactKit
+      - package: RestrictionRuleKit
+        product: RestrictionRuleKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

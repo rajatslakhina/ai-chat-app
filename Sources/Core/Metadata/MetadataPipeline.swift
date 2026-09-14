@@ -129,6 +129,7 @@ actor MetadataPipeline {
         await auditUnconditionalExact(trace: &trace)
         await auditTotalFixedExact(trace: &trace)
         await auditRestrictionRule(trace: &trace)
+        await auditRepeatedSuccess(trace: &trace)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

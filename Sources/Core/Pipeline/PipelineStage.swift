@@ -447,6 +447,7 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// stage measures which way on the block it has. Like its siblings it raises no `Refusal`.
     case totalFixedExact
     case restrictionRule
+    case repeatedSuccess
 
     // Acting on the answer
     case toolAuthority
@@ -496,5 +497,4 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case metering
     case budgetSettle
     case tracing
-
 }

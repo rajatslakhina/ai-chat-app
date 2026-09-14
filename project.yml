@@ -213,6 +213,9 @@ packages:
   RestrictionRuleKit:
     url: https://github.com/rajatslakhina/restriction-rule-kit
     from: 1.0.0
+  RepeatedSuccessKit:
+    url: https://github.com/rajatslakhina/repeated-success-kit
+    from: 1.0.0
   AssociationTransportKit:
     url: https://github.com/rajatslakhina/association-transport-kit
     from: 1.1.0
@@ -411,6 +414,8 @@ targets:
         product: TotalFixedExactKit
       - package: RestrictionRuleKit
         product: RestrictionRuleKit
+      - package: RepeatedSuccessKit
+        product: RepeatedSuccessKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

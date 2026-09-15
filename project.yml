@@ -222,6 +222,9 @@ packages:
   SelectionTrustKit:
     url: https://github.com/rajatslakhina/selection-trust-kit
     from: 1.0.1
+  SequentialBoundKit:
+    url: https://github.com/rajatslakhina/sequential-bound-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -416,6 +419,8 @@ targets:
         product: RestrictionRuleKit
       - package: RepeatedSuccessKit
         product: RepeatedSuccessKit
+      - package: SequentialBoundKit
+        product: SequentialBoundKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

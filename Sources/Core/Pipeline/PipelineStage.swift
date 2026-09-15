@@ -23,50 +23,24 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case contextCompaction
 
     // Deciding whether the turn is allowed to happen at all
-    /// Which inflectional families the answerability gate will read the evidence through.
-    /// Produces the audit trail for the stage below it: without it, a gate that changes its
-    /// mind about the same corpus cannot be asked why.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case evidenceKeying
-    /// Whether the passages that survived can answer the question that was asked.
-    /// Runs after compaction so it judges the evidence the model will actually receive.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case answerabilityGate
-    /// Whether the passages the gate just admitted are still entitled to speak.
-    /// Runs before independence and stability because it needs nothing from either — only the
-    /// dates the corpus already carried — and because a ruling that rests on an expired snapshot
-    /// is not worth measuring the provenance of.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case temporalValidity
-    /// Whether the gate's ruling would survive its own evidence being taken apart.
-    /// Runs only after an admission, because there is no point measuring the stability of a
-    /// verdict the app already refused to act on.
-    /// How many independent sources are actually behind the passages the gate just admitted.
-    /// Runs before stability, because stability's document-level pass is only as good as the
-    /// document identifiers it is handed, and this app's retrieval layer supplies none.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case sourceIndependence
     case verdictStability
-    /// How many of the four gates above are actually separate judges.
-    /// Runs between the gates and the arbiter because it changes what the arbiter is counting,
-    /// not what it decides: stability re-runs the answerability gate with evidence withheld, so
-    /// the two agreeing is one engine agreeing with itself and must not read as corroboration.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case signalDependence
-    /// Whether the reservations the four gates above raised but did not block on add up.
-    /// Runs last of the free stages, because it has nothing to say until they have all spoken —
-    /// and it never overturns one of their refusals, only finds the turns none of them stopped.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case abstentionArbiter
-    /// Whether this turn's readings score outside a threshold this app actually derived.
-    /// Runs last of the free stages because it needs the reservations in their deflated form,
-    /// and files no reservation of its own: its score is computed from the four gates above, so
-    /// a reading of its own would be their opinion arriving twice.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case conformalGate
-    /// Whether the population the gate above was calibrated on can support its promise.
-    /// Runs immediately before it, and is the only stage here whose effect is to stop a gate
-    /// refusing — permitted for one reason: this app only ever learns about turns it answered,
-    /// so a certificate computed from that log is a promise about the traffic that got through.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case censoredFeedback
-    /// Whether to answer a turn the gate above refused, deliberately, to find out if it was right.
-    /// Runs immediately after it and is the only stage here that overrides a *supported* refusal —
-    /// permitted because this app labels only the turns it answered, so the refused half stays
-    /// unmeasured forever unless something admits part of it on purpose. Structurally it can see
-    /// no other gate's refusal: every one of them returns before this runs.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case explorationChannel
     case workloadProfile
     case costForecast
@@ -91,400 +65,84 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case citationBinding
     /// Whether each claim can be read on its own, or only makes sense inside the answer.
     case claimDecontextualization
-    /// Attaching this turn's verdict back to the admission that bought it, and saying what the
-    /// admissions still unlabelled do to the number the gate is judged on.
-    ///
-    /// `explorationChannel` records that a refused turn *had a chance* and leaves its loss unknown,
-    /// because at that point the answer does not exist. This is where the answer exists and has
-    /// just been judged, so this is where the loop closes. It runs after the judging stages for
-    /// that reason and not for convenience — a verdict routed before it was reached would be a
-    /// label for a turn nobody had checked.
-    ///
-    /// It never refuses. An exploration whose labels are outstanding is a fact about earlier
-    /// turns, and withholding *this* answer over it would punish the wrong request; the stages that
-    /// could act on the finding all run before the money is spent.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case labelReturn
 
-    /// Asking whether the labels that have not come back are late or gone.
-    ///
-    /// `labelReturn` reports how much of the explored population is still unlabelled and brackets
-    /// the risk accordingly, holding the bracket open for whatever those labels turn out to say.
-    /// That is the correct move when they might still arrive. This stage measures whether they
-    /// might — a return process whose delay depends on the outcome makes the floor optimistic in a
-    /// way no bracket width announces, and a return process with no delay at all makes an
-    /// outstanding label something other than a slow one.
-    ///
-    /// Off the critical path, after the answer is on screen, because nothing it finds is about the
-    /// turn it runs on.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case delaySignal
 
-    /// Asking whether the delay the stage above reads has any shape in it at all.
-    ///
-    /// `delaySignal` skips because it cannot separate the two classes by their delays. That is one
-    /// estimator's identifiability condition. This is the more basic version: is there a delay
-    /// *distribution* of any kind here, and if there is, is the constant hazard every correction in
-    /// this pipeline assumes actually the right one? The two failures have different remedies, and
-    /// only one of them is waiting for more labels.
-    ///
-    /// Off the critical path, beside `delaySignal`, for the same reason.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case delayShape
 
-    /// Asking what the labels that *did* come back say, with no family in the way.
-    ///
-    /// `delaySignal` needs two separable rates and `delayShape` needs one of four families to fit.
-    /// A product-limit estimate needs neither, so this stage can produce a curve where both of them
-    /// decline — and the interesting part is that being able to produce one is not the same as
-    /// being allowed to spend it. A survival estimate assumes the requests still outstanding are
-    /// like the ones that returned, only later. Here they are not: they never reached a verdict.
-    /// Nothing in the data says so, which is exactly why the stage has to.
-    ///
-    /// Off the critical path, beside the two above, for the same reason.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case delayCurve
 
-    /// Comparing two classes' delay curves without reducing either to a number.
-    ///
-    /// `delayCurve` estimates one curve. This asks whether two of them differ, and it asks with a
-    /// supremum rather than an area, so a crossing cannot cancel the way a restricted mean's can.
-    /// It also reports the tick the largest gap lands on, which is the part a single summary cannot
-    /// produce.
-    ///
-    /// In this app it does not get to. Every admission is timestamped `admitted 0, returned 1`, so
-    /// the shared window is one tick wide and a supremum over one tick is a difference of two
-    /// proportions wearing a survival test's clothes. Worse, the two classes this app could form
-    /// differ in their *labelling* rate by construction — an explored turn is bought precisely to
-    /// obtain a label — so the test would report a large, highly significant separation that is an
-    /// artifact of how the arms were built rather than a fact about delay.
-    ///
-    /// Off the critical path, beside the three above, for the same reason.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case curveDivergence
 
-    /// Measuring the defect the four stages above it keep describing.
-    ///
-    /// `delaySignal`, `delayShape`, `delayCurve` and `curveDivergence` each decline for a reason of
-    /// their own, and each of their reasons ends in the same place: this app records *whether a
-    /// verdict arrived* and *what the verdict said* in one field. `curveDivergence` says so in
-    /// prose. This stage says so in numbers, and then separates the one defect into the two it
-    /// actually is.
-    ///
-    /// The first is the cohort, and it is fixable. `admissionProbability` is decided when the turn
-    /// is admitted, so a cohort taken from it exists before any label does — and the audit reports
-    /// how many admissions become censorable the moment the cohort stops being the outcome.
-    ///
-    /// The second is the clock, and it is not fixable here. Every admission is timestamped
-    /// `admitted 0, returned 1`, so follow-up is one tick wide whatever the cohort is, and no
-    /// landmark can fall inside it. Bundling the two together, as the four stages above do, hides
-    /// that one of them has a remedy available today.
-    ///
-    /// Off the critical path with its siblings, and like them it never produces a `Refusal`: this
-    /// is a statement about the app's own schema, not about anything the user did or can undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case labelClock
 
-    /// The declared dependence graph in `PreModelPipeline.dependenceGraph`, measured instead of
-    /// trusted.
-    ///
-    /// That graph is load-bearing and its own doc comment says so: a guessed edge loosens the
-    /// arbiter, and the arbiter is the one place in this pipeline that can stop a turn nobody else
-    /// would. Two edges are declared there — `verdictStability` derives from `answerabilityGate`,
-    /// and `sourceIndependence` shares an input with `temporalValidity` at `0.6`, above the `0.5`
-    /// collapse threshold. Both are argued from construction and neither has ever been checked
-    /// against what the four gates actually did, because until now nothing here could check one.
-    ///
-    /// This accumulates the four gates' readings across turns and measures their pairwise
-    /// agreement, then holds the declared strengths against it. It is off the critical path with
-    /// its siblings and, like them, never produces a `Refusal`: it is a statement about this app's
-    /// own wiring and there is nothing in it for a user to undo.
-    ///
-    /// It will report `.skipped` on most installs for a long time, and that is the honest reading
-    /// rather than a defect. Most turns in a chat client carry no retrieved evidence, all four
-    /// gates correctly record themselves as skipped, and a turn where no gate spoke is not an
-    /// observation of the panel. The stage says how many turns it is still waiting for.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case effectiveVote
-    /// Whether the label the stage above says it does not have could be derived from what
-    /// happened after the answer shipped.
-    ///
-    /// It can. `checkConsistency` already decides, per turn, whether the answer contradicted its
-    /// own sources, which is a downstream outcome arriving against the **turn**. Deriving a
-    /// correctness label from it is one line. Being allowed to *use* that label is not: an
-    /// outcome scoped to the turn labels all four gates at once, so any error in it is shared by
-    /// every one of them, and shared label noise does not blur an error correlation the way
-    /// independent noise does — it manufactures one. Pricing that requires an audited subset,
-    /// which is somebody reading turns, and this app has no surface for it.
-    ///
-    /// So this stage derives the labels, names the regime they landed in, and reports the exact
-    /// refusal that stops `effectiveVote` switching basis. It never gates, and like its metadata
-    /// siblings it produces no `Refusal`.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case proxyLabel
-    /// How much of what the two stages above report is the panel, and how much is the turn count.
-    ///
-    /// `effectiveVote` measures a correlation for every pair of gates and publishes an interval
-    /// with it. That interval comes from `EffectiveVoteKit`'s Fisher transform, which clamps to
-    /// `-1...1` — the bound on *any* correlation, not the bound on one this table could have
-    /// produced. Fix a pair's row and column totals and phi becomes linear in a single cell, so
-    /// the attainable range closes in hard the moment those totals are lopsided. In a chat client
-    /// they always are: gates fire on a small minority of turns.
-    ///
-    /// So this stage checks each published interval against what the margins can actually express,
-    /// and turns `effectiveVote`'s "not enough turns" into a count. That refusal currently names
-    /// the figure it is withholding and never says how many turns would let it publish, which is
-    /// the one thing a reader can act on.
-    ///
-    /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
-    /// about this app's own measurements and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case sampleWidth
-    /// The level the three stages above quote everything at, and none of them holds.
-    ///
-    /// `effectiveVote` publishes a coefficient and a 95% interval for **every pair** of the four
-    /// evidence gates. `proxyLabel` bounds those readings against derived labels. `sampleWidth`
-    /// prices each one against the turn count. Six pairs, three readings apiece, every one at a
-    /// nominal 95% — and none of them has ever been told that five others were published beside it.
-    ///
-    /// Six intervals at 95% do not make a 95% page. The chance that all six cover is far below
-    /// that, and the largest of the six was picked out of six candidates by the same quantity it
-    /// is being quoted on. This stage corrects for the six: it counts how much of the family is
-    /// dependent by construction rather than assuming that away, corrects the p-values under a
-    /// procedure valid at that dependence, says what six null readings would have put at the top
-    /// of the page, and re-quotes the strongest interval at the level the whole page needs.
-    ///
-    /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
-    /// about this app's own measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case familyError
 
-    /// The denominator ``familyError`` had to assume, measured instead.
-    ///
-    /// Benjamini-Yekutieli is valid under arbitrary dependence and charges `H(m)` for it. That is
-    /// the right default when the dependence cannot be seen. On this panel it can: four gates make
-    /// six comparisons, twelve of the fifteen pairings among them share a gate, and the design
-    /// fixes the correlation between two that do. Priced rather than assumed, the multiplier falls
-    /// by roughly a factor of three.
-    ///
-    /// The stage also records the distinction that would otherwise have gone wrong quietly. The
-    /// spectral estimators return the panel's **rank** — the number of gates every comparison is
-    /// built from — and a multiplicity threshold is a statement about the family's **maximum**,
-    /// whose count is a different and usually larger number. Spending the rank would loosen the
-    /// threshold past what the dependence supports, so `MultiplicityBudget` refuses to be built
-    /// from one and this stage quotes both.
-    ///
-    /// It is also the only stage in this family that has something to say on a fresh install: its
-    /// correction comes from the panel's shape rather than from readings, so the effective count
-    /// is knowable before a single turn has been observed.
-    ///
-    /// It never gates, and like its metadata siblings it produces no `Refusal`: it is a statement
-    /// about this app's own measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case effectiveComparison
 
-    /// Whether the distribution `effectiveComparison` draws its threshold from is one this
-    /// panel could have produced.
-    ///
-    /// Its sibling corrects the family for the dependence panel geometry implies, and spends a
-    /// Gaussian copula fitted to that structure. Two things ride underneath: that the family's
-    /// null is Gaussian, and that a correlation of one half is reachable for gates with these
-    /// agreement rates. Both are checkable once the panel has graded anything, and this stage
-    /// checks them by resampling the grades instead of modelling them.
-    ///
-    /// It is deliberately the quieter of the two on a fresh install. `effectiveComparison` knows
-    /// its answer from the shape alone; this one cannot, because the shape is the assumption it
-    /// exists to test. Like its metadata siblings it produces no `Refusal`: it reports on this
-    /// app's own measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case observedNull
 
-    /// Whether any individual pair on that panel agrees more than its own gates' rates explain.
-    ///
-    /// Its three siblings above all sit on a chance term, and none of them names it. There is
-    /// more than one candidate and they disagree: Cohen holds each gate's own affirm-rate fixed,
-    /// Scott treats the two gates as interchangeable, Bennett keeps neither rate. Each is the
-    /// exact mean of a resampling scheme, so choosing between them is choosing an assumption,
-    /// and this stage states the one it spends instead of implying it.
-    ///
-    /// It also reports the thing a coefficient cannot: unequal affirm-rates cap that coefficient
-    /// below one before either gate has said anything, and the shortfall against one is then the
-    /// panel's rather than the gates'.
-    ///
-    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
-    /// measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case chanceAgreement
 
-    /// Whether the **fixture** those five readings are computed over can carry what they measure.
-    ///
-    /// Every stage above prices something about how much two gates agree, and all of them price
-    /// it over the same grid of which gate affirmed which turn. None of them asks whether that
-    /// grid can hold an association at all. It frequently cannot: two gates whose affirm-rates
-    /// are far apart are forced to agree on a fixed share of turns before either has spoken, a
-    /// gate that affirmed every turn pins the rate to the other gate's marginal outright, and a
-    /// pair whose joint counts are the products of their marginals has an association of exactly
-    /// nil rather than of nearly nil.
-    ///
-    /// It is the only stage here that reports on the panel rather than on the gates, which is
-    /// why it runs last among them. Like its metadata siblings it produces no `Refusal`: nothing
-    /// in it is a decision a user could undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case panelDesign
 
-    /// Which agreement counts the gates' **three-way** verdicts can reach, and which they cannot.
-    ///
-    /// `panelDesign` audits the affirm grid — every verdict collapsed to affirmed or not — because
-    /// that is the basis its five siblings measure on. The gates do not cast two-way verdicts.
-    /// They affirm, deny or abstain, and the collapse throws the third case away before anything
-    /// looks at it. On the square panel the discarded case restores, two questions become
-    /// answerable that were not: **which counts inside the attainable range no panel reaches**,
-    /// and what a fixture built to a target agreement on these same verdict rates would look like.
-    ///
-    /// `PanelDesignKit` prices the range at every category count and then declines both: above two
-    /// categories `admits(count:)` returns `nil` and its builder throws. The general case is a
-    /// transportation problem with a forbidden diagonal and a prescribed trace, and it has a closed
-    /// form — a per-category floor on the diagonal, summed against the target. This stage is that
-    /// closed form applied to the panel this app actually accumulated.
-    ///
-    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
-    /// measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case squareDesign
 
-    /// Which of that panel's cells the target agreement rate never chose.
-    ///
-    /// `squareDesign` repairs a fixture to a target **agreement rate**. On a three-way panel that
-    /// pins one number out of nine, and its construction reaches a diagonal by pushing mass into
-    /// corners — so the association a repaired fixture carries is an artefact of the method rather
-    /// than a decision anybody took. Every coefficient the stages above publish is sensitive to
-    /// the eight cells nobody chose.
-    ///
-    /// This stage states the association and lets the agreement rate follow, fitting a control
-    /// structure onto the gates' own verdict rates by iterative proportional fitting — which moves
-    /// the margins and provably cannot move the odds ratios, because row and column scalings
-    /// cancel out of every one of them. It then prices the step every fixture in this app
-    /// eventually takes: **a fit is real-valued and a panel is made of whole turns, and the
-    /// margins survive that exactly while the association does not.**
-    ///
-    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
-    /// measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case associationFit
-    /// The structure `associationFit` designs, measured on the panel this app actually has.
-    ///
-    /// That stage states an association and fits it onto the gates' own verdict **margins**. A
-    /// margin says how often each gate said each thing; an association lives in how often they
-    /// said them **together**, and nothing in this app has ever built the joint table that holds
-    /// that. So every structure the stages above reason about is one somebody chose, and the one
-    /// the panel already carries has never been read.
-    ///
-    /// This stage cross-tabulates a pair of gates and reads it. Two things come out that a
-    /// designed structure cannot have. The first is a decision: a count of zero means either
-    /// "these gates cannot produce this pair" or "they have not yet", the arithmetic cannot tell
-    /// them apart, and the two readings give different structures — one of which cannot be seeded
-    /// at all when a whole verdict category is empty, which on this panel it is.
-    ///
-    /// The second is an interval. A local odds ratio read off a real panel is an estimate, and
-    /// this app's panel is small. **A block whose interval covers `1.0` is one the panel cannot
-    /// distinguish from independence**, and reporting a structure without saying which of its
-    /// blocks are in that state is reporting noise with a decimal point on it.
-    ///
-    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
-    /// measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case associationTransport
-    /// What the intervals `associationTransport` reports were worth.
-    ///
-    /// That stage puts a **Woolf** interval around every block of the joint table: the log odds
-    /// ratio plus or minus `1.96` standard errors, where the error is the square root of the
-    /// summed reciprocals of four counts. It is the standard choice in the applied literature and
-    /// it is **asymptotic** — a normal approximation on the log scale, valid in the limit of large
-    /// counts. This panel is a few dozen turns with empty cells in it, which is precisely the
-    /// regime where that approximation is known to be poor, and nothing in this app has ever said
-    /// by how much.
-    ///
-    /// Conditioning a two-by-two block on **all four** of its margins removes every nuisance
-    /// parameter and leaves the odds ratio alone, over a finite support. Probabilities can then be
-    /// summed rather than approximated, and two things come out that the asymptotic side cannot
-    /// produce. The first is that some blocks have **no odds ratio at all**: a zero margin
-    /// determines the block's counts, so an interval reported for it is fiction rather than an
-    /// approximation, and the stage above reached one only by adding half an item to cells nobody
-    /// landed in. The second is a direction — swept over every small table, the exact interval is
-    /// never the narrower of the two, so the asymptotic reading does not err in both directions
-    /// here, it errs toward confidence.
-    ///
-    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
-    /// measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case exactAssociation
-    /// What `exactAssociation`'s exactness is conditional on, and how often the condition fails.
-    ///
-    /// That stage's interval is exact because it conditions on all four margins of the block,
-    /// which removes the nuisance parameter and leaves a distribution over a finite support. The
-    /// move is free under exactly one of the three designs a two-by-two table can arise from: the
-    /// one that fixed both margins in advance. This panel fixed neither. Each turn is judged by
-    /// two gates, no margin is chosen before the data arrive, and the design is total-fixed.
-    ///
-    /// The difference is measurable rather than arguable, because coverage is a finite sum over
-    /// the tables a design can produce and those can be enumerated. Two things come out. The
-    /// **exact interval over-covers**: it delivers more than the 95% it claims, and the excess is
-    /// width a reader paid for without being told. And its guarantee is **conditional on the block
-    /// being readable at all** — a table with a zero margin has no odds ratio, the exact side
-    /// declines it, and a declined table is not a covered one. On a sparse panel that condition
-    /// fails often enough that the exact interval's unconditional coverage falls below its own
-    /// claim while its coverage among tables it read stays above it. Both numbers are correct and
-    /// this app had no way to say either.
-    ///
-    /// Like its metadata siblings it produces no `Refusal`: it reports on this app's own
-    /// measurements, and there is nothing in it for a user to undo.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case conditioningCost
-    /// The same question `exactAssociation` asks, without the assumption `conditioningCost` priced.
-    ///
-    /// Fisher's interval is exact because it conditions on all four margins, which removes the
-    /// nuisance parameter. That is free only when the design fixed those margins, and the previous
-    /// stage measured what it costs here when they were not. Barnard's test keeps the parameter and
-    /// maximises the null probability over it instead, so its guarantee is about a design rather
-    /// than about a table.
-    ///
-    /// It is honest about which design. A panel of turns cross-classified by two gates is
-    /// total-fixed; the reading here is the row-fixed one `conditioningCost` already prices, taken
-    /// from the size side rather than the coverage side. The stage says so in its own detail rather
-    /// than letting the reader assume the guarantee reaches further than it does.
-    ///
-    /// It also reports the width of the bracket its p-value is known to. Every method of this kind
-    /// maximises on a grid, and a grid maximum is a lower bound on a supremum, so quoting one as a
-    /// p-value errs towards rejecting. The grid is laid out so that the remainder is an arithmetic
-    /// fact, and the caller names the precision rather than a subinterval count.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case unconditionalExact
-    /// The parameter `unconditionalExact` left out, and the design this panel actually has.
-    /// Barnard's test keeps the one nuisance parameter a *row-fixed* design leaves. A panel of
-    /// turns cross-classified by two gates fixes neither margin, so its null leaves **two** and
-    /// the honest supremum is over a square — the gap the previous stage names and does not close.
-    /// Reading the panel as row-fixed anyway is not conservative in either direction, so this
-    /// stage measures which way on the block it has. Like its siblings it raises no `Refusal`.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case totalFixedExact
     case restrictionRule
     case repeatedSuccess
+    /// Whether this app's live gate-affirmation stream already has enough evidence to call the
+    /// session's affirm rate healthy or unhealthy, without waiting for a fixed sample size.
+    ///
+    /// `repeatedSuccess` answers a fixed-`k` question over the same panel and needs `k` cast
+    /// verdicts before it will speak. This stage answers a different one — has the *sequential*
+    /// evidence crossed a boundary yet — and can speak, refuse to speak, or keep watching after
+    /// any number of turns, because Wald's SPRT is valid at any data-dependent stopping time and
+    /// a fixed-`k` test is not. It is the anytime-valid complement to that fixed-point read, not
+    /// a replacement for it.
+    ///
+    /// A session this app actually runs rarely reaches the boundary — a chat client's gates fire
+    /// on a small minority of turns — and that is reported honestly rather than forced: most
+    /// sessions read `.ran` with a "still watching" decision, and a boundary crossing is real
+    /// news, not routine. Like its metadata siblings it produces no `Refusal`: it reports on this
+    /// app's own measurements, and there is nothing in it for a user to undo.
+    case sequentialBound
 
     // Acting on the answer
     case toolAuthority
-    /// The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.
-    ///
-    /// `ToolCallContext.forTurn` stamps **every** argument `.untrusted(source:)` the moment the
-    /// turn carried any retrieved passage, without asking whether the argument bytes came from one.
-    /// That is a single field answering two questions — the same defect `labelClock` measured for
-    /// the delay family, in a different part of the app. Content trust asks whether these bytes
-    /// came out of a passage; selection trust asks whether the session that chose them had read
-    /// one. They are not the same question and the field cannot hold both answers.
-    ///
-    /// The over-tainting has a cost the user sees. Every capability here is `maxProvenance:
-    /// .modelAuthored`, so one retrieved passage denies the turn's calculator call even when its
-    /// arguments appear nowhere in that passage. This stage reports how many of the turn's
-    /// arguments are genuinely content-derived and how many are merely under a poisoned floor.
-    ///
-    /// It never gates, and that is not a hedge. `SelectionTrustKit` gates commits; every tool this
-    /// app registers is read-only, and reads are inert in that package by design because a read's
-    /// result leaves through the model and containing it is an egress problem. So there is nothing
-    /// here for it to refuse, it says so by name, and it never loosens what `toolAuthority` decided.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case selectionTrust
-    /// The matcher `selectionTrust` depends on, audited by the ladder that replaces it.
-    ///
-    /// That stage answers "did this argument come from a passage" with case-folded substring
-    /// containment, skipping anything under four characters — a rule its own doc comment calls the
-    /// weak half of the stage. Two failures follow from it and neither is visible from inside it: a
-    /// number the model wrote in digits and the passage wrote in words is missed, and a
-    /// four-character coincidence is counted as evidence.
-    ///
-    /// This stage asks the same question with four rungs and prices what they locate in bits, so
-    /// the two cases stop weighing the same. It reports where the two matchers disagree, which is
-    /// the only part a reader cannot get from either stage alone.
-    ///
-    /// The semantic rung is deliberately not installed: this app's tool arguments are short numeric
-    /// expressions, and a trigram score between `2+2` and a prose passage is noise. Like its
-    /// neighbour it never gates, and it never claims an argument was *not* derived.
+    /// See rationale in `PipelineStage+Rationale.swift`.
     case argumentAttribution
     case toolDispatch
     case agentLoop

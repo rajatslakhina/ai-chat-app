@@ -424,6 +424,39 @@
 // Reading the panel as row-fixed anyway is not conservative in either direction, so this
 // stage measures which way on the block it has. Like its siblings it raises no `Refusal`.
 
+// MARK: - confidenceSequence
+// The reading `sequentialBound` structurally cannot produce, off the same pooled stream.
+//
+// An SPRT needs two hypotheses named in advance and answers only which of the two the evidence
+// favours. It never says what the rate *is*. This stage replays the identical stream of cast
+// gate verdicts through Robbins' beta-mixture martingale and publishes an interval: the set of
+// pass rates the evidence has not yet ruled out. No pair of hypotheses is required, and the
+// advertised rate the boundary tests toward becomes a reference the interval can simply be
+// asked about — still admissible, or excluded, and at which trial it stopped being admissible.
+//
+// The two rates are taken from `sequentialBound` rather than invented, and that is the point of
+// putting them side by side: the same healthy and degraded readings, one stage deciding between
+// them and one stage measuring where the truth plausibly lies. A number invented here would make
+// the comparison a comparison of two configurations instead of two methods.
+//
+// Why re-looking is free. A fixed-sample interval — Clopper-Pearson, say — is exact at the one
+// sample size it was built for. This pipeline recomputes after every turn, and each of those
+// looks spends the whole budget again, so a Clopper-Pearson band re-read every turn does not
+// cover at the rate printed on it. Ville's inequality bounds the probability that the mixture
+// martingale *ever* reaches `1 / alpha` by `alpha`, for the entire sequence at once, so the
+// budget is spent once for all looks however many are taken.
+//
+// It audits itself, which is the habit this stage family already has. `ExclusionSolver`
+// enumerates the whole reachable lattice rather than sampling it, and the same call answers two
+// questions depending on what it is handed: with the reference rate as the truth the answer is
+// this construction's exact miscoverage over the looks actually taken, and with the degraded
+// rate as the truth it is the probability those same looks would have caught the degradation.
+// Ville's bound is an inequality, so the first number is the slack, not the promise — and the
+// slack is what the interval's width costs.
+//
+// Like every sibling in this pipeline it raises no `Refusal`. It reports on this app's own
+// measurements after the answer has shipped; there is nothing in it for a user to undo.
+
 // MARK: - selectionTrust
 // The second axis beside `toolAuthority`, and in this app a measurement rather than a gate.
 //

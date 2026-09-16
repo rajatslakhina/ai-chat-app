@@ -225,6 +225,9 @@ packages:
   SequentialBoundKit:
     url: https://github.com/rajatslakhina/sequential-bound-kit
     from: 1.0.0
+  ConfidenceSequenceKit:
+    url: https://github.com/rajatslakhina/confidence-sequence-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -421,6 +424,8 @@ targets:
         product: RepeatedSuccessKit
       - package: SequentialBoundKit
         product: SequentialBoundKit
+      - package: ConfidenceSequenceKit
+        product: ConfidenceSequenceKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

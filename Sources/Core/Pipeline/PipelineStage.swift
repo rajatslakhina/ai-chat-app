@@ -138,6 +138,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// app's own measurements, and there is nothing in it for a user to undo.
     case sequentialBound
 
+    /// See rationale in `PipelineStage+Rationale.swift`.
+    case confidenceSequence
+
     // Acting on the answer
     case toolAuthority
     /// See rationale in `PipelineStage+Rationale.swift`.

@@ -70,4 +70,15 @@ enum ExplorationBudget {
     }()
 
     static let ledger = ExplorationLedger()
+
+    /// Every ruling that reached the draw, which the ledger deliberately does not keep.
+    static let draws = ExplorationDrawLog()
+
+    /// Files one ruling in both places that keep it: the ledger records spend, the draw log
+    /// records every draw — the admissions *and* the eligible turns that were not drawn, which is
+    /// what `splitContrast` needs to test the frequency.
+    static func record(_ candidate: RefusalCandidate, ruling: AdmissionRuling) async {
+        await ledger.record(candidate, ruling: ruling)
+        await draws.record(ruling)
+    }
 }

@@ -359,3 +359,28 @@
 // walks an O(horizon^2) lattice and this one's walks O(horizon^3). The detail line always names
 // the horizon audited alongside the turns actually paired, so a capped audit is never reported
 // as an uncapped one.
+
+// MARK: - splitContrast
+//
+// `SplitContrastKit` compares two arms under a randomised split: each arrival is routed to one
+// arm with a known probability, and a time-uniform interval is put on the difference of their
+// pass rates from the randomisation rather than from any pairing. This app has exactly one
+// randomised split, and it is not a comparison of two answering systems. The exploration channel
+// admits an eligible refused turn with probability `ExplorationBudget.frequency` and leaves the
+// rest refused, which means the second arm is never answered and has no pass rate at all.
+//
+// So the difference half of the package has nothing honest to read here, and the stage says so
+// in its detail rather than inventing a second arm. What it does have is the assumption the
+// whole package rests on: that the split routes at the declared probability. Every
+// inverse-probability weight `censoredFeedback` applies to an explored turn is
+// `1 / ExplorationBudget.frequency`, so the channel's draw delivering that frequency is not a
+// detail — it is the thing those weights are wrong without. The package's anytime-valid
+// sample-ratio-mismatch check reads the draws `ExplorationDrawLog` keeps (the ledger keeps
+// admissions only, by design) and reports whether 0.20 is still admissible, the draw it first
+// stopped being, and whether the latest look re-admits it.
+//
+// It runs in `MetadataPipeline`, after `sequentialContrast`, for the reasons its neighbours do:
+// it reads draws from turns already over, it costs no provider call, and it reports on this
+// app's own machinery rather than on the turn in flight. It raises no `Refusal`. A mismatch is
+// news about the channel, not about the user's turn, and there is nothing in it a user could
+// undo.

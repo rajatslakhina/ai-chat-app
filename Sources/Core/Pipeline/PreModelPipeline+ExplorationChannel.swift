@@ -68,7 +68,7 @@ extension PreModelPipeline {
         let id = "explore-\(await censoring?.count ?? 0)"
         let candidate = ExplorationBudget.candidate(id: id, score: score, threshold: threshold)
         let ruling = await channel.consider(candidate)
-        await ExplorationBudget.ledger.record(candidate, ruling: ruling)
+        await ExplorationBudget.record(candidate, ruling: ruling)
 
         guard case let .admitted(cost, probability) = ruling else {
             trace.record(

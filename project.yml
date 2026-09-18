@@ -231,6 +231,9 @@ packages:
   SequentialContrastKit:
     url: https://github.com/rajatslakhina/sequential-contrast-kit
     from: 1.0.0
+  SplitContrastKit:
+    url: https://github.com/rajatslakhina/split-contrast-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -431,6 +434,8 @@ targets:
         product: ConfidenceSequenceKit
       - package: SequentialContrastKit
         product: SequentialContrastKit
+      - package: SplitContrastKit
+        product: SplitContrastKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

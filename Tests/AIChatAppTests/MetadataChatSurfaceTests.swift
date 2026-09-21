@@ -239,6 +239,67 @@ struct MetadataChatSurfaceTests {
         #expect(chat.activeRefusal == nil, "a caption must never raise a banner")
     }
 
+    /// The whole path: the turn's request is kept as sent, handed to the metadata pipeline, and the
+    /// audit lands on the trace Diagnostics reads. A first request has nothing to be compared with;
+    /// a second one, after a message large enough to be cacheable, is audited for real.
+    @Test("each turn's request is kept, and the prompt-cache audit reports on them")
+    func auditsTheRequestsThatWereSent() async throws {
+        let harness = ChatHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.respond(json: proseBody("Paris is the capital of France."))
+        let completer = ScriptedCompleter(
+            title: [MetadataHarness.goodTitle],
+            followUps: [MetadataHarness.goodFollowUps]
+        )
+        let chat = await model(
+            harness: harness,
+            metadata: try await MetadataHarness.pipeline(completer: completer)
+        )
+
+        chat.draft = String(repeating: "capital of France ", count: 260)
+        chat.send()
+        try await settle(chat) { $0.trace.outcome(for: .promptCache) != nil }
+        #expect(chat.sentPrompts.count == 1)
+        #expect(chat.sentPrompts.first?.messages.first?.content == "You are terse.")
+        #expect(chat.sentPrompts.first?.usage.promptTokens == 11)
+        guard case let .noOp(first) = chat.trace.outcome(for: .promptCache) else {
+            Issue.record("expected noOp for the first request, got \(String(describing: chat.trace.outcome(for: .promptCache)))")
+            return
+        }
+        #expect(first.contains("only one request"))
+
+        chat.draft = "and its population"
+        chat.send()
+        // The trace restarts with every send, so the audit appearing again means the second turn's.
+        try await settle(chat) { $0.sentPrompts.count == 2 && $0.trace.outcome(for: .promptCache) != nil }
+        guard case let .ran(detail) = chat.trace.outcome(for: .promptCache) else {
+            Issue.record("expected ran for the second request, got \(String(describing: chat.trace.outcome(for: .promptCache)))")
+            return
+        }
+        #expect(detail.contains("2 requests to"))
+        #expect(detail.contains("every change was an append behind an unchanged prefix"))
+        // The stub reports 11 prompt tokens for a ~1,100-token prompt, so the scaled prediction is
+        // far under the minimum and a cached count of zero is agreement rather than silence.
+        #expect(detail.contains("on 1 transition(s), 1 agreed with the layout"))
+        #expect(chat.activeRefusal == nil, "an audit of a finished turn never raises a banner")
+    }
+
+    @Test("a turn the provider reported nothing for is not kept as a request")
+    func unreportedTurnIsNotKept() async throws {
+        let harness = ChatHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.respond(
+            json: #"{"id":"gen-1","model":"openai/gpt-4o","choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"Paris."}}]}"#
+        )
+        let chat = await model(harness: harness, metadata: nil)
+
+        chat.draft = "capital of France"
+        chat.send()
+        try await settle(chat) { $0.bubbles.count >= 2 }
+
+        #expect(chat.sentPrompts.isEmpty)
+    }
+
     @Test("tapping a suggestion sends it and takes the chips away")
     func tappingSendsIt() async throws {
         let harness = ChatHarness()

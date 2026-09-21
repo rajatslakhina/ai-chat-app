@@ -194,7 +194,7 @@ extension TurnExecutor {
         attempts: Int,
         reservation: Reservation?,
         trace: inout PipelineTrace
-    ) async -> TurnResult {
+    ) async -> TurnCompletion {
         let recorded = await usage.mostRecent
         let promptTokens = recorded?.promptTokens ?? 0
         let completionTokens = recorded?.completionTokens ?? 0
@@ -225,16 +225,14 @@ extension TurnExecutor {
         )
         await recordObservation(turn: turn, prompt: promptTokens, completion: completionTokens)
 
-        return .completed(
-            TurnCompletion(
-                text: body,
-                providerID: ProviderIdentifier.openRouter.rawValue,
-                promptTokens: promptTokens,
-                completionTokens: completionTokens,
-                reportedCostUSD: recorded?.reportedCostUSD,
-                meteredCostUSD: metered,
-                attempts: attempts
-            )
+        return TurnCompletion(
+            text: body,
+            providerID: ProviderIdentifier.openRouter.rawValue,
+            promptTokens: promptTokens,
+            completionTokens: completionTokens,
+            reportedCostUSD: recorded?.reportedCostUSD,
+            meteredCostUSD: metered,
+            attempts: attempts
         )
     }
     /// Closes the hold against what the turn really cost, and reports that cost onwards.

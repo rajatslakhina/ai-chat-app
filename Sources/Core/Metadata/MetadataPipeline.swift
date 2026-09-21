@@ -104,9 +104,14 @@ actor MetadataPipeline {
     /// Returns `nil` only when there was nothing to name. Every other path returns something the
     /// navigation bar can show, because a conversation with no title reads as a conversation that
     /// failed to load.
+    ///
+    /// `sentPrompts` are the requests this conversation actually put in front of the provider,
+    /// oldest first. They default to none so a caller with no request history gets an honest
+    /// `.skipped` for `promptCache` rather than a stage that guesses.
     func generate(
         userText: String,
         assistantText: String,
+        sentPrompts: [SentPrompt] = [],
         trace: inout PipelineTrace
     ) async -> ChatMetadata? {
         // Runs before the guard, unlike its siblings, because it audits gate readings accumulated
@@ -134,6 +139,7 @@ actor MetadataPipeline {
         await auditConfidenceSequence(trace: &trace)
         await auditSequentialContrast(trace: &trace)
         await auditSplitContrast(trace: &trace)
+        auditPromptCache(trace: &trace, prompts: sentPrompts)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

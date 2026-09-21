@@ -199,6 +199,33 @@ struct TurnExecutorHappyPathTests {
         #expect(trace.outcome(for: .metering)?.summary.contains("18 in / 7 out") == true)
     }
 
+    /// What the prompt-cache audit reconciles a layout against, so it has to be the turn's own call
+    /// and carry the provider's cached count through untouched.
+    @Test("the completion carries the usage the provider reported for the turn's own call")
+    func firstCallIsCarried() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        stubStream(
+            """
+            data: {"id":"gen-1","model":"openai/gpt-4o","choices":[{"delta":{"content":"Hi"},"finish_reason":"stop"}],\
+            "usage":{"prompt_tokens":1500,"completion_tokens":7,"prompt_tokens_details":{"cached_tokens":1024}}}
+
+            data: [DONE]
+
+            """
+        )
+
+        let (result, _) = await run(harness.executor())
+
+        guard case let .completed(completion) = result else {
+            Issue.record("expected .completed, got \(result)")
+            return
+        }
+        #expect(completion.firstCall?.promptTokens == 1500)
+        #expect(completion.firstCall?.cachedPromptTokens == 1024)
+        #expect(completion.firstCall?.model == "openai/gpt-4o")
+    }
+
     @Test("streamed fragments reach the caller as they arrive")
     func deltasStream() async throws {
         let harness = ExecutorHarness()
@@ -377,6 +404,12 @@ struct TurnExecutorGuardTests {
             return
         }
         #expect(completion.text == "Hi there")
+        // A replay put no request in front of the provider, so it must not read as one to anything
+        // that audits requests: the recorder holds the first turn's call and nothing newer.
+        if case let .completed(original) = first {
+            #expect(original.firstCall != nil)
+        }
+        #expect(completion.firstCall == nil)
         #expect(secondTrace.outcome(for: .idempotencyGuard)?.summary.contains("replayed") == true)
         #expect(
             StubURLProtocol.requestCount == callsAfterFirst,

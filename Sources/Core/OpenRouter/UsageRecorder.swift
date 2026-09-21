@@ -61,6 +61,20 @@ actor UsageRecorder: UsageObserving {
 
     var mostRecent: OpenRouterUsage? { records.last }
 
+    /// How many calls have been recorded, so a caller can later ask what one turn added to it.
+    var recordCount: Int { records.count }
+
+    /// The first call recorded after `mark`, a count taken earlier from `recordCount`.
+    ///
+    /// `mostRecent` is the wrong question for a turn that called a tool: every hop records its own
+    /// usage and the last one describes the *final* prompt, tool results included. The first call
+    /// after the mark is the one made with the turn's own messages, which is the one a reader of
+    /// the prompt layout is asking about. `nil` means nothing was recorded — a replayed result, or
+    /// an upstream that omitted its usage envelope.
+    func firstRecord(after mark: Int) -> OpenRouterUsage? {
+        records.dropFirst(mark).first
+    }
+
     func reset() {
         records.removeAll()
     }

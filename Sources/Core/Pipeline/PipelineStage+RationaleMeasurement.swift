@@ -384,3 +384,51 @@
 // app's own machinery rather than on the turn in flight. It raises no `Refusal`. A mismatch is
 // news about the channel, not about the user's turn, and there is nothing in it a user could
 // undo.
+
+// MARK: - promptCache
+//
+// `PromptCacheKit` audits whether a run of prompts leaves a provider's prefix cache anything to
+// match: a cache hit needs a byte-identical prefix, so one message that changes on every request
+// switches the cache off for everything behind it. This app resends the whole conversation on
+// every turn, which is exactly the shape the package is written for, and it sets no cache markers
+// itself, so the only caching it can benefit from is a provider that matches a prefix on its own.
+//
+// It runs in `MetadataPipeline`, after `splitContrast`, because it reads requests that are already
+// over: it costs no provider call, it changes nothing that was sent, and what it finds is about
+// the conversation's layout rather than the turn in flight. It does not belong before the model.
+// A pre-model stage that reordered the prompt to keep the prefix stable would be a behaviour
+// change to what the model sees, which is a different piece of work from finding out whether the
+// current layout has a problem, and this stage does only the second.
+//
+// The prompts are the ones the app *sent*, not ones rebuilt from the stored conversation. The
+// system message is the instructions plus whatever memory and retrieved excerpts that turn found,
+// and compaction can rewrite earlier turns, so a stored transcript would describe a prompt no
+// provider received. `SentPrompt` keeps each request the provider reported usage for and nothing
+// else: a cache hit, a refusal and a replayed idempotent result all reach the end of a turn without
+// one having left the device, so a prompt built for them would be a request nobody made.
+//
+// The layout is read as sent. The system message is declared `frozen`, the newest user message
+// `ephemeral` and the turns between them `turn`. The system message is rebuilt every turn with
+// whatever retrieval found, so declaring it stable and letting the audit report it changing is
+// the honest way to ask whether it is.
+//
+// It also checks the layout against what the provider reported. `OpenRouterUsage` records
+// `cachedPromptTokens` for every call and this is the first stage to read it. The layout predicts
+// a read in estimated tokens, so it is scaled by the ratio of the later request's reported prompt
+// size to its estimate, and zeroed below the policy's minimum or past its lifetime. Two limits are
+// stated in the detail rather than hidden: `OpenRouterUsage` stores `0` both for a provider that
+// cached nothing and for one that omitted the field, so a zero where the layout allowed a hit is
+// reported as its own count instead of as the provider reading less; and the first call of a turn
+// is the one compared, because a turn that called a tool records a later hop whose prompt includes
+// the tool's result.
+//
+// Outcomes: `.skipped` when no request has a provider-reported usage, `.noOp` when fewer than two
+// requests share a model or no earlier prompt reaches the cacheable minimum, and `.ran` otherwise.
+// There is no `.failed` arm, and that is not an omission: nothing the stage constructs can throw,
+// because the policy is a preset and the audit is total. An arm that could never be taken would
+// only be a place for a test to lie.
+//
+// Like its metadata siblings it raises no `Refusal`. A prompt layout is not something the user did
+// or can undo, the request it describes was already sent and paid for, and there is no action a
+// banner could offer that would change it. The one refusal this could ever justify would stop a
+// send to protect a cache, which would trade the answer the user asked for against a discount.

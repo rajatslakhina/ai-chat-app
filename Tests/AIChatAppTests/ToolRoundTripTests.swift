@@ -243,6 +243,28 @@ struct ToolRoundTripHappyPathTests {
         #expect(observation.contains("Tool \"calculator\" returned"))
     }
 
+    /// Every hop records its own usage and the last one describes the final prompt, tool result
+    /// included. The audit of the turn's own messages needs the first, or it would read a prompt
+    /// the layout never contained.
+    @Test("a tool turn reports the first hop's usage as the request made with the turn's own messages")
+    func firstHopIsTheTurnsOwnCall() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"(3 + 4) * 12"}"#),
+            proseBody("That comes to 84.")
+        ])
+
+        let (result, _, _) = await run(harness.executor())
+
+        guard case let .completed(completion) = result else {
+            Issue.record("expected .completed, got \(result)")
+            return
+        }
+        #expect(completion.firstCall?.promptTokens == 40, "the tool call's own request")
+        #expect(completion.promptTokens == 60, "the turn's headline figure is the last hop's, as before")
+    }
+
     @Test("the registered tools reach the wire as JSON Schema functions")
     func toolsAreAdvertised() async throws {
         let harness = await ToolHarness()

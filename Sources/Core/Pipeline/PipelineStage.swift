@@ -147,6 +147,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See rationale in `PipelineStage+RationaleMeasurement.swift`.
     case splitContrast
 
+    /// See rationale in `PipelineStage+RationaleMeasurement.swift`.
+    case promptCache
+
     // Acting on the answer
     case toolAuthority
     /// See rationale in `PipelineStage+Rationale.swift`.

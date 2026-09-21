@@ -26,6 +26,11 @@ struct TurnCompletion: Sendable, Equatable {
     let meteredCostUSD: Decimal
     /// Attempts spent, so the UI can show "Retried 2×" rather than hiding it.
     let attempts: Int
+    /// What the provider reported for the first call this turn made, which is the one made with the
+    /// turn's own messages. `nil` when nothing was recorded during the turn, so a replayed result
+    /// never passes for a request that reached the provider. A `var` with a default so a turn that
+    /// carries no usage is built exactly as it was before this field existed.
+    var firstCall: OpenRouterUsage?
 }
 
 /// Budget scopes this app reserves against, outermost first.
@@ -227,18 +232,23 @@ actor TurnExecutor {
         // 8–10. Account for what happened, then teach the profiler. A `switch` rather than
         // `guard case`: `CallResult` has exactly two cases, and the `guard`-shaped version needed
         // a second `guard` returning a `.failed(message: "unreachable")` no turn could produce.
+        //
+        // The recorder's count is taken first so `account` can tell what *this* turn added to it.
+        let usageMark = await usage.recordCount
         switch await callProvider(turn, key: key, conversationID: conversationID, trace: &trace) {
         case let .stopped(result):
             await releaseIfHeld(reservation)
             return result
         case let .succeeded(body, attempts):
-            return await account(
+            var completion = await account(
                 turn: turn,
                 body: body,
                 attempts: attempts,
                 reservation: reservation,
                 trace: &trace
             )
+            completion.firstCall = await usage.firstRecord(after: usageMark)
+            return .completed(completion)
         }
     }
 

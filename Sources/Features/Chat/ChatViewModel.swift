@@ -48,6 +48,9 @@ final class ChatViewModel {
     private let metadata: MetadataPipeline?
     private var sendTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
+    /// The requests this conversation has put in front of the provider, oldest first and capped, for
+    /// the prompt-cache audit. Held here because nothing persisted records what was *sent*.
+    private(set) var sentPrompts: [SentPrompt] = []
     /// Which send the in-flight metadata belongs to. A generation that finishes after the user
     /// has already sent something else describes a conversation state that no longer exists.
     private var generation = 0
@@ -203,6 +206,7 @@ final class ChatViewModel {
         let assistantID = assistant.id
         toolsUsed = []
 
+        let sentAt = Date()
         let result = await executor.execute(
             turn,
             conversationID: conversationID,
@@ -218,6 +222,9 @@ final class ChatViewModel {
 
         switch result {
         case let .completed(completion):
+            // Before the review, not after it: an answer the output guardrail withholds was still
+            // sent and paid for, and the provider's cache does not know what the user was shown.
+            keepSentPrompt(completion, for: turn, sentAt: sentAt)
             await publish(completion, turn: turn, to: assistantID, trace: &freshTrace)
         case let .refused(refusal):
             update(assistantID) { $0.delivery = .refused(refusal) }
@@ -291,41 +298,6 @@ final class ChatViewModel {
         // an answer the guardrail redacted would put the redacted span back on screen, in the
         // navigation bar, where it is visible on every screenshot.
         nameConversation(userText: turn.displayUserText, assistantText: reviewed.publishableText)
-    }
-
-    /// Kicks off metadata generation for a turn that has landed.
-    ///
-    /// Detached from the send, because none of it is what the user asked for: the composer
-    /// re-enables on the same frame it otherwise would, and the title and chips arrive when they
-    /// arrive.
-    private func nameConversation(userText: String, assistantText: String) {
-        guard let metadata else { return }
-        let token = generation
-        metadataTask = Task { [weak self] in
-            var metadataTrace = PipelineTrace()
-            let result = await metadata.generate(
-                userText: userText,
-                assistantText: assistantText,
-                trace: &metadataTrace
-            )
-            guard let self, !Task.isCancelled else { return }
-            self.applyMetadata(result, trace: metadataTrace, from: token)
-        }
-    }
-
-    /// Folds a finished metadata generation into the UI and the trace.
-    ///
-    /// Not private so the staleness rule can be asserted directly: a generation that lands after
-    /// the user has already sent something else is describing a conversation that has moved on,
-    /// and applying it would retitle the screen from a question two turns old.
-    func applyMetadata(_ result: ChatMetadata?, trace metadataTrace: PipelineTrace, from token: Int) {
-        guard token == generation else { return }
-        for record in metadataTrace.records {
-            trace.record(record.stage, record.outcome, durationMs: record.durationMs)
-        }
-        guard let result else { return }
-        conversationTitle = result.title
-        followUps = result.followUps
     }
 
     /// Folds one tool-activity event into the assistant bubble's chip.
@@ -451,5 +423,60 @@ extension ChatViewModel {
         activeRefusal = nil
         followUps = []
         persist()
+    }
+}
+
+// MARK: - Metadata
+
+/// Naming the conversation and auditing what it sent, once a turn has landed.
+///
+/// A same-file extension rather than more class body: `type_body_length` is a fair signal that the
+/// class had stopped being one thing, and none of this needs to sit between sending and cancelling.
+extension ChatViewModel {
+    /// Kicks off metadata generation for a turn that has landed.
+    ///
+    /// Detached from the send, because none of it is what the user asked for: the composer
+    /// re-enables on the same frame it otherwise would, and the title and chips arrive when they
+    /// arrive.
+    private func nameConversation(userText: String, assistantText: String) {
+        guard let metadata else { return }
+        let token = generation
+        let sentPrompts = sentPrompts
+        metadataTask = Task { [weak self] in
+            var metadataTrace = PipelineTrace()
+            let result = await metadata.generate(
+                userText: userText,
+                assistantText: assistantText,
+                sentPrompts: sentPrompts,
+                trace: &metadataTrace
+            )
+            guard let self, !Task.isCancelled else { return }
+            self.applyMetadata(result, trace: metadataTrace, from: token)
+        }
+    }
+
+    /// Folds a finished metadata generation into the UI and the trace.
+    ///
+    /// Not private so the staleness rule can be asserted directly: a generation that lands after
+    /// the user has already sent something else is describing a conversation that has moved on,
+    /// and applying it would retitle the screen from a question two turns old.
+    func applyMetadata(_ result: ChatMetadata?, trace metadataTrace: PipelineTrace, from token: Int) {
+        guard token == generation else { return }
+        for record in metadataTrace.records {
+            trace.record(record.stage, record.outcome, durationMs: record.durationMs)
+        }
+        guard let result else { return }
+        conversationTitle = result.title
+        followUps = result.followUps
+    }
+
+    /// Keeps the request a finished turn made, for the prompt-cache audit.
+    ///
+    /// A turn the provider reported no usage for is not kept, because a replayed result and an
+    /// upstream that omitted its usage envelope both end a turn without evidence a request left the
+    /// device, and the audit reports on what the provider saw.
+    private func keepSentPrompt(_ completion: TurnCompletion, for turn: PreparedTurn, sentAt: Date) {
+        guard let sent = SentPrompt(turn: turn, completion: completion, sentAt: sentAt) else { return }
+        sentPrompts = sent.appended(to: sentPrompts)
     }
 }

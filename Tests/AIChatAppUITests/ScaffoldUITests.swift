@@ -18,10 +18,24 @@ final class LoginFlowUITests: XCTestCase {
     }
 
     /// The signed-in root is the chat list now, so reaching the composer takes one more tap.
+    ///
+    /// That tap can be dropped. A failing full-suite run on 2026-09-22 kept its screen, element tree
+    /// and recording: the list had settled about 1.4s after sign-in, the tap was synthesized 0.3s
+    /// later, and then nothing happened. No chat opened and no conversation row appeared, so
+    /// `startChat` never ran; the month of failures read as "the chat opened and its empty state
+    /// never appeared" was this. Starting a chat adds a row before it navigates, so an empty list
+    /// with no composer is proof the action did not run, and only then is one more tap sent, inside
+    /// a named activity so every dropped tap stays visible in the result bundle.
     private func openChat(_ app: XCUIApplication) {
         let newChat = element("newChatButton", in: app)
         XCTAssertTrue(newChat.waitForExistence(timeout: 20))
         newChat.tap()
+        let opened = element("messageField", in: app).waitForExistence(timeout: 5)
+        if !opened, element("chatListEmpty", in: app).exists {
+            XCTContext.runActivity(named: "New chat tap was dropped: list still empty, tapping once more") { _ in
+                newChat.tap()
+            }
+        }
     }
 
     /// A SwiftUI toolbar button does not reliably surface as a `button`, so it is found by

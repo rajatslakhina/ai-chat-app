@@ -432,3 +432,36 @@
 // or can undo, the request it describes was already sent and paid for, and there is no action a
 // banner could offer that would change it. The one refusal this could ever justify would stop a
 // send to protect a cache, which would trade the answer the user asked for against a discount.
+
+// MARK: - compactionPlan
+//
+// `CompactionPlannerKit` replays a conversation under a compaction schedule against a model of a
+// provider's prompt cache, and compares schedules on price while holding the history they keep
+// fixed. This app already has a schedule: `PreModelPipeline.compactIfNeeded` compacts to the whole
+// window, `contextWindowTokens - reservedResponseTokens`, whenever the assembled prompt overflows
+// it, which is a sliding window. Nothing had ever asked what that schedule costs in cache terms.
+//
+// The stage replays the requests this conversation actually sent, the same `SentPrompt` run the
+// `promptCache` stage reads, under that schedule, and asks the planner two questions: does any
+// schedule keep at least as much history for less, and what would giving up the last tenth of the
+// kept history save. Each request's arrival is what it added: the non-system messages not in the
+// request before it, compared as a multiset, so a compaction that dropped old turns from the
+// request does not read as the conversation shrinking. A request that added nothing (a retry
+// resends the same messages) counts as one token, the smallest arrival the package accepts, so it
+// still counts as a request and its timing still decides whether the cache had lapsed.
+//
+// It runs in `MetadataPipeline`, after `promptCache`, for the same reasons: it reads requests that
+// were already sent and paid for, costs no provider call, and changes nothing that was sent. That
+// last part is a decision and not a gap. The package's own demo measured that the cheaper
+// schedules keep less history, and against a sliding window at the full budget that is true by
+// construction: the window keeps the longest history that fits on every request, so any cheaper
+// drop-oldest schedule keeps less. Trading history the model sees for a smaller bill is a quality
+// call for the owner, not a cache optimisation the app should make on its own.
+//
+// Outcomes: `.skipped` when no request has provider usage on record, `.noOp` when fewer than two
+// requests share the latest model or when the schedule compacted nothing (the common case with a
+// 128,000-token window), `.failed` when the requests cannot be replayed as a conversation (a
+// request dated before the one ahead of it, as a clock set backwards produces), and `.ran`
+// otherwise. Prices come from an illustrative preset, so the detail reports percentages only.
+//
+// It raises no `Refusal`. A compaction schedule is not something the user did or can undo.

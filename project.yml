@@ -237,6 +237,9 @@ packages:
   PromptCacheKit:
     url: https://github.com/rajatslakhina/prompt-cache-kit
     from: 1.0.0
+  CompactionPlannerKit:
+    url: https://github.com/rajatslakhina/compaction-planner-kit
+    from: 1.0.1
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -441,6 +444,8 @@ targets:
         product: SplitContrastKit
       - package: PromptCacheKit
         product: PromptCacheKit
+      - package: CompactionPlannerKit
+        product: CompactionPlannerKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

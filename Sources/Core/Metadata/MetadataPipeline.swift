@@ -107,11 +107,14 @@ actor MetadataPipeline {
     ///
     /// `sentPrompts` are the requests this conversation actually put in front of the provider,
     /// oldest first. They default to none so a caller with no request history gets an honest
-    /// `.skipped` for `promptCache` rather than a stage that guesses.
+    /// `.skipped` for `promptCache` and `compactionPlan` rather than a stage that guesses.
+    /// `compactionWindow` is the window the pre-model compactor used; it defaults to the settings'
+    /// own default, which is the window a caller that never changed it compacted against.
     func generate(
         userText: String,
         assistantText: String,
         sentPrompts: [SentPrompt] = [],
+        compactionWindow: CompactionWindow = CompactionWindow(),
         trace: inout PipelineTrace
     ) async -> ChatMetadata? {
         // Runs before the guard, unlike its siblings, because it audits gate readings accumulated
@@ -140,6 +143,7 @@ actor MetadataPipeline {
         await auditSequentialContrast(trace: &trace)
         await auditSplitContrast(trace: &trace)
         auditPromptCache(trace: &trace, prompts: sentPrompts)
+        await auditCompactionPlan(trace: &trace, prompts: sentPrompts, window: compactionWindow)
         guard !assistantText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             recordNothingToSummarise(trace: &trace)
             return nil

@@ -284,6 +284,52 @@ struct MetadataChatSurfaceTests {
         #expect(chat.activeRefusal == nil, "an audit of a finished turn never raises a banner")
     }
 
+    /// The window reaches the audit from the compactor's own settings, not from a default. A
+    /// 50,000-token window with the default 1,024 reserved and the 3-token system message leaves
+    /// 48,973 tokens of history, which two short turns never approach.
+    @Test("the compaction audit replays the window the compactor was given")
+    func compactionPlanReadsTheCompactorsWindow() async throws {
+        let harness = ChatHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.respond(json: proseBody("Paris is the capital of France."))
+        let pipeline = await harness.pipeline()
+        var settings = PipelineSettings()
+        settings.contextWindowTokens = 50_000
+        await pipeline.update(settings: settings)
+        let chat = ChatViewModel(
+            pipeline: pipeline,
+            executor: harness.executor(),
+            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy())),
+            metadata: try await MetadataHarness.pipeline(
+                completer: ScriptedCompleter(
+                    title: [MetadataHarness.goodTitle],
+                    followUps: [MetadataHarness.goodFollowUps]
+                )
+            )
+        )
+
+        chat.draft = "capital of France"
+        chat.send()
+        try await settle(chat) { $0.trace.outcome(for: .compactionPlan) != nil }
+        guard case let .noOp(first) = chat.trace.outcome(for: .compactionPlan) else {
+            Issue.record("expected noOp, got \(String(describing: chat.trace.outcome(for: .compactionPlan)))")
+            return
+        }
+        #expect(first.contains("only one request"))
+
+        chat.draft = "and its population"
+        chat.send()
+        try await settle(chat) { $0.sentPrompts.count == 2 && $0.trace.outcome(for: .compactionPlan) != nil }
+        guard case let .noOp(second) = chat.trace.outcome(for: .compactionPlan) else {
+            Issue.record("expected noOp, got \(String(describing: chat.trace.outcome(for: .compactionPlan)))")
+            return
+        }
+        #expect(second.contains("the 50000-token window less 1024 reserved for the reply and 3 of system message"))
+        #expect(second.contains("compacted nothing over 2 requests"))
+        #expect(second.contains("against a budget of 48973"))
+        #expect(chat.activeRefusal == nil, "an audit of a finished turn never raises a banner")
+    }
+
     @Test("a turn the provider reported nothing for is not kept as a request")
     func unreportedTurnIsNotKept() async throws {
         let harness = ChatHarness()

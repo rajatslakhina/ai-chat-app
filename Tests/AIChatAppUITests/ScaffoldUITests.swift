@@ -82,7 +82,28 @@ final class LoginFlowUITests: XCTestCase {
         // 2026-08-26 — both times in the full suite, after the simulator had just run 750-odd unit
         // tests, and both times passing in about 13s when the UI target is run on its own. The
         // margin was two-to-one against a machine under load, which is not a margin.
-        XCTAssertTrue(app.staticTexts["chatEmptyState"].waitForExistence(timeout: 20))
+        //
+        // It still fails intermittently in the full suite with the chat open and no empty state,
+        // and nothing recorded what was on screen, so a failure now keeps the screen and the
+        // element tree in the result bundle. Diagnostics only: the wait and the assertion are the
+        // same ones as before.
+        let reached = app.staticTexts["chatEmptyState"].waitForExistence(timeout: 20)
+        if !reached {
+            attachDiagnostics(of: app, named: "chatEmptyState never appeared")
+        }
+        XCTAssertTrue(reached)
+    }
+
+    /// Keeps the screen and the element tree at the moment a wait gave up, in the result bundle.
+    private func attachDiagnostics(of app: XCUIApplication, named name: String) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "\(name): screen"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        let hierarchy = XCTAttachment(string: app.debugDescription)
+        hierarchy.name = "\(name): element tree"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
     }
 
     /// A restored session must land in the app, not bounce through login.

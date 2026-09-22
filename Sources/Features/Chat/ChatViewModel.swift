@@ -442,12 +442,16 @@ extension ChatViewModel {
         guard let metadata else { return }
         let token = generation
         let sentPrompts = sentPrompts
+        let pipeline = pipeline
         metadataTask = Task { [weak self] in
             var metadataTrace = PipelineTrace()
+            // Read from the compactor's own settings, so the audit replays the window it used.
+            let window = MetadataPipeline.CompactionWindow(await pipeline.settings)
             let result = await metadata.generate(
                 userText: userText,
                 assistantText: assistantText,
                 sentPrompts: sentPrompts,
+                compactionWindow: window,
                 trace: &metadataTrace
             )
             guard let self, !Task.isCancelled else { return }

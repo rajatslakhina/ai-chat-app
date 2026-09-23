@@ -240,6 +240,9 @@ packages:
   CompactionPlannerKit:
     url: https://github.com/rajatslakhina/compaction-planner-kit
     from: 1.0.1
+  FleetRolloutKit:
+    url: https://github.com/rajatslakhina/fleet-rollout-kit
+    from: 1.0.1
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -446,6 +449,8 @@ targets:
         product: PromptCacheKit
       - package: CompactionPlannerKit
         product: CompactionPlannerKit
+      - package: FleetRolloutKit
+        product: FleetRollout
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

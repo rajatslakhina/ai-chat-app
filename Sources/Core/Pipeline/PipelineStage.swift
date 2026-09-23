@@ -10,6 +10,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     // Before the model sees anything
     case promptTemplate
     case guardrailInput
+    /// See rationale in `PreModelPipeline+FleetRollout.swift`.
+    case fleetRollout
     case semanticRoute
     case idempotencyGuard
     case cacheLookup

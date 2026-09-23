@@ -154,7 +154,8 @@ actor PreModelPipeline {
         case let .refused(refusal): return .refused(refusal)
         }
 
-        let modelID = await chooseModel(for: outbound, trace: &trace)
+        let fleetAllowsRouting = Self.fleetRolloutGate(trace: &trace)
+        let modelID = await chooseModel(for: outbound, fleetAllowsRouting: fleetAllowsRouting, trace: &trace)
 
         if let cached = await lookupCache(
             model: modelID,
@@ -256,7 +257,15 @@ actor PreModelPipeline {
     }
 
     /// Picks the model before anything is priced against it.
-    private func chooseModel(for outbound: String, trace: inout PipelineTrace) async -> String {
+    private func chooseModel(
+        for outbound: String,
+        fleetAllowsRouting: Bool,
+        trace: inout PipelineTrace
+    ) async -> String {
+        guard fleetAllowsRouting else {
+            trace.record(.semanticRoute, .skipped(reason: "routing gated off by fleet rollout"))
+            return settings.defaultModelID
+        }
         guard settings.routingEnabled else {
             trace.record(.semanticRoute, .skipped(reason: "routing disabled in Settings"))
             return settings.defaultModelID

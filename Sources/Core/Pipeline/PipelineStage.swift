@@ -23,6 +23,8 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Whether the passages that survived fusion agree with each other.
     case sourceConflict
     case contextCompaction
+    /// See rationale in `PreModelPipeline+ToolIntegrity.swift`.
+    case toolIntegrity
 
     // Deciding whether the turn is allowed to happen at all
     /// See rationale in `PipelineStage+Rationale.swift`.

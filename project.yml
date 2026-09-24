@@ -243,6 +243,9 @@ packages:
   FleetRolloutKit:
     url: https://github.com/rajatslakhina/fleet-rollout-kit
     from: 1.0.1
+  ToolIntegrityKit:
+    url: https://github.com/rajatslakhina/tool-integrity-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -451,6 +454,8 @@ targets:
         product: CompactionPlannerKit
       - package: FleetRolloutKit
         product: FleetRollout
+      - package: ToolIntegrityKit
+        product: ToolIntegrityKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

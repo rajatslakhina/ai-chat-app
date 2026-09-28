@@ -158,11 +158,17 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case compactionPlan
 
     // Acting on the answer
+    /// See `ToolRoundTrip+StructuralSkips.swift`: recorded as `.skipped` on every path, with the
+    /// reason this app's session shape gives ScopeDriftKit nothing to measure.
+    case scopeDrift
     case toolAuthority
     /// See rationale in `PipelineStage+Rationale.swift`.
     case selectionTrust
     /// See rationale in `PipelineStage+Rationale.swift`.
     case argumentAttribution
+    /// See `ToolRoundTrip+StructuralSkips.swift`: recorded as `.skipped` on every path, because
+    /// the gateway hands this app at most one tool call per hop.
+    case toolCallScheduling
     case toolDispatch
     case agentLoop
     case batchInference

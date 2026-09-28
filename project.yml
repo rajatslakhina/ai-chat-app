@@ -246,6 +246,12 @@ packages:
   ToolIntegrityKit:
     url: https://github.com/rajatslakhina/tool-integrity-kit
     from: 1.0.0
+  ScopeDriftKit:
+    url: https://github.com/rajatslakhina/scope-drift-kit
+    from: 1.0.1
+  ToolCallSchedulerKit:
+    url: https://github.com/rajatslakhina/tool-call-scheduler-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -456,6 +462,10 @@ targets:
         product: FleetRollout
       - package: ToolIntegrityKit
         product: ToolIntegrityKit
+      - package: ScopeDriftKit
+        product: ScopeDriftKit
+      - package: ToolCallSchedulerKit
+        product: ToolCallSchedulerKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

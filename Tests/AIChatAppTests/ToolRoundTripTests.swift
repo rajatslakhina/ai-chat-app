@@ -336,6 +336,8 @@ struct ToolRoundTripHappyPathTests {
 
         #expect(completedText(result) == "It is midnight UTC.")
         #expect(trace.outcome(for: .toolDispatch) == .ran(detail: "current_time → ok"))
+        #expect(trace.outcome(for: .toolCallScheduling) == .skipped(reason: StructuralToolSkips.schedulingReason))
+        #expect(trace.outcome(for: .scopeDrift) == .skipped(reason: StructuralToolSkips.scopeDriftReason))
         let observation = try #require(try sentMessages(at: 1).last?["content"] as? String)
         #expect(observation.contains("1970-01-01T00:00:00Z"))
     }
@@ -398,6 +400,8 @@ struct ToolAuthorityRoundTripTests {
             trace.outcome(for: .toolDispatch) == .skipped(reason: "the call was not authorized"),
             "nothing may run once the gate has said no"
         )
+        #expect(trace.outcome(for: .toolCallScheduling) == .skipped(reason: StructuralToolSkips.schedulingReason))
+        #expect(trace.outcome(for: .scopeDrift) == .skipped(reason: StructuralToolSkips.scopeDriftReason))
         #expect(activity == [.started(tool: "calculator"), .cleared(tool: "calculator")])
     }
 

@@ -369,7 +369,7 @@ extension ProviderEffectExecutor {
         let reason = "replayed an earlier result; the tool round trip was not repeated"
         return [PipelineStage.toolAuthority, .toolDispatch, .agentLoop].map {
             StageRecord(stage: $0, outcome: .skipped(reason: reason), durationMs: 0)
-        }
+        } + StructuralToolSkips.records
     }
 
     /// Records the two dispatch-side stages for a turn where no tool call was made.
@@ -382,6 +382,6 @@ extension ProviderEffectExecutor {
             : .skipped(reason: "no tools registered for this conversation")
         return [PipelineStage.toolAuthority, PipelineStage.toolDispatch].map {
             StageRecord(stage: $0, outcome: outcome, durationMs: 0)
-        }
+        } + StructuralToolSkips.records
     }
 }

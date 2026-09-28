@@ -164,7 +164,7 @@ actor ToolRoundTrip {
                     selection,
                     attribution,
                     Self.record(.toolDispatch, .skipped(reason: "the call was not authorized"))
-                ],
+                ] + StructuralToolSkips.records,
                 observation: nil,
                 refusal: authority.refusal,
                 activity: .cleared(tool: toolName)
@@ -172,6 +172,7 @@ actor ToolRoundTrip {
         }
         var resolution = await dispatch(id: id, toolName: toolName, argumentsJSON: argumentsJSON)
         resolution.records.insert(contentsOf: [authority.record, selection, attribution], at: 0)
+        resolution.records.append(contentsOf: StructuralToolSkips.records)
         return resolution
     }
 

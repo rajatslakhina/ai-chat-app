@@ -45,9 +45,10 @@ struct PipelineStageTests {
             "UnconditionalExactKit", "TotalFixedExactKit", "RestrictionRuleKit",
             "RepeatedSuccessKit", "SequentialBoundKit", "ConfidenceSequenceKit",
             "SequentialContrastKit", "SplitContrastKit", "PromptCacheKit", "CompactionPlannerKit",
-            "FleetRolloutKit", "ToolIntegrityKit", "ScopeDriftKit", "ToolCallSchedulerKit"
+            "FleetRolloutKit", "ToolIntegrityKit", "ScopeDriftKit", "ToolCallSchedulerKit",
+            "LoopGuardKit"
         ]
-        #expect(expected.count == 77)
+        #expect(expected.count == 78)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")

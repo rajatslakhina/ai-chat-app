@@ -171,6 +171,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case toolCallScheduling
     case toolDispatch
     case agentLoop
+    /// See `ToolLoopWatch.swift`: watches one turn's tool hops for a call the model keeps
+    /// repeating, nudges it once, and stops the turn before another paid hop if it does not listen.
+    case loopGuard
     case batchInference
     /// Recording the finished turn as a golden-case candidate for the eval suite.
     case transcriptCapture

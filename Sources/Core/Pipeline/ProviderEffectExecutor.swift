@@ -1,6 +1,7 @@
 import AgentLoopKit
 import Foundation
 import IdempotencyKit
+import LoopGuardKit
 import ProviderGatewayKit
 import RetryPolicyKit
 import ToolRegistryKit
@@ -138,6 +139,8 @@ extension ProviderEffectExecutor {
         var assembled = ""
         var steps: [AgentStep] = []
         var hops = 0
+        let loopGuard = LoopGuard(policy: ToolLoopWatch.policy)
+        var loopWatch = ToolLoopWatch.Summary()
     }
 
     /// One whole turn: the first model call, any tool call it asks for, and the further call that
@@ -163,6 +166,10 @@ extension ProviderEffectExecutor {
                 state.hops += 1
                 guard let observation = await applyHop(call, raw: raw, to: &state) else {
                     recordStoppedEarly(&state)
+                    return state.assembled
+                }
+                if let signal = state.loopWatch.halted {
+                    recordLoopHalt(&state, signal: signal)
                     return state.assembled
                 }
                 state.prompt = observation
@@ -235,7 +242,16 @@ extension ProviderEffectExecutor {
                 toolResult: resolution.result
             )
         )
-        return resolution.observation
+        guard let observation = resolution.observation else { return nil }
+        let verdict = await state.loopGuard.record(
+            ToolLoopWatch.step(
+                toolName: call.toolName,
+                argumentsJSON: argumentsJSON,
+                observation: observation
+            )
+        )
+        state.loopWatch.absorb(verdict)
+        return ToolLoopWatch.observation(observation, after: verdict)
     }
 
     /// Re-encodes the gateway's parsed arguments as the raw JSON bytes `ToolRegistryKit` wants.
@@ -278,6 +294,7 @@ extension ProviderEffectExecutor {
                 haltReason: settled ? .parseFailed(.emptyResponse) : .finalAnswer
             )
         )
+        recordLoopWatch(state.loopWatch)
     }
 
     private func recordCap(_ state: inout TurnState) {
@@ -288,6 +305,7 @@ extension ProviderEffectExecutor {
                 haltReason: .maxStepsExceeded
             )
         )
+        recordLoopWatch(state.loopWatch)
     }
 
     /// The gate declined, or no registry was configured. Neither is a halt reason AgentLoopKit
@@ -301,6 +319,33 @@ extension ProviderEffectExecutor {
                 outcome: .noOp(
                     reason: "stopped after \(state.hops) hop(s); no further model call was made"
                 ),
+                durationMs: 0
+            )
+        )
+        recordLoopWatch(state.loopWatch)
+    }
+
+    /// The loop guard stopped the turn. AgentLoopKit has no halt reason for it (the loop did not
+    /// run out of steps, and nothing failed), so the agent loop reads as correctly doing nothing
+    /// further and the loop guard's own `.refused` record carries the banner.
+    private func recordLoopHalt(_ state: inout TurnState, signal: LoopSignal) {
+        toolStages.append(
+            StageRecord(
+                stage: .agentLoop,
+                outcome: .noOp(
+                    reason: "stopped by the loop guard after \(state.hops) hop(s): \(signal.summary)"
+                ),
+                durationMs: 0
+            )
+        )
+        recordLoopWatch(state.loopWatch)
+    }
+
+    private func recordLoopWatch(_ summary: ToolLoopWatch.Summary) {
+        toolStages.append(
+            StageRecord(
+                stage: .loopGuard,
+                outcome: ToolLoopWatch.outcome(for: summary, toolsAvailable: !request.tools.isEmpty),
                 durationMs: 0
             )
         )
@@ -369,7 +414,13 @@ extension ProviderEffectExecutor {
         let reason = "replayed an earlier result; the tool round trip was not repeated"
         return [PipelineStage.toolAuthority, .toolDispatch, .agentLoop].map {
             StageRecord(stage: $0, outcome: .skipped(reason: reason), durationMs: 0)
-        } + StructuralToolSkips.records
+        } + [
+            StageRecord(
+                stage: .loopGuard,
+                outcome: .skipped(reason: ToolLoopWatch.replayReason),
+                durationMs: 0
+            )
+        ] + StructuralToolSkips.records
     }
 
     /// Records the two dispatch-side stages for a turn where no tool call was made.

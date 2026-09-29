@@ -611,12 +611,17 @@ struct ToolDispatchOutcomeTests {
     }
 
     /// A model that keeps looking things up has already spent the user's money `maxToolHops` times.
+    ///
+    /// The four calls differ on purpose. Identical calls with identical results are the loop
+    /// guard's case (see `loopGuardHalts`) and now stop a hop earlier; this test pins the cap for a
+    /// model that keeps getting *new* answers and still never settles.
     @Test("a model that never converges is stopped, and the refusal offers a different model")
     func hopCap() async throws {
         let harness = await ToolHarness()
         try await harness.registerScopes()
-        let call = toolCallBody(name: "calculator", arguments: #"{"expression":"1+1"}"#)
-        stubJSON([call, call, call, call])
+        stubJSON(["1+1", "2+2", "3+3", "4+4"].map {
+            toolCallBody(name: "calculator", arguments: #"{"expression":"\#($0)"}"#)
+        })
 
         let (result, trace, _) = await run(harness.executor(maxToolHops: 3))
 
@@ -635,6 +640,97 @@ struct ToolDispatchOutcomeTests {
         let statistics = await harness.tools.statistics()
         #expect(statistics.totalCalls == 3)
         #expect(statistics.successCount == 3)
+    }
+
+    @Test("the hop cap leaves the loop guard reporting what it watched")
+    func hopCapLoopGuardRecord() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON(["1+1", "2+2", "3+3", "4+4"].map {
+            toolCallBody(name: "calculator", arguments: #"{"expression":"\#($0)"}"#)
+        })
+
+        let (_, trace, _) = await run(harness.executor(maxToolHops: 3))
+        #expect(trace.outcome(for: .loopGuard) == .ran(detail: "watched 3 tool step(s); no loop"))
+    }
+
+    /// The same call, the same answer, three times: the third hop's result is never sent back,
+    /// which is one paid model call the hop cap alone would have made.
+    @Test("a model repeating an identical call is nudged, then stopped before another paid hop")
+    func loopGuardHalts() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        let call = toolCallBody(name: "calculator", arguments: #"{"expression":"1+1"}"#)
+        stubJSON([call, call, call, call])
+
+        let (result, trace, _) = await run(harness.executor(maxToolHops: 3))
+
+        guard case .completed = result else {
+            Issue.record("expected the turn to settle rather than fail: \(result)")
+            return
+        }
+        #expect(StubURLProtocol.requestCount == 3, "the fourth, prose-producing call is never made")
+
+        let refusal = try #require(trace.refusal)
+        #expect(refusal.stage == .loopGuard)
+        #expect(refusal.headline == "Stopped a repeating tool call")
+        #expect(refusal.explanation.contains("repeated 3x with an identical result"))
+        #expect(refusal.recovery == .switchModel)
+
+        let nudged = try #require(try sentMessages(at: 2).last?["content"] as? String)
+        #expect(nudged.contains("You have called calculator"), "the nudge reached the model before the halt")
+
+        let agentLoop = try #require(trace.outcome(for: .agentLoop))
+        guard case let .noOp(reason) = agentLoop else {
+            Issue.record("expected the agent loop to read as stopped, got \(agentLoop)")
+            return
+        }
+        #expect(reason.hasPrefix("stopped by the loop guard after 3 hop(s)"))
+
+        let statistics = await harness.tools.statistics()
+        #expect(statistics.totalCalls == 3)
+    }
+
+    @Test("a model that takes the nudge answers normally and the stage says so")
+    func loopGuardNudgeRecovers() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        let call = toolCallBody(name: "calculator", arguments: #"{"expression":"1+1"}"#)
+        stubJSON([call, call, proseBody("It is 2.")])
+
+        let (result, trace, _) = await run(harness.executor(maxToolHops: 3))
+
+        #expect(completedText(result) == "It is 2.")
+        #expect(trace.refusal == nil)
+        let nudged = try #require(try sentMessages(at: 2).last?["content"] as? String)
+        #expect(nudged.contains("You have called calculator"))
+        let outcome = try #require(trace.outcome(for: .loopGuard))
+        guard case let .ran(detail) = outcome else {
+            Issue.record("expected .ran, got \(outcome)")
+            return
+        }
+        #expect(detail.hasPrefix("nudged after calculator("))
+        #expect(detail.hasSuffix("the model changed course"))
+    }
+
+    @Test("a turn with tools but no tool call records the loop guard as having nothing to watch")
+    func loopGuardNoCall() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([proseBody("Hello.")])
+
+        let (_, trace, _) = await run(harness.executor())
+        #expect(trace.outcome(for: .loopGuard) == .noOp(reason: "no tool call this turn; nothing to watch"))
+    }
+
+    @Test("a turn with no tools registered records the loop guard as skipped")
+    func loopGuardNoTools() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([proseBody("Hello.")])
+
+        let (_, trace, _) = await run(harness.executor(withTools: false))
+        #expect(trace.outcome(for: .loopGuard) == .skipped(reason: "no tools registered for this conversation"))
     }
 
     @Test("a second answer that is empty is a failure of the provider, not a refusal")

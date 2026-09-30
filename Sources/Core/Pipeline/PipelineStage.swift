@@ -52,6 +52,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
 
     // Getting an answer
     case retryPolicy
+    /// See `HedgedRequestSkip.swift`: an honest skip. There is one provider route and one model on
+    /// the wire, so there is nothing to hedge a slow call to.
+    case hedgedRequest
     case providerRouting
     case streamAggregation
     case sessionDelivery

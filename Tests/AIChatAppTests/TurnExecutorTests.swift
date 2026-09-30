@@ -173,13 +173,14 @@ struct TurnExecutorHappyPathTests {
 
         let owned: [PipelineStage] = [
             .workloadProfile, .costForecast, .budgetReserve, .idempotencyGuard,
-            .retryPolicy, .providerRouting, .streamAggregation, .sessionDelivery,
+            .retryPolicy, .hedgedRequest, .providerRouting, .streamAggregation, .sessionDelivery,
             .metering, .budgetSettle
         ]
         for stage in owned {
             #expect(trace.outcome(for: stage) != nil, "\(stage.rawValue) never reported")
         }
         #expect(trace.refusal == nil)
+        #expect(trace.outcome(for: .hedgedRequest) == HedgedRequestSkip.outcome)
     }
 
     /// The check that subtask 4's pricing work actually pays off end to end.
@@ -301,6 +302,7 @@ struct TurnExecutorRefusalTests {
             trace.outcome(for: .providerRouting) == nil,
             "a refused budget must not reach the network"
         )
+        #expect(trace.outcome(for: .hedgedRequest) == nil, "nothing was sent, so nothing could be hedged")
         #expect(StubURLProtocol.requestCount == 0)
     }
 
@@ -324,6 +326,7 @@ struct TurnExecutorRefusalTests {
         #expect(refusal.recovery == .retryLater(after: .seconds(42)))
         #expect(refusal.recoveryTitle == "Try again in 42s")
         #expect(trace.refusal != nil)
+        #expect(trace.outcome(for: .hedgedRequest) == HedgedRequestSkip.outcome)
     }
 
     @Test("a rejected key sends the user to Settings rather than telling them to retry")
@@ -411,6 +414,7 @@ struct TurnExecutorGuardTests {
         }
         #expect(completion.firstCall == nil)
         #expect(secondTrace.outcome(for: .idempotencyGuard)?.summary.contains("replayed") == true)
+        #expect(secondTrace.outcome(for: .hedgedRequest) == HedgedRequestSkip.outcome)
         #expect(
             StubURLProtocol.requestCount == callsAfterFirst,
             "a replay must not hit the network again"

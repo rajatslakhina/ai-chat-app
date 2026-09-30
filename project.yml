@@ -255,6 +255,9 @@ packages:
   LoopGuardKit:
     url: https://github.com/rajatslakhina/loop-guard-kit
     from: 1.0.0
+  HedgedRequestKit:
+    url: https://github.com/rajatslakhina/hedged-request-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -471,6 +474,8 @@ targets:
         product: ToolCallSchedulerKit
       - package: LoopGuardKit
         product: LoopGuardKit
+      - package: HedgedRequestKit
+        product: HedgedRequestKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

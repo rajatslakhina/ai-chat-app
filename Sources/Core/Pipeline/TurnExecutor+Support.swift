@@ -27,6 +27,7 @@ extension TurnExecutor {
     ) async -> CallResult {
         // Recorded before the guard so every path that reaches the provider carries it.
         trace.record(.hedgedRequest, HedgedRequestSkip.outcome)
+        trace.record(.modelCascade, ModelCascadeSkip.outcome)
         let executor = await makeEffectExecutor(turn, conversationID: conversationID)
         let outcome: EffectOutcome
         do {

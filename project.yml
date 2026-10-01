@@ -258,6 +258,9 @@ packages:
   HedgedRequestKit:
     url: https://github.com/rajatslakhina/hedged-request-kit
     from: 1.0.0
+  ModelCascadeKit:
+    url: https://github.com/rajatslakhina/model-cascade-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -476,6 +479,8 @@ targets:
         product: LoopGuardKit
       - package: HedgedRequestKit
         product: HedgedRequestKit
+      - package: ModelCascadeKit
+        product: ModelCascadeKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

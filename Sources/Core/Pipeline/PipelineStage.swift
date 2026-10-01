@@ -55,6 +55,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `HedgedRequestSkip.swift`: an honest skip. There is one provider route and one model on
     /// the wire, so there is nothing to hedge a slow call to.
     case hedgedRequest
+    /// See `ModelCascadeSkip.swift`: an honest skip. One model reaches the wire and replies stream
+    /// live with no confidence signal, so there is no cheaper tier to defer from.
+    case modelCascade
     case providerRouting
     case streamAggregation
     case sessionDelivery

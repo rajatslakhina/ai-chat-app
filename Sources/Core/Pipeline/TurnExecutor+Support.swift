@@ -41,10 +41,12 @@ extension TurnExecutor {
                 using: executor
             )
         } catch let error as IdempotencyError {
+            trace.record(.streamRelease, LiveStreamRelease.notCalled)
             let refusal = Self.refusal(for: error)
             trace.record(.idempotencyGuard, .refused(refusal))
             return .stopped(.refused(refusal))
         } catch {
+            trace.record(.streamRelease, LiveStreamRelease.discarded)
             // The guard replaced the executor's error with its own, so ask the executor what
             // really went wrong rather than reporting "indeterminate effect" to a user.
             if let providerError = await executor.providerFailure() {
@@ -81,7 +83,8 @@ extension TurnExecutor {
                 sources: turn.sources
             ),
             onToolActivity: onToolSink,
-            maxToolHops: maxToolHops
+            maxToolHops: maxToolHops,
+            releaseScanners: LiveStreamRelease.scanners()
         )
     }
 
@@ -112,6 +115,11 @@ extension TurnExecutor {
         let deltaCount = await executor.deltaCount()
         trace.record(.providerRouting, .ran(detail: "answered by \(turn.modelID)"))
         trace.record(.streamAggregation, .ran(detail: "\(deltaCount) fragment(s) assembled"))
+        let released = await executor.liveReleaseStats()
+        trace.record(
+            .streamRelease,
+            replayed ? LiveStreamRelease.replayed : LiveStreamRelease.outcome(released)
+        )
         trace.record(.sessionDelivery, .ran(detail: "delivered and acknowledged"))
 
         let toolRecords = await executor.toolRecords()

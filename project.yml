@@ -261,6 +261,9 @@ packages:
   ModelCascadeKit:
     url: https://github.com/rajatslakhina/model-cascade-kit
     from: 1.0.0
+  StreamReleaseKit:
+    url: https://github.com/rajatslakhina/stream-release-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -481,6 +484,8 @@ targets:
         product: HedgedRequestKit
       - package: ModelCascadeKit
         product: ModelCascadeKit
+      - package: StreamReleaseKit
+        product: StreamReleaseKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

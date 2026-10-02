@@ -60,6 +60,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case modelCascade
     case providerRouting
     case streamAggregation
+    /// See `LiveStreamRelease.swift`: holds back the tail of the live stream until no PII
+    /// scanner can still change its verdict on it, so a split value never reaches the screen.
+    case streamRelease
     case sessionDelivery
 
     // Making sense of the answer

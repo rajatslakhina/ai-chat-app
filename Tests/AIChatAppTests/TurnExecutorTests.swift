@@ -173,7 +173,8 @@ struct TurnExecutorHappyPathTests {
 
         let owned: [PipelineStage] = [
             .workloadProfile, .costForecast, .budgetReserve, .idempotencyGuard,
-            .retryPolicy, .hedgedRequest, .modelCascade, .providerRouting, .streamAggregation, .sessionDelivery,
+            .retryPolicy, .hedgedRequest, .modelCascade, .providerRouting, .streamAggregation, .streamRelease,
+            .sessionDelivery,
             .metering, .budgetSettle
         ]
         for stage in owned {
@@ -182,6 +183,7 @@ struct TurnExecutorHappyPathTests {
         #expect(trace.refusal == nil)
         #expect(trace.outcome(for: .hedgedRequest) == HedgedRequestSkip.outcome)
         #expect(trace.outcome(for: .modelCascade) == ModelCascadeSkip.outcome)
+        #expect(trace.outcome(for: .streamRelease)?.summary.contains("no PII") == true)
     }
 
     /// The check that subtask 4's pricing work actually pays off end to end.
@@ -246,6 +248,41 @@ struct TurnExecutorHappyPathTests {
         #expect(trace.outcome(for: .streamAggregation)?.summary.contains("2 fragment") == true)
     }
 
+    /// The bug this stage exists for: an address split across two fragments matches in neither,
+    /// so screening fragments one at a time would have put it on screen.
+    @Test("an email split across fragments never reaches the caller")
+    func splitEmailIsHeldBack() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        stubStream(
+            """
+            data: {"id":"gen-1","model":"openai/gpt-4o","choices":[{"delta":{"content":"Mail jane.doe@exa"},"finish_reason":null}]}
+
+            data: {"id":"gen-1","model":"openai/gpt-4o","choices":[{"delta":{"content":"mple.com today."},"finish_reason":"stop"}],"usage":{"prompt_tokens":18,"completion_tokens":7,"cost":0.000104}}
+
+            data: [DONE]
+
+            """
+        )
+
+        let collected = FragmentCollector()
+        var trace = PipelineTrace()
+        let result = await harness.executor().execute(
+            sampleTurn(),
+            conversationID: "conv-1",
+            trace: &trace,
+            onDelta: { fragment in collected.append(fragment) }
+        )
+        #expect(collected.joined() == "Mail [REDACTED:EMAIL_ADDRESS] today.")
+        #expect(!collected.joined().contains("jane"))
+        #expect(trace.outcome(for: .streamRelease)?.summary.contains("kept 1 PII span") == true)
+        guard case let .completed(completion) = result else {
+            Issue.record("expected .completed, got \(result)")
+            return
+        }
+        #expect(completion.text.contains("jane.doe@example.com"), "the review still sees the raw answer")
+    }
+
     /// Before three runs are on record the plan is declared, and the trace has to say so — a
     /// forecast built on a guess must never read as one built on measurement.
     @Test("the first turns use a declared plan and label it as such")
@@ -305,6 +342,7 @@ struct TurnExecutorRefusalTests {
         )
         #expect(trace.outcome(for: .hedgedRequest) == nil, "nothing was sent, so nothing could be hedged")
         #expect(trace.outcome(for: .modelCascade) == nil, "nothing was sent, so nothing could cascade")
+        #expect(trace.outcome(for: .streamRelease) == nil, "nothing was sent, so nothing streamed")
         #expect(StubURLProtocol.requestCount == 0)
     }
 
@@ -330,6 +368,7 @@ struct TurnExecutorRefusalTests {
         #expect(trace.refusal != nil)
         #expect(trace.outcome(for: .hedgedRequest) == HedgedRequestSkip.outcome)
         #expect(trace.outcome(for: .modelCascade) == ModelCascadeSkip.outcome)
+        #expect(trace.outcome(for: .streamRelease) == LiveStreamRelease.discarded)
     }
 
     @Test("a rejected key sends the user to Settings rather than telling them to retry")
@@ -419,6 +458,7 @@ struct TurnExecutorGuardTests {
         #expect(secondTrace.outcome(for: .idempotencyGuard)?.summary.contains("replayed") == true)
         #expect(secondTrace.outcome(for: .hedgedRequest) == HedgedRequestSkip.outcome)
         #expect(secondTrace.outcome(for: .modelCascade) == ModelCascadeSkip.outcome)
+        #expect(secondTrace.outcome(for: .streamRelease) == LiveStreamRelease.replayed)
         #expect(
             StubURLProtocol.requestCount == callsAfterFirst,
             "a replay must not hit the network again"

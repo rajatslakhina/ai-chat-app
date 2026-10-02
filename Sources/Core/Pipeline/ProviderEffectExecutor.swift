@@ -4,6 +4,7 @@ import IdempotencyKit
 import LoopGuardKit
 import ProviderGatewayKit
 import RetryPolicyKit
+import StreamReleaseKit
 import ToolRegistryKit
 
 /// Performs the actual provider call, under the retry policy, inside the idempotency guard — and,
@@ -23,8 +24,13 @@ actor ProviderEffectExecutor: EffectExecuting {
     private let context: ToolCallContext
     private let onToolActivity: @Sendable (ToolActivity) -> Void
     private let maxToolHops: Int
+    /// Nil streams fragments straight through, as callers that never asked for a gate expect.
+    private let releaseScanners: [any StreamScanner]?
 
     private var attempts = 0
+    /// A fresh gate per attempt: text a failed attempt was still holding back is never shown.
+    private var releaseGate: ReleaseGate?
+    private var releaseStats: ReleaseStats?
     private var deltas = 0
     private var lastProviderError: ProviderError?
     private var toolStages: [StageRecord] = []
@@ -40,8 +46,10 @@ actor ProviderEffectExecutor: EffectExecuting {
             provenance: .modelAuthored
         ),
         onToolActivity: @escaping @Sendable (ToolActivity) -> Void = { _ in },
-        maxToolHops: Int = 3
+        maxToolHops: Int = 3,
+        releaseScanners: [any StreamScanner]? = nil
     ) {
+        self.releaseScanners = releaseScanners
         self.provider = provider
         self.request = request
         self.retryPolicy = retryPolicy
@@ -54,6 +62,9 @@ actor ProviderEffectExecutor: EffectExecuting {
 
     func attemptsMade() -> Int { attempts }
     func deltaCount() -> Int { deltas }
+
+    /// What the live-stream gate did on the attempt that succeeded. Nil when no gate ran.
+    func liveReleaseStats() -> ReleaseStats? { releaseStats }
 
     /// What the tool stages did, for the caller to fold into the `PipelineTrace`. Empty when the
     /// effect never ran, which is exactly what a replayed turn looks like.
@@ -73,6 +84,7 @@ actor ProviderEffectExecutor: EffectExecuting {
             attempts += 1
             do {
                 let body = try await runTurn()
+                await flushRelease()
                 return EffectResult(body: body, metadata: ["attempts": "\(attempts)"])
             } catch {
                 let hint = Self.retryHint(for: error)
@@ -147,6 +159,7 @@ extension ProviderEffectExecutor {
     /// turns the tool's result back into prose the user can read.
     private func runTurn() async throws -> String {
         toolStages = []
+        releaseGate = releaseScanners.map { ReleaseGate(scanners: $0) }
         var state = TurnState(
             messages: request.messages,
             prompt: request.messages.last?.content ?? ""
@@ -196,7 +209,7 @@ extension ProviderEffectExecutor {
                 deltas += 1
                 raw += fragment
                 assembled += fragment
-                onDelta(fragment)
+                await emit(fragment)
             case let .completed(response):
                 return .text(response.text.isEmpty ? raw : response.text, raw: raw)
             case let .toolCallRequested(call):
@@ -434,5 +447,27 @@ extension ProviderEffectExecutor {
         return [PipelineStage.toolAuthority, PipelineStage.toolDispatch].map {
             StageRecord(stage: $0, outcome: outcome, durationMs: 0)
         } + StructuralToolSkips.records
+    }
+}
+
+// MARK: - The live-stream gate
+
+extension ProviderEffectExecutor {
+    /// Hands a fragment to the UI, through the gate when there is one.
+    private func emit(_ fragment: String) async {
+        guard let releaseGate else {
+            onDelta(fragment)
+            return
+        }
+        let release = await releaseGate.ingest(fragment)
+        if !release.text.isEmpty { onDelta(release.text) }
+    }
+
+    /// Releases what the gate still holds once the turn has finished, and keeps its numbers.
+    private func flushRelease() async {
+        guard let releaseGate else { return }
+        let rest = await releaseGate.finish()
+        if !rest.text.isEmpty { onDelta(rest.text) }
+        releaseStats = await releaseGate.stats
     }
 }

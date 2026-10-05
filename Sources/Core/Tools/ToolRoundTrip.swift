@@ -1,5 +1,6 @@
 import AgentLoopKit
 import Foundation
+import OutcomeMonitorKit
 import ProviderGatewayKit
 import StructuredOutputKit
 import ToolAuthorityKit
@@ -66,6 +67,7 @@ actor ToolRoundTrip {
     private let registry: ToolRegistryKit.ToolRegistry
     private let gate: ToolAuthorityGate
     private let strategy: any AgentPromptStrategy
+    private let outcomes: OutcomeMonitor
 
     /// `DefaultAgentPromptStrategy` formats every observation, success and failure alike. Using
     /// AgentLoopKit's own strategy rather than a hand-rolled string means the error path is worded
@@ -74,11 +76,13 @@ actor ToolRoundTrip {
     init(
         registry: ToolRegistryKit.ToolRegistry,
         gate: ToolAuthorityGate,
-        strategy: any AgentPromptStrategy = DefaultAgentPromptStrategy()
+        strategy: any AgentPromptStrategy = DefaultAgentPromptStrategy(),
+        outcomes: OutcomeMonitor = ToolOutcomeCheck.monitor()
     ) {
         self.registry = registry
         self.gate = gate
         self.strategy = strategy
+        self.outcomes = outcomes
     }
 
     /// The `tools` array sent to OpenRouter, in the registry's own stable order.
@@ -163,7 +167,8 @@ actor ToolRoundTrip {
                     authority.record,
                     selection,
                     attribution,
-                    Self.record(.toolDispatch, .skipped(reason: "the call was not authorized"))
+                    Self.record(.toolDispatch, .skipped(reason: "the call was not authorized")),
+                    ToolOutcomeCheck.skipped("the call was not authorized, so nothing returned")
                 ] + StructuralToolSkips.records,
                 observation: nil,
                 refusal: authority.refusal,
@@ -258,7 +263,10 @@ actor ToolRoundTrip {
             // reports it as `.handlerThrew`, which shows the user a failure that did not happen
             // and permanently skews `statisticsSnapshot` — a struct with no reset.
             return ToolCallResolution(
-                records: [Self.record(.toolDispatch, .skipped(reason: "the turn was cancelled"))],
+                records: [
+                    Self.record(.toolDispatch, .skipped(reason: "the turn was cancelled")),
+                    ToolOutcomeCheck.skipped("the turn was cancelled before the call ran")
+                ],
                 observation: nil,
                 refusal: nil,
                 activity: .cleared(tool: toolName)
@@ -273,15 +281,21 @@ actor ToolRoundTrip {
             )
         )
         let elapsed = DispatchTime.now().uptimeNanoseconds &- started.uptimeNanoseconds
+        let checked = await ToolOutcomeCheck.check(
+            result,
+            observation: strategy.followUpPrompt(for: result),
+            monitor: outcomes
+        )
         return ToolCallResolution(
             records: [
                 StageRecord(
                     stage: .toolDispatch,
                     outcome: Self.outcome(of: result),
                     durationMs: Int(elapsed / 1_000_000)
-                )
+                ),
+                checked.record
             ],
-            observation: strategy.followUpPrompt(for: result),
+            observation: checked.observation,
             refusal: nil,
             activity: Self.activity(for: result),
             result: result

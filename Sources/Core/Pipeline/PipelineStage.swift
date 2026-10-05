@@ -179,6 +179,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// the gateway hands this app at most one tool call per hop.
     case toolCallScheduling
     case toolDispatch
+    /// See `ToolOutcomeCheck.swift`: checks each tool *result* against the tool's outcome
+    /// contract, and adds a receipt for the model when one is broken. Never withholds a result.
+    case outcomeMonitor
     case agentLoop
     /// See `ToolLoopWatch.swift`: watches one turn's tool hops for a call the model keeps
     /// repeating, nudges it once, and stops the turn before another paid hop if it does not listen.

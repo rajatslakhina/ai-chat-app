@@ -264,6 +264,9 @@ packages:
   StreamReleaseKit:
     url: https://github.com/rajatslakhina/stream-release-kit
     from: 1.0.0
+  OutcomeMonitorKit:
+    url: https://github.com/rajatslakhina/outcome-monitor-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -486,6 +489,8 @@ targets:
         product: ModelCascadeKit
       - package: StreamReleaseKit
         product: StreamReleaseKit
+      - package: OutcomeMonitorKit
+        product: OutcomeMonitorKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

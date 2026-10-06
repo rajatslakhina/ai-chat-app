@@ -52,6 +52,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
 
     // Getting an answer
     case retryPolicy
+    /// See `InDoubtVerification.swift`: looks at what a failed attempt received before the retry
+    /// policy may resend it, and refuses to resend one OpenRouter had already started billing.
+    case verifiedCall
     /// See `HedgedRequestSkip.swift`: an honest skip. There is one provider route and one model on
     /// the wire, so there is nothing to hedge a slow call to.
     case hedgedRequest

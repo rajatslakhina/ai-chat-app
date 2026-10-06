@@ -267,6 +267,9 @@ packages:
   OutcomeMonitorKit:
     url: https://github.com/rajatslakhina/outcome-monitor-kit
     from: 1.0.0
+  VerifiedCallKit:
+    url: https://github.com/rajatslakhina/verified-call-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -491,6 +494,8 @@ targets:
         product: StreamReleaseKit
       - package: OutcomeMonitorKit
         product: OutcomeMonitorKit
+      - package: VerifiedCallKit
+        product: VerifiedCallKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

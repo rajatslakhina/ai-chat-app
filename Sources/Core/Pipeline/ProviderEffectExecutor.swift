@@ -6,6 +6,7 @@ import ProviderGatewayKit
 import RetryPolicyKit
 import StreamReleaseKit
 import ToolRegistryKit
+import VerifiedCallKit
 
 /// Performs the actual provider call, under the retry policy, inside the idempotency guard — and,
 /// when the model asks for one, the tool round trip that turns its request into prose.
@@ -34,6 +35,13 @@ actor ProviderEffectExecutor: EffectExecuting {
     private var deltas = 0
     private var lastProviderError: ProviderError?
     private var toolStages: [StageRecord] = []
+    /// Asks, before each resend, whether the failed attempt had already been billed.
+    private let verifier = InDoubtVerification.caller()
+    private var verification = InDoubtVerification.Summary()
+    /// What the current attempt received: fragments and tool-call hops, and the text so far.
+    private var attemptEvidence = 0
+    private var attemptText = ""
+    private var lastAttemptError: (any Error)?
 
     init(
         provider: OpenRouterProvider,
@@ -75,6 +83,9 @@ actor ProviderEffectExecutor: EffectExecuting {
     /// cannot tell a rate limit from a dead socket, and every failure becomes the same banner.
     func providerFailure() -> ProviderError? { lastProviderError }
 
+    /// What the in-doubt check saw across this turn's attempts.
+    func verificationSummary() -> InDoubtVerification.Summary { verification }
+
     func perform(_ payload: EffectPayload) async throws -> EffectResult {
         try await run()
     }
@@ -82,33 +93,76 @@ actor ProviderEffectExecutor: EffectExecuting {
     private func run() async throws -> EffectResult {
         while true {
             attempts += 1
-            do {
-                let body = try await runTurn()
+            let outcome = await verifier.execute(attemptEffect())
+            if case .succeeded(let body) = outcome.resolution {
                 await flushRelease()
                 return EffectResult(body: body, metadata: ["attempts": "\(attempts)"])
-            } catch {
-                let hint = Self.retryHint(for: error)
-                switch retryPolicy.decision(forAttempt: attempts, retryAfterHint: hint) {
-                case let .retry(after):
-                    // The provider said "slow down"; honour it rather than hammering.
-                    try? await Task.sleep(nanoseconds: UInt64(max(0, after) * 1_000_000_000))
-                case .giveUp:
-                    // Classify before rethrowing. `IdempotencyGuard` freezes the key on an
-                    // unclassified error, on the reasoning that the effect *might* have applied.
-                    // For these it provably did not — a 429, a rejected key or a timeout before
-                    // any bytes were accepted means nothing was charged — so the key must stay
-                    // free or the user could never retry this exact message again.
-                    if let providerError = error as? ProviderError {
-                        lastProviderError = providerError
-                        throw EffectFailure(
-                            reason: "\(providerError)",
-                            mode: Self.failureMode(for: providerError)
-                        )
-                    }
-                    throw error
+            }
+            let error = lastAttemptError ?? CancellationError()
+            if case .recovered = outcome.resolution {
+                // Part of the answer had arrived, so this attempt was billed. Resending it would pay
+                // for the answer twice without asking; the user decides instead.
+                verification.stop = InDoubtVerification.Stop(
+                    attempt: attempts,
+                    evidence: attemptEvidence,
+                    cause: "\(error)"
+                )
+                throw EffectFailure(
+                    reason: "attempt \(attempts) was billed and lost its answer: \(error)",
+                    mode: .indeterminate
+                )
+            }
+            verification.absorb(outcome.attempts.last?.verdict)
+            let hint = Self.retryHint(for: error)
+            switch retryPolicy.decision(forAttempt: attempts, retryAfterHint: hint) {
+            case let .retry(after):
+                // The provider said "slow down"; honour it rather than hammering.
+                try? await Task.sleep(nanoseconds: UInt64(max(0, after) * 1_000_000_000))
+            case .giveUp:
+                // Classify before rethrowing. `IdempotencyGuard` freezes the key on an
+                // unclassified error, on the reasoning that the effect *might* have applied.
+                // For these it provably did not — a 429, a rejected key or a timeout before
+                // any bytes were accepted means nothing was charged — so the key must stay
+                // free or the user could never retry this exact message again.
+                if let providerError = error as? ProviderError {
+                    lastProviderError = providerError
+                    throw EffectFailure(
+                        reason: "\(providerError)",
+                        mode: Self.failureMode(for: providerError)
+                    )
                 }
+                throw error
             }
         }
+    }
+
+    /// One attempt as `VerifiedCaller` sees it: the whole turn, and a probe that reads what the
+    /// attempt received. Fragments or a tool-call hop mean OpenRouter did the work and billed it.
+    /// Nothing received means nothing to look up, so the probe says it cannot answer rather than
+    /// claiming the attempt did nothing.
+    private func attemptEffect() -> ClosureEffect<String> {
+        ClosureEffect(
+            key: "attempt-\(attempts)",
+            perform: { _ in try await self.attemptTurn() },
+            probe: { _ in try await self.attemptReading() }
+        )
+    }
+
+    private func attemptTurn() async throws -> String {
+        attemptEvidence = 0
+        attemptText = ""
+        lastAttemptError = nil
+        do {
+            return try await runTurn()
+        } catch {
+            lastAttemptError = error
+            throw error
+        }
+    }
+
+    private func attemptReading() throws -> ProbeReading<String> {
+        guard attemptEvidence > 0 else { throw InDoubtVerification.NoLookup() }
+        return .applied(attemptText)
     }
 
     /// Whether the effect provably did not happen.
@@ -207,12 +261,15 @@ extension ProviderEffectExecutor {
             switch event {
             case let .textDelta(fragment):
                 deltas += 1
+                attemptEvidence += 1
+                attemptText += fragment
                 raw += fragment
                 assembled += fragment
                 await emit(fragment)
             case let .completed(response):
                 return .text(response.text.isEmpty ? raw : response.text, raw: raw)
             case let .toolCallRequested(call):
+                attemptEvidence += 1
                 return .toolCall(call, raw: raw)
             }
         }
@@ -265,24 +322,6 @@ extension ProviderEffectExecutor {
         )
         state.loopWatch.absorb(verdict)
         return ToolLoopWatch.observation(observation, after: verdict)
-    }
-
-    /// Re-encodes the gateway's parsed arguments as the raw JSON bytes `ToolRegistryKit` wants.
-    ///
-    /// `ToolRegistryKit.ToolCallRequest` takes `argumentsJSON: Data`; ProviderGatewayKit's
-    /// same-named type takes a parsed dictionary. The two are different types with the same name
-    /// from two linked packages, which is why every mention of either is qualified.
-    static func argumentsJSON(_ arguments: [String: LLMToolArgumentValue]) -> Data {
-        let json = OpenRouterJSON.object(arguments.mapValues(OpenRouterJSON.init))
-        return (try? JSONEncoder().encode(json)) ?? Data("{}".utf8)
-    }
-
-    static func unwiredRecords(for toolName: String) -> [StageRecord] {
-        let reason = "\(toolName) was requested but no tool registry is configured"
-        return [
-            StageRecord(stage: .toolAuthority, outcome: .skipped(reason: reason), durationMs: 0),
-            StageRecord(stage: .toolDispatch, outcome: .skipped(reason: reason), durationMs: 0)
-        ]
     }
 }
 
@@ -412,41 +451,6 @@ extension ProviderEffectExecutor {
         case let .toolDispatchFailed(error):
             return .failed(message: error.description)
         }
-    }
-
-    static func toolNames(in transcript: AgentTranscript) -> [String] {
-        transcript.steps.compactMap { step in
-            guard case let .toolCall(request)? = step.decision else { return nil }
-            return request.toolName
-        }
-    }
-
-    /// Records the three tool stages for a turn that never reached the network, so a replayed send
-    /// reads as "not repeated" rather than as three silently unwired packages.
-    static func replayedRecords() -> [StageRecord] {
-        let reason = "replayed an earlier result; the tool round trip was not repeated"
-        return [PipelineStage.toolAuthority, .toolDispatch, .agentLoop].map {
-            StageRecord(stage: $0, outcome: .skipped(reason: reason), durationMs: 0)
-        } + [
-            StageRecord(
-                stage: .loopGuard,
-                outcome: .skipped(reason: ToolLoopWatch.replayReason),
-                durationMs: 0
-            )
-        ] + StructuralToolSkips.records
-    }
-
-    /// Records the two dispatch-side stages for a turn where no tool call was made.
-    ///
-    /// `.noOp` when tools were offered and the model chose not to use one — the common path for
-    /// ordinary chat. `.skipped` when there was nothing to offer, which is a different fact.
-    static func untouchedRecords(toolsAvailable: Bool) -> [StageRecord] {
-        let outcome: StageOutcome = toolsAvailable
-            ? .noOp(reason: "model requested no tools")
-            : .skipped(reason: "no tools registered for this conversation")
-        return [PipelineStage.toolAuthority, PipelineStage.toolDispatch].map {
-            StageRecord(stage: $0, outcome: outcome, durationMs: 0)
-        } + StructuralToolSkips.records
     }
 }
 

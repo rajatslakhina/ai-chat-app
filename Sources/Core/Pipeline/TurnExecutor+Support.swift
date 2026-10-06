@@ -42,11 +42,20 @@ extension TurnExecutor {
             )
         } catch let error as IdempotencyError {
             trace.record(.streamRelease, LiveStreamRelease.notCalled)
+            trace.record(.verifiedCall, InDoubtVerification.notCalled)
+            if case .indeterminateOutcome = error { resendGenerations[conversationID, default: 0] += 1 }
             let refusal = Self.refusal(for: error)
             trace.record(.idempotencyGuard, .refused(refusal))
             return .stopped(.refused(refusal))
         } catch {
             trace.record(.streamRelease, LiveStreamRelease.discarded)
+            resendGenerations[conversationID, default: 0] += 1
+            let verification = await executor.verificationSummary()
+            trace.record(.verifiedCall, InDoubtVerification.outcome(for: verification))
+            if let stop = verification.stop {
+                trace.record(.providerRouting, .failed(message: stop.cause))
+                return .stopped(.refused(InDoubtVerification.refusal(for: stop)))
+            }
             // The guard replaced the executor's error with its own, so ask the executor what
             // really went wrong rather than reporting "indeterminate effect" to a user.
             if let providerError = await executor.providerFailure() {
@@ -111,6 +120,12 @@ extension TurnExecutor {
             attempts > 1
                 ? .ran(detail: "succeeded on attempt \(attempts)")
                 : .noOp(reason: "first attempt succeeded")
+        )
+        trace.record(
+            .verifiedCall,
+            replayed
+                ? InDoubtVerification.replayed
+                : InDoubtVerification.outcome(for: await executor.verificationSummary())
         )
         let deltaCount = await executor.deltaCount()
         trace.record(.providerRouting, .ran(detail: "answered by \(turn.modelID)"))
@@ -372,7 +387,16 @@ extension TurnExecutor {
     }
 
     static func refusal(for error: IdempotencyError) -> Refusal {
-        Refusal(
+        if case .indeterminateOutcome = error {
+            return Refusal(
+                stage: .idempotencyGuard,
+                headline: "An earlier send is unresolved",
+                explanation: "An earlier send of this message failed in a way that may have been billed, "
+                    + "so it was not repeated automatically. Trying again sends it as a new request.",
+                recovery: .retryLater(after: nil)
+            )
+        }
+        return Refusal(
             stage: .idempotencyGuard,
             headline: "Already sending",
             explanation: "This exact message is still in flight; it will not be sent twice.",

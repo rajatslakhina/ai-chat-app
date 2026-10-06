@@ -95,6 +95,10 @@ actor TurnExecutor {
     /// The current turn's tool-activity sink, held for the same reason as `onDeltaSink`.
     var onToolSink: @Sendable (ToolActivity) -> Void = { _ in }
 
+    /// Per conversation, how many provider calls have failed. Part of the idempotency key, so the
+    /// send after a failure is a new request rather than a replay of the failed one. See `execute`.
+    var resendGenerations: [String: Int] = [:]
+
     init(
         provider: OpenRouterProvider,
         idempotency: IdempotencyGuard,
@@ -213,9 +217,14 @@ actor TurnExecutor {
         //    model, same text — so without it the guard replays the blocked turn's stored result
         //    and the tool never runs. Replay is right for a double tap and wrong once a human has
         //    authorized something the previous attempt was not allowed to do.
+        //    The resend generation is part of it for the same reason after a failure. A call that
+        //    failed in doubt freezes its key, and before this a Try again after a timeout walked
+        //    into "Already sending" for a message that was not in flight. A send after a failure
+        //    is the user asking again, not a double tap.
         let approvals = await tools?.approvalGeneration() ?? 0
+        let resends = resendGenerations[conversationID, default: 0]
         let key = IdempotencyKey(
-            "\(conversationID):\(turn.modelID):\(turn.outboundUserText.hashValue):\(approvals)"
+            "\(conversationID):\(turn.modelID):\(turn.outboundUserText.hashValue):\(approvals):\(resends)"
         )
 
         // 2. Workload profile — the shape of this conversation, learned from earlier turns.

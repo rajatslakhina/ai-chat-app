@@ -14,6 +14,9 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         var headers: [String: String] = ["Content-Type": "application/json"]
         var body: Data = Data()
         var error: URLError?
+        /// Delivers the headers and `body`, then fails instead of finishing: a connection that
+        /// dropped while the answer was streaming.
+        var failAfterBody: URLError?
     }
 
     /// Guarded because URLSession invokes protocol instances off the test's thread.
@@ -116,6 +119,13 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         }
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: current.body)
+        if let drop = current.failAfterBody {
+            // A gap first, as on a live connection: URLSession surfaces an error that lands in the
+            // same instant as the bytes before it hands the bytes to the reader.
+            Thread.sleep(forTimeInterval: 0.3)
+            client?.urlProtocol(self, didFailWithError: drop)
+            return
+        }
         client?.urlProtocolDidFinishLoading(self)
     }
 

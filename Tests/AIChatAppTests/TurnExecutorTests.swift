@@ -515,3 +515,186 @@ struct MicrocentsTests {
         #expect(TurnExecutor.microcents(from: 0.000000006) == 1)
     }
 }
+
+// MARK: - Verify before retry
+
+private let droppedStream = """
+data: {"id":"gen-2","model":"openai/gpt-4o","choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}
+
+
+"""
+
+private func sseStub(_ body: String, dropWith drop: URLError? = nil) -> StubURLProtocol.Stub {
+    StubURLProtocol.Stub(
+        statusCode: 200,
+        headers: ["Content-Type": "text/event-stream"],
+        body: Data(body.utf8),
+        failAfterBody: drop
+    )
+}
+
+/// Leaves a key frozen the way an in-doubt failure does.
+private struct InDoubtEffect: EffectExecuting {
+    func perform(_ payload: EffectPayload) async throws -> EffectResult {
+        throw EffectFailure.indeterminate("crashed after sending")
+    }
+}
+
+@Suite("Turn executor — verify before retry", .serialized)
+struct TurnExecutorVerifiedCallTests {
+    @Test("a stream that drops mid-answer is not resent, and the user is told it was billed")
+    func midStreamDropIsNotResent() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.setStubs([sseStub(droppedStream, dropWith: URLError(.networkConnectionLost)), sseStub(successStream)])
+
+        let (result, trace) = await run(harness.executor(maxAttempts: 3))
+
+        guard case let .refused(refusal) = result else {
+            Issue.record("expected a refusal, got \(result)")
+            return
+        }
+        #expect(refusal.stage == .verifiedCall)
+        #expect(refusal.headline == "The connection dropped mid-answer")
+        #expect(refusal.explanation.contains("billed separately"))
+        #expect(refusal.recovery == .retryLater(after: nil))
+        #expect(StubURLProtocol.requestCount == 1, "an attempt that was billed must not be resent silently")
+        #expect(trace.outcome(for: .verifiedCall) == .refused(refusal))
+        if case .failed? = trace.outcome(for: .providerRouting) {} else {
+            Issue.record("providerRouting should record the dropped connection as a failure")
+        }
+    }
+
+    @Test("Try again after a dropped answer sends a new request")
+    func tryAgainAfterDropRunsAgain() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.setStubs([sseStub(droppedStream, dropWith: URLError(.networkConnectionLost)), sseStub(successStream)])
+        let executor = harness.executor(maxAttempts: 3)
+
+        let (first, _) = await run(executor)
+        let (second, _) = await run(executor)
+
+        guard case .refused = first, case let .completed(completion) = second else {
+            Issue.record("expected a refusal then a completion, got \(first) then \(second)")
+            return
+        }
+        #expect(completion.text == "Hi there")
+        #expect(StubURLProtocol.requestCount == 2)
+    }
+
+    /// The bug this stage's wiring found: a timeout froze the idempotency key, and the Try again
+    /// button resent the same key into "Already sending" for a message that was not in flight.
+    @Test("Try again after the retries ran out on a timeout is not a dead end")
+    func tryAgainAfterTimeoutRunsAgain() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.setStubs([StubURLProtocol.Stub(error: URLError(.timedOut)), sseStub(successStream)])
+        let executor = harness.executor(maxAttempts: 1)
+
+        let (first, firstTrace) = await run(executor)
+        let (second, _) = await run(executor)
+
+        guard case let .refused(refusal) = first else {
+            Issue.record("expected the timeout to refuse, got \(first)")
+            return
+        }
+        #expect(refusal.headline == "The model took too long")
+        #expect(firstTrace.outcome(for: .verifiedCall)?.summary.contains("in doubt") == true)
+        guard case let .completed(completion) = second else {
+            Issue.record("Try again should send a new request, got \(second)")
+            return
+        }
+        #expect(completion.text == "Hi there")
+    }
+
+    @Test("a timeout with nothing received is resent, and the trace says it may be billed twice")
+    func emptyTimeoutIsResent() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.setStubs([StubURLProtocol.Stub(error: URLError(.timedOut)), sseStub(successStream)])
+
+        let (result, trace) = await run(harness.executor(maxAttempts: 3))
+
+        guard case let .completed(completion) = result else {
+            Issue.record("expected a completion, got \(result)")
+            return
+        }
+        #expect(completion.attempts == 2)
+        #expect(trace.outcome(for: .verifiedCall) == .ran(
+            detail: "1 failed attempt(s) were in doubt with no response bytes to check, "
+                + "so the retry policy decided; a resend may have been billed twice"
+        ))
+    }
+
+    @Test("a rate limit did no work, so it is resent as before")
+    func rateLimitIsHarmless() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        StubURLProtocol.setStubs([
+            StubURLProtocol.Stub(
+                statusCode: 429,
+                headers: ["Content-Type": "application/json", "Retry-After": "0"],
+                body: Data(OpenRouterTestFixtures.rateLimitedBody.utf8)
+            ),
+            sseStub(successStream)
+        ])
+
+        let (result, trace) = await run(harness.executor(maxAttempts: 3))
+
+        guard case .completed = result else {
+            Issue.record("expected a completion, got \(result)")
+            return
+        }
+        #expect(trace.outcome(for: .verifiedCall) == .ran(
+            detail: "1 failed attempt(s) did no work at OpenRouter; safe to resend"
+        ))
+    }
+
+    @Test("a first-attempt success has nothing to verify, and a replay sent nothing")
+    func successThenReplay() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        stubStream()
+        let executor = harness.executor()
+
+        let (_, firstTrace) = await run(executor)
+        let (_, secondTrace) = await run(executor)
+
+        #expect(firstTrace.outcome(for: .verifiedCall) == .noOp(reason: "no attempt failed; nothing to verify"))
+        #expect(secondTrace.outcome(for: .verifiedCall) == InDoubtVerification.replayed)
+    }
+
+    @Test("a key frozen in doubt gets an honest refusal, and the next send is a new request")
+    func frozenKeyRefusalIsHonest() async throws {
+        let harness = ExecutorHarness()
+        try await harness.registerScopes()
+        let executor = harness.executor()
+        let payload = EffectPayload(
+            action: "chat.completion",
+            fields: ["model": "openai/gpt-4o", "conversation": "conv-1"]
+        )
+        _ = try? await harness.idempotency.execute(
+            key: IdempotencyKey("conv-1:openai/gpt-4o:\("hello".hashValue):0:0"),
+            payload: payload,
+            using: InDoubtEffect()
+        )
+        stubStream()
+
+        let (first, firstTrace) = await run(executor)
+        let (second, _) = await run(executor)
+
+        guard case let .refused(refusal) = first else {
+            Issue.record("expected the frozen key to refuse, got \(first)")
+            return
+        }
+        #expect(refusal.headline == "An earlier send is unresolved")
+        #expect(refusal.recovery == .retryLater(after: nil))
+        #expect(firstTrace.outcome(for: .verifiedCall) == InDoubtVerification.notCalled)
+        guard case .completed = second else {
+            Issue.record("the send after the refusal should be a new request, got \(second)")
+            return
+        }
+    }
+}
+

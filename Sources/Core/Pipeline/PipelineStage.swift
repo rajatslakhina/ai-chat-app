@@ -189,6 +189,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `ToolLoopWatch.swift`: watches one turn's tool hops for a call the model keeps
     /// repeating, nudges it once, and stops the turn before another paid hop if it does not listen.
     case loopGuard
+    /// See `ToolProgressCheck.swift`: when the model answers after tool hops, checks that the
+    /// answer's implied "done" is supported by evidence, i.e. that no tool's latest result broke
+    /// its outcome contract. An unsupported answer still publishes, under a refusal banner.
+    case progressGate
     case batchInference
     /// Recording the finished turn as a golden-case candidate for the eval suite.
     case transcriptCapture

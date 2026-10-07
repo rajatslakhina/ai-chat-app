@@ -207,6 +207,7 @@ extension ProviderEffectExecutor {
         var hops = 0
         let loopGuard = LoopGuard(policy: ToolLoopWatch.policy)
         var loopWatch = ToolLoopWatch.Summary()
+        var progress = ToolProgressCheck.Ledger()
     }
 
     /// One whole turn: the first model call, any tool call it asks for, and the further call that
@@ -296,6 +297,11 @@ extension ProviderEffectExecutor {
             in: context
         )
         toolStages.append(contentsOf: resolution.records)
+        state.progress.absorb(
+            tool: call.toolName,
+            dispatched: resolution.result != nil,
+            keptContract: resolution.keptContract
+        )
         onToolActivity(resolution.activity)
         state.steps.append(
             AgentStep(
@@ -347,6 +353,12 @@ extension ProviderEffectExecutor {
             )
         )
         recordLoopWatch(state.loopWatch)
+        let toolsAvailable = !request.tools.isEmpty
+        recordProgress(
+            settled
+                ? ToolProgressCheck.unanswered(toolsAvailable: toolsAvailable)
+                : ToolProgressCheck.outcome(answeredWith: state.progress, toolsAvailable: toolsAvailable)
+        )
     }
 
     private func recordCap(_ state: inout TurnState) {
@@ -358,6 +370,7 @@ extension ProviderEffectExecutor {
             )
         )
         recordLoopWatch(state.loopWatch)
+        recordUnanswered()
     }
 
     /// The gate declined, or no registry was configured. Neither is a halt reason AgentLoopKit
@@ -375,6 +388,7 @@ extension ProviderEffectExecutor {
             )
         )
         recordLoopWatch(state.loopWatch)
+        recordUnanswered()
     }
 
     /// The loop guard stopped the turn. AgentLoopKit has no halt reason for it (the loop did not
@@ -391,6 +405,7 @@ extension ProviderEffectExecutor {
             )
         )
         recordLoopWatch(state.loopWatch)
+        recordUnanswered()
     }
 
     private func recordLoopWatch(_ summary: ToolLoopWatch.Summary) {
@@ -401,6 +416,14 @@ extension ProviderEffectExecutor {
                 durationMs: 0
             )
         )
+    }
+
+    private func recordUnanswered() {
+        recordProgress(ToolProgressCheck.unanswered(toolsAvailable: !request.tools.isEmpty))
+    }
+
+    private func recordProgress(_ outcome: StageOutcome) {
+        toolStages.append(StageRecord(stage: .progressGate, outcome: outcome, durationMs: 0))
     }
 
     private func record(_ transcript: AgentTranscript) {

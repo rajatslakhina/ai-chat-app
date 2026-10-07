@@ -65,13 +65,35 @@ enum ToolOutcomeCheck {
         _ result: ToolCallResult,
         observation: String,
         monitor: OutcomeMonitor
-    ) async -> (record: StageRecord, observation: String) {
+    ) async -> Checked {
         guard case let .success(value) = result.outcome else {
-            return (skipped("the call returned an error, not a result to check"), observation)
+            return Checked(
+                record: skipped("the call returned an error, not a result to check"),
+                observation: observation,
+                keptContract: nil
+            )
         }
         let inspection = await monitor.inspect(tool: result.toolName, result: rawJSON(value))
-        return (StageRecord(stage: .outcomeMonitor, outcome: outcome(of: inspection), durationMs: 0),
-                inspection.annotate(observation))
+        return Checked(
+            record: StageRecord(stage: .outcomeMonitor, outcome: outcome(of: inspection), durationMs: 0),
+            observation: inspection.annotate(observation),
+            keptContract: keptContract(inspection)
+        )
+    }
+
+    /// One checked result: the stage record, the observation the model reads, and whether the
+    /// result kept its contract (nil when there was no result to check).
+    struct Checked: Sendable {
+        let record: StageRecord
+        let observation: String
+        let keptContract: Bool?
+    }
+
+    /// What the completion check reads: only a broken contract counts against the answer. A tool
+    /// with no contract has nothing to break.
+    static func keptContract(_ inspection: Inspection) -> Bool {
+        guard case .violated = inspection else { return true }
+        return false
     }
 
     static func skipped(_ reason: String) -> StageRecord {

@@ -74,6 +74,13 @@ extension TurnExecutor {
             attempts: attempts,
             trace: &trace
         )
+        // An answer the completion check could not support publishes under a Try again button.
+        // Try again re-sends the same text, and under the same key the guard would replay this very
+        // turn: the stored answer would come back with the check recorded as skipped, so the button
+        // would quietly erase the warning instead of asking again.
+        if case .refused? = trace.outcome(for: .progressGate) {
+            resendGenerations[conversationID, default: 0] += 1
+        }
         return .succeeded(body: outcome.result.body, attempts: attempts)
     }
 

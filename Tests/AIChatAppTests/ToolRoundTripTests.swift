@@ -4,6 +4,7 @@ import CostEstimatorKit
 import Foundation
 import GuardrailKit
 import IdempotencyKit
+import OutcomeMonitorKit
 import PromptTemplateKit
 import ProviderGatewayKit
 import QuotaGovernorKit
@@ -109,7 +110,8 @@ private struct ToolHarness {
 
     init(
         granted: [String] = [DemoTools.calculatorName, DemoTools.clockName],
-        now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 0) }
+        now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 0) },
+        outcomes: OutcomeMonitor = ToolOutcomeCheck.monitor()
     ) async {
         meter = TokenMeter(registry: pricing)
         let registry = ToolRegistryKit.ToolRegistry()
@@ -120,7 +122,8 @@ private struct ToolHarness {
         )
         tools = ToolRoundTrip(
             registry: registry,
-            gate: ToolAuthorityGate(capabilities: ToolAuthorityGate.readOnly(tools: granted))
+            gate: ToolAuthorityGate(capabilities: ToolAuthorityGate.readOnly(tools: granted)),
+            outcomes: outcomes
         )
     }
 
@@ -975,5 +978,140 @@ struct ToolChatSurfaceTests {
         // A cleared call falls back to what already ran rather than erasing the record of it.
         model.apply(.cleared(tool: "get_wether"), to: id)
         #expect(model.bubbles.last?.toolState == .used(["calculator", "current_time"]))
+    }
+}
+
+// MARK: - The completion check
+
+/// The real calculator, held to a contract no answer above ten can keep, so the completion check
+/// has a breach to read without a broken tool.
+private func strictCalculatorMonitor() -> OutcomeMonitor {
+    OutcomeMonitor(contracts: [
+        OutcomeContract(tool: DemoTools.calculatorName, properties: [.range("result", max: 10)]),
+        ToolOutcomeContracts.currentTime
+    ])
+}
+
+@Suite("Tool round trip — the completion check", .serialized)
+struct ToolCompletionCheckTests {
+    private static let supported = "answer supported by evidence: 1 tool result(s), and "
+        + "every tool's latest result kept its outcome contract"
+
+    @Test("an answer after a result that kept its contract is accepted on evidence")
+    func supportedAnswer() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"(3 + 4) * 12"}"#),
+            proseBody("That comes to 84.")
+        ])
+
+        let (result, trace, _) = await run(harness.executor())
+
+        #expect(completedText(result) == "That comes to 84.")
+        #expect(trace.refusal == nil)
+        #expect(trace.outcome(for: .progressGate) == .ran(detail: Self.supported))
+    }
+
+    @Test("an answer that ignores a broken contract still publishes, under a refusal")
+    func unsupportedAnswer() async throws {
+        let harness = await ToolHarness(outcomes: strictCalculatorMonitor())
+        try await harness.registerScopes()
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"(3 + 4) * 12"}"#),
+            proseBody("That comes to 84.")
+        ])
+
+        let (result, trace, _) = await run(harness.executor())
+
+        #expect(completedText(result) == "That comes to 84.", "the model's prose still publishes")
+        #expect(StubURLProtocol.requestCount == 2, "the check costs no extra paid hop")
+        let monitor = try #require(trace.outcome(for: .outcomeMonitor))
+        #expect(monitor.summary.contains("calculator broke"), "the model was handed the receipt first")
+        let refusal = try #require(trace.refusal)
+        #expect(refusal.stage == .progressGate)
+        #expect(refusal.headline == "Answered on an unverified result")
+        #expect(refusal.explanation.hasPrefix("calculator returned a result that broke its check"))
+        #expect(refusal.recoveryTitle == "Try again")
+    }
+
+    @Test("calling the tool again with a result that keeps its contract clears the breach")
+    func breachCleared() async throws {
+        let harness = await ToolHarness(outcomes: strictCalculatorMonitor())
+        try await harness.registerScopes()
+        stubJSON([
+            toolCallBody(id: "call_1", name: "calculator", arguments: #"{"expression":"(3 + 4) * 12"}"#),
+            toolCallBody(id: "call_2", name: "calculator", arguments: #"{"expression":"2 + 3"}"#),
+            proseBody("Five.")
+        ])
+
+        let (result, trace, _) = await run(harness.executor())
+
+        #expect(completedText(result) == "Five.")
+        #expect(trace.refusal == nil)
+        #expect(trace.outcome(for: .progressGate) == .ran(
+            detail: "answer supported by evidence: 2 tool result(s), and every tool's latest result kept "
+                + "its outcome contract"
+        ))
+    }
+
+    @Test("a turn the hop cap stops has no answer, so no completion claim to check")
+    func hopCapHasNoClaim() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON(["1+1", "2+2", "3+3", "4+4"].map {
+            toolCallBody(name: "calculator", arguments: #"{"expression":"\#($0)"}"#)
+        })
+
+        let (_, trace, _) = await run(harness.executor(maxToolHops: 3))
+
+        #expect(trace.outcome(for: .progressGate) == .skipped(reason: ToolProgressCheck.unansweredReason))
+        #expect(trace.refusal?.stage == .agentLoop, "the hop cap's own refusal is the one shown")
+    }
+
+    @Test("a direct answer has no tool evidence to check")
+    func directAnswer() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([proseBody("Hello.")])
+        let (_, trace, _) = await run(harness.executor())
+        #expect(trace.outcome(for: .progressGate)
+            == .noOp(reason: "model answered directly; no tool evidence to check the answer against"))
+    }
+
+    @Test("a conversation with no tools registered records the completion check as skipped")
+    func noTools() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([proseBody("Hello.")])
+        let (_, trace, _) = await run(harness.executor(withTools: false))
+        #expect(trace.outcome(for: .loopGuard) == .skipped(reason: "no tools registered for this conversation"))
+        #expect(trace.outcome(for: .progressGate) == .skipped(reason: "no tools registered for this conversation"))
+    }
+
+    /// Mutation-checked: with the resend-generation bump removed from `callProvider`, the second
+    /// send replays the stored turn, the model is never asked again, and this test fails.
+    @Test("Try again after an unsupported answer asks the model again instead of replaying it")
+    func tryAgainAsksAgain() async throws {
+        let harness = await ToolHarness(outcomes: strictCalculatorMonitor())
+        try await harness.registerScopes()
+        let executor = harness.executor()
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"(3 + 4) * 12"}"#),
+            proseBody("That comes to 84.")
+        ])
+        let (_, first, _) = await run(executor)
+        #expect(first.refusal?.stage == .progressGate)
+
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"2 + 3"}"#),
+            proseBody("Five.")
+        ])
+        let (again, second, _) = await run(executor)
+
+        #expect(StubURLProtocol.requestCount == 2, "the model was asked again, not replayed")
+        #expect(completedText(again) == "Five.")
+        #expect(second.refusal == nil)
+        #expect(second.outcome(for: .idempotencyGuard) == .ran(detail: "first execution under this key"))
     }
 }

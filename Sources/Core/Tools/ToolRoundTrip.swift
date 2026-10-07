@@ -56,6 +56,9 @@ struct ToolCallResolution: Sendable {
     var refusal: Refusal?
     var activity: ToolActivity
     var result: ToolCallResult?
+    /// Whether the result kept its outcome contract; nil when there was no result to check. Read by
+    /// the completion check when the model later answers.
+    var keptContract: Bool?
 }
 
 /// Authorizes a tool call and then dispatches it.
@@ -298,7 +301,8 @@ actor ToolRoundTrip {
             observation: checked.observation,
             refusal: nil,
             activity: Self.activity(for: result),
-            result: result
+            result: result,
+            keptContract: checked.keptContract
         )
     }
 

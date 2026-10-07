@@ -43,6 +43,11 @@ extension ProviderEffectExecutor {
                 stage: .loopGuard,
                 outcome: .skipped(reason: ToolLoopWatch.replayReason),
                 durationMs: 0
+            ),
+            StageRecord(
+                stage: .progressGate,
+                outcome: .skipped(reason: ToolProgressCheck.replayReason),
+                durationMs: 0
             )
         ] + StructuralToolSkips.records
     }

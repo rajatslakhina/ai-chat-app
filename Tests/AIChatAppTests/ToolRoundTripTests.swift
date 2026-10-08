@@ -1,4 +1,5 @@
 import AgentMemoryKit
+import ContentBoundaryKit
 import ContextCompactionKit
 import CostEstimatorKit
 import Foundation
@@ -68,6 +69,13 @@ private func sentMessages(at index: Int) throws -> [[String: Any]] {
     try #require(index < bodies.count, "only \(bodies.count) request(s) were sent")
     let json = try JSONSerialization.jsonObject(with: bodies[index]) as? [String: Any]
     return try #require(json?["messages"] as? [[String: Any]])
+}
+
+/// A sent tool observation read the way `BoundaryPolicy.instruction` tells the model to read it:
+/// host text as is, and each envelope decoded (a datamarked payload has its spaces back).
+private func readable(_ observation: String) -> String {
+    let parsed = EnvelopeParser.parse(observation)
+    return parsed.outside + "\n" + parsed.envelopes.map(\.content).joined(separator: "\n")
 }
 
 private func sentTools(at index: Int) throws -> [[String: Any]] {
@@ -244,6 +252,50 @@ struct ToolRoundTripHappyPathTests {
         let observation = try #require(follow.last?["content"] as? String)
         #expect(observation.contains("\"result\":84"))
         #expect(observation.contains("Tool \"calculator\" returned"))
+    }
+
+    /// The tool result goes back as a user message, so it is framed: the payload inside an envelope
+    /// whose end line it cannot contain, and the system prompt saying how to read one.
+    @Test("a tool turn frames the result it sends back and tells the model how to read it")
+    func toolResultIsFramed() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([
+            toolCallBody(name: "calculator", arguments: #"{"expression":"(3 + 4) * 12"}"#),
+            proseBody("That comes to 84.")
+        ])
+
+        let (result, trace, _) = await run(harness.executor())
+
+        #expect(completedText(result) == "That comes to 84.")
+        let opening = try sentMessages(at: 0)
+        let system = try #require(opening.first?["content"] as? String)
+        #expect(system.hasSuffix(BoundaryPolicy.instruction))
+        let follow = try sentMessages(at: 1)
+        let observation = try #require(follow.last?["content"] as? String)
+        let parsed = EnvelopeParser.parse(observation)
+        let envelope = try #require(parsed.envelopes.first)
+        #expect(envelope.originLabel == "tool:calculator")
+        // AgentLoopKit's encoder does not sort keys, so the order of the two fields varies by process.
+        #expect(envelope.content.contains(#""expression":"(3 + 4) * 12""#))
+        #expect(envelope.content.contains(#""result":84"#))
+        #expect(parsed.issues.isEmpty)
+        #expect(trace.outcome(for: .contentBoundary) == .ran(
+            detail: "tool:calculator framed as datamark(\u{02C6}); nothing structure-shaped in it"
+        ))
+    }
+
+    @Test("a turn with no tools offered sends the system prompt unchanged")
+    func noToolsNoInstruction() async throws {
+        let harness = await ToolHarness()
+        try await harness.registerScopes()
+        stubJSON([proseBody("Hello.")])
+
+        _ = await run(harness.executor(withTools: false))
+
+        let opening = try sentMessages(at: 0)
+        let contents = opening.compactMap { $0["content"] as? String }
+        #expect(!contents.contains { $0.contains(BoundaryPolicy.instruction) })
     }
 
     /// Every hop records its own usage and the last one describes the final prompt, tool result
@@ -537,7 +589,7 @@ struct ToolDispatchOutcomeTests {
         #expect(activity == [.started(tool: "get_wether"), .cleared(tool: "get_wether")])
 
         let observation = try #require(try sentMessages(at: 1).last?["content"] as? String)
-        #expect(observation.contains("no tool named"))
+        #expect(readable(observation).contains("no tool named"))
     }
 
     /// The most common tool-calling failure there is, and it is self-correcting. The validator's
@@ -563,7 +615,7 @@ struct ToolDispatchOutcomeTests {
         #expect(dispatch.summary.contains("$.expression expected string, got number"))
 
         let observation = try #require(try sentMessages(at: 1).last?["content"] as? String)
-        #expect(observation.contains("$.expression expected string, got number"))
+        #expect(readable(observation).contains("$.expression expected string, got number"))
     }
 
     @Test("a required argument the model omitted is reported as missing, not as a crash")
@@ -610,7 +662,7 @@ struct ToolDispatchOutcomeTests {
         // Fed back as well as recorded, so the assistant can explain the outage in its own words
         // rather than leaving the user with an empty bubble.
         let observation = try #require(try sentMessages(at: 1).last?["content"] as? String)
-        #expect(observation.contains("division by zero"))
+        #expect(readable(observation).contains("division by zero"))
     }
 
     /// A model that keeps looking things up has already spent the user's money `maxToolHops` times.

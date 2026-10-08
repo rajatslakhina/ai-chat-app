@@ -319,10 +319,12 @@ extension TurnExecutor {
     /// shape and sending it raw is a 400.
     /// `TurnSettings` clamps both parameters in its own initializer, so the two `precondition`s
     /// inside `LLMRequest.init` — which trap in release — cannot be reached from the slider.
+    /// When tools are offered, the system prompt also says how to read a framed tool result.
     func request(from turn: PreparedTurn) async -> LLMRequest {
-        LLMRequest(
-            messages: turn.messages,
-            tools: await tools?.wireTools() ?? [],
+        let wire = await tools?.wireTools() ?? []
+        return LLMRequest(
+            messages: ToolResultBoundary.instructing(turn.messages, toolsOffered: !wire.isEmpty),
+            tools: wire,
             maxOutputTokens: settings.maxOutputTokens,
             temperature: settings.temperature
         )

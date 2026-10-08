@@ -273,6 +273,9 @@ packages:
   ProgressGateKit:
     url: https://github.com/rajatslakhina/progress-gate-kit
     from: 1.0.0
+  ContentBoundaryKit:
+    url: https://github.com/rajatslakhina/content-boundary-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -501,6 +504,8 @@ targets:
         product: VerifiedCallKit
       - package: ProgressGateKit
         product: ProgressGateKit
+      - package: ContentBoundaryKit
+        product: ContentBoundaryKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -327,7 +327,7 @@ extension ProviderEffectExecutor {
             )
         )
         state.loopWatch.absorb(verdict)
-        return ToolLoopWatch.observation(observation, after: verdict)
+        return ToolLoopWatch.observation(resolution.framedObservation ?? observation, after: verdict)
     }
 }
 

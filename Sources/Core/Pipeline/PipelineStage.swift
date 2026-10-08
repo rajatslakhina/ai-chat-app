@@ -185,6 +185,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `ToolOutcomeCheck.swift`: checks each tool *result* against the tool's outcome
     /// contract, and adds a receipt for the model when one is broken. Never withholds a result.
     case outcomeMonitor
+    /// See `ToolResultBoundary.swift`: frames each tool result the model reads inside a
+    /// ContentBoundaryKit envelope, so the result cannot forge its own end. Fails closed.
+    case contentBoundary
     case agentLoop
     /// See `ToolLoopWatch.swift`: watches one turn's tool hops for a call the model keeps
     /// repeating, nudges it once, and stops the turn before another paid hop if it does not listen.

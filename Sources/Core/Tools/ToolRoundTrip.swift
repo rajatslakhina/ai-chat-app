@@ -1,4 +1,5 @@
 import AgentLoopKit
+import ContentBoundaryKit
 import Foundation
 import OutcomeMonitorKit
 import ProviderGatewayKit
@@ -59,6 +60,10 @@ struct ToolCallResolution: Sendable {
     /// Whether the result kept its outcome contract; nil when there was no result to check. Read by
     /// the completion check when the model later answers.
     var keptContract: Bool?
+    /// `observation` as the model reads it: the tool's payload inside a ContentBoundaryKit envelope.
+    /// Kept apart from `observation` because the loop guard compares results across hops, and a
+    /// fresh envelope id on every hop would make two identical results look different.
+    var framedObservation: String?
 }
 
 /// Authorizes a tool call and then dispatches it.
@@ -71,6 +76,10 @@ actor ToolRoundTrip {
     private let gate: ToolAuthorityGate
     private let strategy: any AgentPromptStrategy
     private let outcomes: OutcomeMonitor
+    private let nonces: @Sendable () -> any NonceSource
+    /// One boundary session per conversation, so an envelope id the model leaks in one hop is
+    /// recognised when a later tool result quotes it back.
+    private var boundaries: [String: BoundarySession] = [:]
 
     /// `DefaultAgentPromptStrategy` formats every observation, success and failure alike. Using
     /// AgentLoopKit's own strategy rather than a hand-rolled string means the error path is worded
@@ -80,12 +89,14 @@ actor ToolRoundTrip {
         registry: ToolRegistryKit.ToolRegistry,
         gate: ToolAuthorityGate,
         strategy: any AgentPromptStrategy = DefaultAgentPromptStrategy(),
-        outcomes: OutcomeMonitor = ToolOutcomeCheck.monitor()
+        outcomes: OutcomeMonitor = ToolOutcomeCheck.monitor(),
+        nonces: @escaping @Sendable () -> any NonceSource = { SystemNonceSource() }
     ) {
         self.registry = registry
         self.gate = gate
         self.strategy = strategy
         self.outcomes = outcomes
+        self.nonces = nonces
     }
 
     /// The `tools` array sent to OpenRouter, in the registry's own stable order.
@@ -103,7 +114,15 @@ actor ToolRoundTrip {
     }
 
     func closeConversation(_ conversationID: String) async {
+        boundaries[conversationID] = nil
         await gate.close(conversationID: conversationID)
+    }
+
+    private func boundary(for conversationID: String) -> BoundarySession {
+        if let existing = boundaries[conversationID] { return existing }
+        let session = BoundarySession(policy: ToolResultBoundary.policy, nonceSource: nonces())
+        boundaries[conversationID] = session
+        return session
     }
 
     // MARK: - Approval
@@ -171,14 +190,20 @@ actor ToolRoundTrip {
                     selection,
                     attribution,
                     Self.record(.toolDispatch, .skipped(reason: "the call was not authorized")),
-                    ToolOutcomeCheck.skipped("the call was not authorized, so nothing returned")
+                    ToolOutcomeCheck.skipped("the call was not authorized, so nothing returned"),
+                    ToolResultBoundary.skipped("the call was not authorized, so there is no result to frame")
                 ] + StructuralToolSkips.records,
                 observation: nil,
                 refusal: authority.refusal,
                 activity: .cleared(tool: toolName)
             )
         }
-        var resolution = await dispatch(id: id, toolName: toolName, argumentsJSON: argumentsJSON)
+        var resolution = await dispatch(
+            id: id,
+            toolName: toolName,
+            argumentsJSON: argumentsJSON,
+            conversationID: context.conversationID
+        )
         resolution.records.insert(contentsOf: [authority.record, selection, attribution], at: 0)
         resolution.records.append(contentsOf: StructuralToolSkips.records)
         return resolution
@@ -259,7 +284,8 @@ actor ToolRoundTrip {
     private func dispatch(
         id: String,
         toolName: String,
-        argumentsJSON: Data
+        argumentsJSON: Data,
+        conversationID: String
     ) async -> ToolCallResolution {
         guard !Task.isCancelled else {
             // `dispatch` catches `CancellationError` with the same `catch` as any other error and
@@ -268,7 +294,8 @@ actor ToolRoundTrip {
             return ToolCallResolution(
                 records: [
                     Self.record(.toolDispatch, .skipped(reason: "the turn was cancelled")),
-                    ToolOutcomeCheck.skipped("the turn was cancelled before the call ran")
+                    ToolOutcomeCheck.skipped("the turn was cancelled before the call ran"),
+                    ToolResultBoundary.skipped("the turn was cancelled before the call ran")
                 ],
                 observation: nil,
                 refusal: nil,
@@ -284,10 +311,13 @@ actor ToolRoundTrip {
             )
         )
         let elapsed = DispatchTime.now().uptimeNanoseconds &- started.uptimeNanoseconds
-        let checked = await ToolOutcomeCheck.check(
-            result,
-            observation: strategy.followUpPrompt(for: result),
-            monitor: outcomes
+        let followUp = strategy.followUpPrompt(for: result)
+        let checked = await ToolOutcomeCheck.check(result, observation: followUp, monitor: outcomes)
+        let framed = await ToolResultBoundary.frame(
+            followUp: followUp,
+            observation: checked.observation,
+            toolName: toolName,
+            session: boundary(for: conversationID)
         )
         return ToolCallResolution(
             records: [
@@ -296,13 +326,15 @@ actor ToolRoundTrip {
                     outcome: Self.outcome(of: result),
                     durationMs: Int(elapsed / 1_000_000)
                 ),
-                checked.record
+                checked.record,
+                framed.record
             ],
             observation: checked.observation,
             refusal: nil,
             activity: Self.activity(for: result),
             result: result,
-            keptContract: checked.keptContract
+            keptContract: checked.keptContract,
+            framedObservation: framed.observation
         )
     }
 

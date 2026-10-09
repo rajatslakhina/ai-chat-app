@@ -276,6 +276,9 @@ packages:
   ContentBoundaryKit:
     url: https://github.com/rajatslakhina/content-boundary-kit
     from: 1.0.0
+  TrajectoryConsistencyKit:
+    url: https://github.com/rajatslakhina/trajectory-consistency-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -506,6 +509,8 @@ targets:
         product: ProgressGateKit
       - package: ContentBoundaryKit
         product: ContentBoundaryKit
+      - package: TrajectoryConsistencyKit
+        product: TrajectoryConsistencyKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -218,7 +218,11 @@ struct AppFallbackTests {
 
         // Authorized on an empty argument string, then rejected by the registry as invalid
         // arguments — which goes back to the model rather than being shown as a failure.
-        #expect(resolution.records.first?.outcome.isRefusal == false)
+        #expect(resolution.records.first(where: { $0.stage == .toolAuthority })?.outcome.isRefusal == false)
+        let canon = resolution.records.first { $0.stage == .trajectoryConsistency }
+        #expect(canon?.outcome == .skipped(
+            reason: "the arguments are not valid UTF-8; authorized and dispatched without canonicalization"
+        ))
         let dispatch = resolution.records.first { $0.stage == .toolDispatch }
         #expect(dispatch?.outcome.isFailure == false, "malformed arguments are model noise")
         #expect(resolution.observation != nil, "the model has to be told what went wrong")

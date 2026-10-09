@@ -173,6 +173,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `ToolRoundTrip+StructuralSkips.swift`: recorded as `.skipped` on every path, with the
     /// reason this app's session shape gives ScopeDriftKit nothing to measure.
     case scopeDrift
+    /// See `ToolCallReplay.swift`: canonicalizes each tool call's arguments before authority and
+    /// dispatch, so a signature survives a respelled resend and a changed one is named.
+    case trajectoryConsistency
     case toolAuthority
     /// See rationale in `PipelineStage+Rationale.swift`.
     case selectionTrust

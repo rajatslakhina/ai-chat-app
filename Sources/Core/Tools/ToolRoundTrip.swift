@@ -161,11 +161,13 @@ actor ToolRoundTrip {
         in context: ToolCallContext
     ) async -> ToolCallResolution {
         let known = await registry.registeredDefinitions.contains { $0.name == toolName }
+        // Canonical before authority: the digest a signature binds to, and the bytes that run,
+        // are the call's values rather than this run's spelling of them.
+        let (canonical, consistency) = await ToolCallReplay.prepare(
+            argumentsJSON, tool: toolName, conversationID: context.conversationID, gate: gate
+        )
         let authority = await authorize(
-            toolName: toolName,
-            argumentsJSON: argumentsJSON,
-            known: known,
-            in: context
+            toolName: toolName, arguments: canonical.text, known: known, in: context
         )
         let selection = await SelectionTrustGate.record(
             for: SelectionTrustGate.read(
@@ -186,6 +188,7 @@ actor ToolRoundTrip {
         guard authority.proceed else {
             return ToolCallResolution(
                 records: [
+                    consistency,
                     authority.record,
                     selection,
                     attribution,
@@ -201,10 +204,10 @@ actor ToolRoundTrip {
         var resolution = await dispatch(
             id: id,
             toolName: toolName,
-            argumentsJSON: argumentsJSON,
+            argumentsJSON: canonical.arguments,
             conversationID: context.conversationID
         )
-        resolution.records.insert(contentsOf: [authority.record, selection, attribution], at: 0)
+        resolution.records.insert(contentsOf: [consistency, authority.record, selection, attribution], at: 0)
         resolution.records.append(contentsOf: StructuralToolSkips.records)
         return resolution
     }
@@ -217,7 +220,7 @@ actor ToolRoundTrip {
 
     private func authorize(
         toolName: String,
-        argumentsJSON: Data,
+        arguments: String,
         known: Bool,
         in context: ToolCallContext
     ) async -> AuthorityStep {
@@ -235,7 +238,6 @@ actor ToolRoundTrip {
                 proceed: true
             )
         }
-        let arguments = String(data: argumentsJSON, encoding: .utf8) ?? ""
         let verdict = await gate.decide(
             tool: toolName,
             arguments: arguments,

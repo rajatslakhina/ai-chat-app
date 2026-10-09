@@ -83,6 +83,11 @@ actor ToolAuthorityGate {
     /// under a fresh id, and this is what recognises it.
     private var signedApprovals: [String: Approval] = [:]
 
+    /// The call the user most recently signed, kept until a proposal with its digest presents the
+    /// signature. While it waits, `ToolCallReplay` can say whether a resend is that call, and the
+    /// approval prompt for a resend that is not can say what changed.
+    private var awaitingReplay: ApprovalRequest?
+
     /// `ToolAuthorityKit` never reads a clock — lease boundaries are asserted against a
     /// caller-supplied tick — so the app owns the counter, exactly as it already does for
     /// `QuotaGovernorKit`. One tick per decision.
@@ -147,6 +152,7 @@ actor ToolAuthorityGate {
         // toggle-on round trip silently re-arm an approval the user gave for a different session.
         pendingRequest = nil
         signedApprovals.removeAll()
+        awaitingReplay = nil
     }
 
     var isApprovalRequired: Bool { requiresApproval }
@@ -168,9 +174,16 @@ actor ToolAuthorityGate {
             approver: approver,
             validThroughTick: tick + Self.approvalValidityTicks
         )
+        awaitingReplay = request
         pendingRequest = nil
         approvalGeneration += 1
         return true
+    }
+
+    /// The signed call still waiting for its resend in this conversation, if there is one.
+    func signedCallAwaitingReplay(conversationID: String) -> ApprovalRequest? {
+        guard let signed = awaitingReplay, signed.principal == conversationID else { return nil }
+        return signed
     }
 
     /// How many signatures the user has given, ever.
@@ -214,6 +227,7 @@ actor ToolAuthorityGate {
             // the system broke when all they did was approve once and ask twice. Take-once here
             // mirrors spend-once there.
             let approval = signedApprovals.removeValue(forKey: proposal.digest)
+            if awaitingReplay?.digest == proposal.digest { awaitingReplay = nil }
             let decision = try await broker.authorize(proposal, at: tick, approval: approval)
             return verdict(for: decision, tool: tool)
         } catch {
@@ -296,12 +310,14 @@ actor ToolAuthorityGate {
             )
         case let .approvalRequired(request):
             pendingRequest = request
+            let changed = awaitingReplay.flatMap { ToolCallReplay.difference(signed: $0, proposed: request) }
             return .approvalRequired(
                 Refusal(
                     stage: .toolAuthority,
                     headline: "Approval needed",
                     explanation: "The assistant wants to run \(request.tool) "
-                        + "on \(request.resource) with arguments \(request.arguments).",
+                        + "on \(request.resource) with arguments \(request.arguments)."
+                        + (changed.map { " " + $0 } ?? ""),
                     recovery: .approveTool(name: tool)
                 )
             )

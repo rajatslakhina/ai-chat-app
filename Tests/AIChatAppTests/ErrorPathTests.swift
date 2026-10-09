@@ -570,7 +570,7 @@ struct ToolAuthorityEdgeTests {
 
         #expect(resolution.observation == nil)
         #expect(resolution.refusal == nil, "a failure is not a refusal and must not be dressed as one")
-        #expect(resolution.records.first?.outcome.isFailure == true)
+        #expect(resolution.records.first(where: { $0.stage == .toolAuthority })?.outcome.isFailure == true)
         #expect(await round.statistics().totalCalls == 0, "the registry must never be reached")
     }
 

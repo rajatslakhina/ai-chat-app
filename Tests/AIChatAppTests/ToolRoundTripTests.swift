@@ -505,7 +505,7 @@ struct ToolAuthorityRoundTripTests {
         #expect(refusal.recovery == .approveTool(name: "calculator"))
         #expect(resolution.observation == nil, "nothing ran, so there is nothing to report back")
         #expect(
-            resolution.records.first?.outcome == .refused(refusal),
+            resolution.records.first(where: { $0.stage == .toolAuthority })?.outcome == .refused(refusal),
             "the trace finds a refusal by scanning for .refused, so .ran stopped the turn silently"
         )
         let statistics = await roundTrip.statistics()

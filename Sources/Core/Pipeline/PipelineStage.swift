@@ -9,6 +9,9 @@ import Foundation
 enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     // Before the model sees anything
     case promptTemplate
+    /// See `PreModelPipeline+HiddenText.swift`: invisible Unicode a person cannot see and a model
+    /// reads, removed from the message and the history before the guardrail screens either.
+    case hiddenTextInput
     case guardrailInput
     /// See rationale in `PreModelPipeline+FleetRollout.swift`.
     case fleetRollout
@@ -204,6 +207,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case transcriptCapture
 
     // Accounting for what happened
+    /// See `PostModelPipeline+HiddenText.swift`: the same, for the answer, before it is shown,
+    /// cached, titled or written to the history every later turn re-sends.
+    case hiddenTextOutput
     case guardrailOutput
     case metering
     case budgetSettle

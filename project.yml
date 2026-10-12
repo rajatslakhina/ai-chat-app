@@ -279,6 +279,9 @@ packages:
   TrajectoryConsistencyKit:
     url: https://github.com/rajatslakhina/trajectory-consistency-kit
     from: 1.0.0
+  HiddenTextKit:
+    url: https://github.com/rajatslakhina/hidden-text-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -511,6 +514,8 @@ targets:
         product: ContentBoundaryKit
       - package: TrajectoryConsistencyKit
         product: TrajectoryConsistencyKit
+      - package: HiddenTextKit
+        product: HiddenTextKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

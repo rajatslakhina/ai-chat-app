@@ -99,16 +99,18 @@ actor PostModelPipeline {
             attributes: ["sources": "\(sources.count)"]
         )
 
-        // 1. Output guardrail — the model can emit PII the user never typed.
+        // 1. Hidden text, then the output guardrail — the model can emit PII the user never typed,
+        // and invisible runs that would split a PII match or ride along into the history.
         //
         // A `switch` rather than `guard case`: `ScreenOutcome` has exactly two cases, and the
         // `guard`-shaped version needed a second `guard` whose else-branch no answer could reach.
         var text: String
         var modified: Bool
-        switch await screenOutput(answer, trace: &trace) {
+        let unhidden = Self.removeHiddenText(fromAnswer: answer, trace: &trace)
+        switch await screenOutput(unhidden.text, trace: &trace) {
         case let .passed(screened, wasRedacted):
             text = screened
-            modified = wasRedacted
+            modified = wasRedacted || unhidden.modified
         case let .refused(refusal):
             await close(spanID, status: .error(refusal.explanation), trace: &trace)
             return AnswerReview(

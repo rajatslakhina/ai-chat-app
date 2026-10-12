@@ -145,11 +145,12 @@ actor PreModelPipeline {
         trace: inout PipelineTrace
     ) async -> TurnPreparation {
         let systemPrompt = await renderTemplate(trace: &trace)
+        let unhidden = Self.removeHiddenText(from: userText, history: history, trace: &trace)
 
         // A `switch` rather than `guard case`: `ScreenResult` has exactly two cases, and the
         // `guard`-shaped version needed a second `guard` whose else-branch no input could reach.
         let outbound: String
-        switch await screenInput(userText, trace: &trace) {
+        switch await screenInput(unhidden.userText, trace: &trace) {
         case let .allowed(text): outbound = text
         case let .refused(refusal): return .refused(refusal)
         }
@@ -180,7 +181,7 @@ actor PreModelPipeline {
             systemPrompt: systemPrompt,
             memoryBlock: memoryBlock,
             retrievalBlock: retrievalBlock,
-            history: history,
+            history: unhidden.history,
             userText: outbound
         )
         let (finalMessages, didCompact) = await compactIfNeeded(assembled, trace: &trace)

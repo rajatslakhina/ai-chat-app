@@ -156,6 +156,7 @@ final class ChatViewModel {
         let preparation = await pipeline.prepare(
             userText: text,
             history: priorHistory,
+            conversationID: conversationID,
             trace: &freshTrace
         )
         trace = freshTrace
@@ -247,6 +248,7 @@ final class ChatViewModel {
         let reviewed = await review.review(
             answer: completion.text,
             sources: turn.sources,
+            conversationID: conversationID,
             trace: &freshTrace
         )
         trace = freshTrace

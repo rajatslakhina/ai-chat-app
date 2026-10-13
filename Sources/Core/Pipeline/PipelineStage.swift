@@ -26,6 +26,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// Whether the passages that survived fusion agree with each other.
     case sourceConflict
     case contextCompaction
+    /// See `PreModelPipeline+SessionMask.swift`: one token per sensitive value for the whole
+    /// conversation, on every message about to be sent, so the history stops re-sending values the
+    /// guardrail redacted when they were typed.
+    case sessionMask
     /// See rationale in `PreModelPipeline+ToolIntegrity.swift`.
     case toolIntegrity
 
@@ -210,6 +214,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+HiddenText.swift`: the same, for the answer, before it is shown,
     /// cached, titled or written to the history every later turn re-sends.
     case hiddenTextOutput
+    /// See `PostModelPipeline+SessionMask.swift`: the answer's session tokens turned back into
+    /// values just before the output guardrail screens them.
+    case sessionRestore
     case guardrailOutput
     case metering
     case budgetSettle

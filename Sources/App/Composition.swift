@@ -58,7 +58,9 @@ struct Composition: Sendable {
         )
 
         let effort = ReasoningEffortBox()
-        let pipeline = await makePipeline(configuration: configuration)
+        // One store for both halves: the pre-model stage mints tokens, the review restores them.
+        let masks = SessionMasks()
+        let pipeline = await makePipeline(configuration: configuration, masks: masks)
         let scopes = BudgetScopes(
             account: ScopeID("account"),
             conversation: ScopeID("conversation")
@@ -89,7 +91,7 @@ struct Composition: Sendable {
         return Composition(
             pipeline: pipeline,
             executor: executor,
-            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy())),
+            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy()), masks: masks),
             usage: usage,
             meter: meter,
             registry: registry,
@@ -245,7 +247,8 @@ struct Composition: Sendable {
 
     /// The pre-model half of the graph, with its corpus, prompt and routing table seeded.
     private static func makePipeline(
-        configuration: OpenRouterConfiguration? = nil
+        configuration: OpenRouterConfiguration? = nil,
+        masks: SessionMasks
     ) async -> PreModelPipeline {
         let retriever = Retriever(embedder: makeEmbedder(configuration: configuration))
         for document in AppKnowledge.retrievalDocuments {
@@ -273,7 +276,8 @@ struct Composition: Sendable {
             memory: MemoryStore(),
             retriever: retriever,
             lexical: lexical,
-            compactor: ContextCompactor(strategies: [SlidingWindowCompactionStrategy()])
+            compactor: ContextCompactor(strategies: [SlidingWindowCompactionStrategy()]),
+            masks: masks
         )
     }
 

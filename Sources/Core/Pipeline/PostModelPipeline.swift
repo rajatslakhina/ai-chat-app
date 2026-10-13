@@ -46,6 +46,9 @@ actor PostModelPipeline {
     /// which is what makes the refusals recorded pre-model countable against something.
     /// Internal for the same reason as `calibration` above.
     let censoring: FeedbackLedger?
+    /// The same store `PreModelPipeline` masks with. Internal because the restore stage lives in
+    /// `PostModelPipeline+SessionMask.swift`.
+    let masks: SessionMasks
     private var tick = 0
     /// Spans this pipeline has closed. Counted here rather than read back from `Tracer`, whose
     /// only accessor wants a root id we do not hold — inventing one would report zero forever.
@@ -57,7 +60,8 @@ actor PostModelPipeline {
         consistencyChecker: ConsistencyChecker? = try? ConsistencyChecker(),
         tracer: Tracer = Tracer(),
         calibration: CalibrationStore = ConformalLedger.shared,
-        censoring: FeedbackLedger? = CensoringLedger.shared
+        censoring: FeedbackLedger? = CensoringLedger.shared,
+        masks: SessionMasks = SessionMasks()
     ) {
         self.guardrail = guardrail
         self.verifier = verifier
@@ -65,6 +69,7 @@ actor PostModelPipeline {
         self.tracer = tracer
         self.calibration = calibration
         self.censoring = censoring
+        self.masks = masks
     }
 
     /// Internal for the same reason as `consistencyChecker` — the stages that need a tick
@@ -82,9 +87,10 @@ actor PostModelPipeline {
     func review(
         answer: String,
         sources: [RetrievedSource],
+        conversationID: String = SessionMasks.defaultConversation,
         trace: inout PipelineTrace
     ) async -> AnswerReview {
-        let review = await verify(answer: answer, sources: sources, trace: &trace)
+        let review = await verify(answer: answer, sources: sources, in: conversationID, trace: &trace)
         await label(trace: &trace)
         return review
     }
@@ -92,6 +98,7 @@ actor PostModelPipeline {
     private func verify(
         answer: String,
         sources: [RetrievedSource],
+        in conversationID: String,
         trace: inout PipelineTrace
     ) async -> AnswerReview {
         let spanID = await tracer.startSpan(
@@ -107,10 +114,11 @@ actor PostModelPipeline {
         var text: String
         var modified: Bool
         let unhidden = Self.removeHiddenText(fromAnswer: answer, trace: &trace)
-        switch await screenOutput(unhidden.text, trace: &trace) {
+        let restored = await restoreSessionTokens(unhidden.text, for: conversationID, trace: &trace)
+        switch await screenOutput(restored, trace: &trace) {
         case let .passed(screened, wasRedacted):
             text = screened
-            modified = wasRedacted || unhidden.modified
+            modified = wasRedacted || unhidden.modified || restored != unhidden.text
         case let .refused(refusal):
             await close(spanID, status: .error(refusal.explanation), trace: &trace)
             return AnswerReview(

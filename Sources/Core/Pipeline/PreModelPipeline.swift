@@ -47,7 +47,8 @@ struct PipelineSettings: Sendable, Equatable {
 /// opposite order lets retrieval push the conversation over the window and get it silently
 /// truncated afterwards.
 actor PreModelPipeline {
-    private let prompts: PromptRegistry
+    /// Internal rather than private: `renderTemplate` lives in `PreModelPipeline+Assembly.swift`.
+    let prompts: PromptRegistry
     private let guardrail: GuardrailPipeline
     private let router: SemanticRouter
     let cache: ResponseCache
@@ -89,6 +90,9 @@ actor PreModelPipeline {
     /// The exploration budget. Optional and injected exactly as `censoring` is, so two tests
     /// cannot spend each other's.
     let exploration: ExplorationChannel?
+    /// One session vault per conversation. Injected so two tests cannot share each other's
+    /// tokens; the composition root hands the same store to `PostModelPipeline`, which restores.
+    let masks: SessionMasks
     var settings: PipelineSettings
 
     init(
@@ -111,6 +115,7 @@ actor PreModelPipeline {
         calibration: CalibrationStore = ConformalLedger.shared,
         censoring: FeedbackLedger? = CensoringLedger.shared,
         exploration: ExplorationChannel? = ExplorationBudget.shared,
+        masks: SessionMasks = SessionMasks(),
         settings: PipelineSettings = PipelineSettings()
     ) {
         self.prompts = prompts
@@ -127,6 +132,7 @@ actor PreModelPipeline {
         self.calibration = calibration
         self.censoring = censoring
         self.exploration = exploration
+        self.masks = masks
         self.settings = settings
     }
 
@@ -142,6 +148,7 @@ actor PreModelPipeline {
     func prepare(
         userText: String,
         history: [ConversationMessage],
+        conversationID: String = SessionMasks.defaultConversation,
         trace: inout PipelineTrace
     ) async -> TurnPreparation {
         let systemPrompt = await renderTemplate(trace: &trace)
@@ -184,7 +191,8 @@ actor PreModelPipeline {
             history: unhidden.history,
             userText: outbound
         )
-        let (finalMessages, didCompact) = await compactIfNeeded(assembled, trace: &trace)
+        let (compacted, didCompact) = await compactIfNeeded(assembled, trace: &trace)
+        let finalMessages = await maskSession(compacted, conversationID: conversationID, trace: &trace)
 
         // After compaction on purpose: the gate should judge the evidence the model will
         // actually receive, not the evidence retrieval happened to find.
@@ -207,24 +215,6 @@ actor PreModelPipeline {
     }
 
     // MARK: - Stages
-
-    /// The system block, versioned and rolled back independently of code.
-    private func renderTemplate(trace: inout PipelineTrace) async -> String {
-        do {
-            let rendered = try await prompts.render(
-                name: settings.promptName,
-                variables: ["locale": Locale.current.identifier]
-            )
-            let version = try await prompts.activeVersion(name: settings.promptName)
-            trace.record(.promptTemplate, .ran(detail: "\(settings.promptName) v\(version.id)"))
-            return rendered
-        } catch {
-            // A missing template is a config error, not something a user can fix — but the turn
-            // can still proceed without a system block, so this degrades rather than refuses.
-            trace.record(.promptTemplate, .failed(message: "\(error)"))
-            return ""
-        }
-    }
 
     private enum ScreenResult {
         case allowed(String)

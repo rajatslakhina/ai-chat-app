@@ -49,9 +49,9 @@ struct PipelineStageTests {
             "LoopGuardKit",
             "HedgedRequestKit", "ModelCascadeKit", "StreamReleaseKit", "OutcomeMonitorKit",
             "VerifiedCallKit", "ProgressGateKit", "ContentBoundaryKit", "TrajectoryConsistencyKit",
-            "HiddenTextKit"
+            "HiddenTextKit", "SessionMaskKit"
         ]
-        #expect(expected.count == 87)
+        #expect(expected.count == 88)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")
@@ -68,6 +68,7 @@ struct PipelineStageTests {
         #expect(PipelineStage.guardrailInput.package == PipelineStage.guardrailOutput.package)
         #expect(PipelineStage.budgetReserve.package == PipelineStage.budgetSettle.package)
         #expect(PipelineStage.hiddenTextInput.package == PipelineStage.hiddenTextOutput.package)
+        #expect(PipelineStage.sessionMask.package == PipelineStage.sessionRestore.package)
     }
 }
 

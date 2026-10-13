@@ -28,6 +28,24 @@ extension PreModelPipeline {
         )
     }
 
+    /// The system block, versioned and rolled back independently of code.
+    func renderTemplate(trace: inout PipelineTrace) async -> String {
+        do {
+            let rendered = try await prompts.render(
+                name: settings.promptName,
+                variables: ["locale": Locale.current.identifier]
+            )
+            let version = try await prompts.activeVersion(name: settings.promptName)
+            trace.record(.promptTemplate, .ran(detail: "\(settings.promptName) v\(version.id)"))
+            return rendered
+        } catch {
+            // A missing template is a config error, not something a user can fix — but the turn
+            // can still proceed without a system block, so this degrades rather than refuses.
+            trace.record(.promptTemplate, .failed(message: "\(error)"))
+            return ""
+        }
+    }
+
     func assemble(
         systemPrompt: String,
         memoryBlock: String,

@@ -179,7 +179,8 @@ struct SessionMaskOutputTests {
         #expect(trace.outcome(for: .sessionRestore) == .ran(detail: "restored 1 token(s) for the output guardrail to screen"))
         let stages = trace.records.map(\.stage)
         let restore = try #require(stages.firstIndex(of: .sessionRestore))
-        #expect(stages[restore - 1] == .hiddenTextOutput)
+        #expect(stages[restore - 1] == .linkEgress)
+        #expect(stages[restore - 2] == .hiddenTextOutput)
         #expect(stages[restore + 1] == .guardrailOutput)
     }
 

@@ -249,6 +249,7 @@ final class ChatViewModel {
             answer: completion.text,
             sources: turn.sources,
             conversationID: conversationID,
+            messages: turn.messages,
             trace: &freshTrace
         )
         trace = freshTrace

@@ -214,6 +214,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+HiddenText.swift`: the same, for the answer, before it is shown,
     /// cached, titled or written to the history every later turn re-sends.
     case hiddenTextOutput
+    /// See `PostModelPipeline+LinkEgress.swift`: every link the answer writes, judged for where it
+    /// goes and what it carries before the session tokens in it are restored into real values.
+    case linkEgress
     /// See `PostModelPipeline+SessionMask.swift`: the answer's session tokens turned back into
     /// values just before the output guardrail screens them.
     case sessionRestore

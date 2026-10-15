@@ -5,6 +5,8 @@ import ConformalGateKit
 import Foundation
 import GroundingKit
 import GuardrailKit
+import LinkEgressKit
+import ProviderGatewayKit
 import TraceKit
 
 /// What the post-model stages decided about an answer.
@@ -84,13 +86,20 @@ actor PostModelPipeline {
     /// `sources` are the passages retrieval injected. When there are none, grounding is skipped
     /// rather than run against nothing — an answer with no sources to check is not "ungrounded",
     /// it is unchecked, and reporting 0% grounded would be a claim the app cannot support.
+    ///
+    /// `messages` are what the model was sent this turn. The link check reads them as the text an
+    /// exfiltrating URL would carry; without them it still checks schemes, hosts and session tokens.
     func review(
         answer: String,
         sources: [RetrievedSource],
         conversationID: String = SessionMasks.defaultConversation,
+        messages: [LLMMessage] = [],
         trace: inout PipelineTrace
     ) async -> AnswerReview {
-        let review = await verify(answer: answer, sources: sources, in: conversationID, trace: &trace)
+        let context = await linkContext(conversationID: conversationID, messages: messages, sources: sources)
+        let review = await verify(
+            answer: answer, sources: sources, in: conversationID, links: context, trace: &trace
+        )
         await label(trace: &trace)
         return review
     }
@@ -99,6 +108,7 @@ actor PostModelPipeline {
         answer: String,
         sources: [RetrievedSource],
         in conversationID: String,
+        links: EgressContext,
         trace: inout PipelineTrace
     ) async -> AnswerReview {
         let spanID = await tracer.startSpan(
@@ -114,11 +124,12 @@ actor PostModelPipeline {
         var text: String
         var modified: Bool
         let unhidden = Self.removeHiddenText(fromAnswer: answer, trace: &trace)
-        let restored = await restoreSessionTokens(unhidden.text, for: conversationID, trace: &trace)
+        let checked = Self.checkLinks(unhidden.text, context: links, trace: &trace)
+        let restored = await restoreSessionTokens(checked.text, for: conversationID, trace: &trace)
         switch await screenOutput(restored, trace: &trace) {
         case let .passed(screened, wasRedacted):
             text = screened
-            modified = wasRedacted || unhidden.modified || restored != unhidden.text
+            modified = wasRedacted || unhidden.modified || checked.modified || restored != checked.text
         case let .refused(refusal):
             await close(spanID, status: .error(refusal.explanation), trace: &trace)
             return AnswerReview(

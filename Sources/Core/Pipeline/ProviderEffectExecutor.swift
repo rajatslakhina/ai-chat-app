@@ -1,4 +1,5 @@
 import AgentLoopKit
+import DegenerationGuardKit
 import Foundation
 import IdempotencyKit
 import LoopGuardKit
@@ -32,6 +33,8 @@ actor ProviderEffectExecutor: EffectExecuting {
     /// A fresh gate per attempt: text a failed attempt was still holding back is never shown.
     private var releaseGate: ReleaseGate?
     private var releaseStats: ReleaseStats?
+    /// One loop monitor per model call; this is what they saw during the current attempt.
+    private var degeneration = LiveDegenerationGuard.Summary()
     private var deltas = 0
     private var lastProviderError: ProviderError?
     private var toolStages: [StageRecord] = []
@@ -73,6 +76,7 @@ actor ProviderEffectExecutor: EffectExecuting {
 
     /// What the live-stream gate did on the attempt that succeeded. Nil when no gate ran.
     func liveReleaseStats() -> ReleaseStats? { releaseStats }
+    func degenerationSummary() -> LiveDegenerationGuard.Summary { degeneration }
 
     /// What the tool stages did, for the caller to fold into the `PipelineTrace`. Empty when the
     /// effect never ran, which is exactly what a replayed turn looks like.
@@ -164,29 +168,6 @@ actor ProviderEffectExecutor: EffectExecuting {
         guard attemptEvidence > 0 else { throw InDoubtVerification.NoLookup() }
         return .applied(attemptText)
     }
-
-    /// Whether the effect provably did not happen.
-    ///
-    /// Everything the provider rejects before streaming a byte is `.notApplied`: no tokens were
-    /// billed, so the key is safe to reuse. A connection that dropped mid-stream is the genuinely
-    /// ambiguous case — the upstream may have completed and charged for it — so that one stays
-    /// `.indeterminate` and the guard freezes the key, which is the behaviour it exists for.
-    static func failureMode(for error: ProviderError) -> FailureMode {
-        switch error {
-        case .rateLimited, .capabilityMismatch:
-            return .notApplied
-        case .timeout, .connectionFailed:
-            return .indeterminate
-        }
-    }
-
-    /// Only a rate limit carries a server-supplied delay. Everything else backs off on the
-    /// policy's own schedule.
-    static func retryHint(for error: Error) -> TimeInterval? {
-        guard case let .rateLimited(retryAfter)? = error as? ProviderError,
-              let retryAfter else { return nil }
-        return TimeInterval(retryAfter.components.seconds)
-    }
 }
 
 // MARK: - The tool round trip
@@ -215,6 +196,7 @@ extension ProviderEffectExecutor {
     private func runTurn() async throws -> String {
         toolStages = []
         releaseGate = releaseScanners.map { ReleaseGate(scanners: $0) }
+        degeneration = LiveDegenerationGuard.Summary()
         var state = TurnState(
             messages: request.messages,
             prompt: request.messages.last?.content ?? ""
@@ -258,6 +240,9 @@ extension ProviderEffectExecutor {
             temperature: request.temperature
         )
         var raw = ""
+        let before = assembled
+        var monitor = DegenerationMonitor(policy: LiveDegenerationGuard.policy)
+        defer { degeneration.absorb(monitor) }
         for try await event in provider.stream(request: hop) {
             switch event {
             case let .textDelta(fragment):
@@ -267,6 +252,13 @@ extension ProviderEffectExecutor {
                 raw += fragment
                 assembled += fragment
                 await emit(fragment)
+                // Leaving the loop ends the iteration, and the provider's `onTermination` cancels
+                // the request: the rest of the loop is never generated.
+                if let finding = monitor.ingest(fragment).finding {
+                    let kept = DegenerationGuard.salvage(raw, keeping: finding).text
+                    assembled = before + kept
+                    return .text(kept, raw: raw)
+                }
             case let .completed(response):
                 return .text(response.text.isEmpty ? raw : response.text, raw: raw)
             case let .toolCallRequested(call):

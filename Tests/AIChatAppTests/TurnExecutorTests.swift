@@ -32,7 +32,7 @@ private final class FragmentCollector: @unchecked Sendable {
 /// Only the transport is faked. Every governor, guard, meter and estimator here is the real
 /// thing, because the question these tests answer is whether the packages compose — not whether
 /// my mental model of them is self-consistent.
-private struct ExecutorHarness {
+struct ExecutorHarness {
     let usage = UsageRecorder()
     let profiler = WorkloadProfiler()
     let governor = QuotaGovernor()
@@ -174,7 +174,7 @@ struct TurnExecutorHappyPathTests {
         let owned: [PipelineStage] = [
             .workloadProfile, .costForecast, .budgetReserve, .idempotencyGuard,
             .retryPolicy, .hedgedRequest, .modelCascade, .providerRouting, .streamAggregation, .streamRelease,
-            .sessionDelivery,
+            .degenerationGuard, .sessionDelivery,
             .metering, .budgetSettle
         ]
         for stage in owned {

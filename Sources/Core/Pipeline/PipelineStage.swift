@@ -73,6 +73,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `LiveStreamRelease.swift`: holds back the tail of the live stream until no PII
     /// scanner can still change its verdict on it, so a split value never reaches the screen.
     case streamRelease
+    /// See `LiveDegenerationGuard.swift`: stops reading an answer that has started repeating
+    /// itself, so the rest of the loop is never generated or billed, and keeps one copy.
+    case degenerationGuard
     case sessionDelivery
 
     // Making sense of the answer

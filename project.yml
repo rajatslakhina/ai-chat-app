@@ -288,6 +288,9 @@ packages:
   LinkEgressKit:
     url: https://github.com/rajatslakhina/link-egress-kit
     from: 1.0.0
+  DegenerationGuardKit:
+    url: https://github.com/rajatslakhina/degeneration-guard-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -526,6 +529,8 @@ targets:
         product: SessionMaskKit
       - package: LinkEgressKit
         product: LinkEgressKit
+      - package: DegenerationGuardKit
+        product: DegenerationGuardKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

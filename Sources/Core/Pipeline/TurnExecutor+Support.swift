@@ -42,6 +42,7 @@ extension TurnExecutor {
             )
         } catch let error as IdempotencyError {
             trace.record(.streamRelease, LiveStreamRelease.notCalled)
+            trace.record(.degenerationGuard, LiveDegenerationGuard.notCalled)
             trace.record(.verifiedCall, InDoubtVerification.notCalled)
             if case .indeterminateOutcome = error { resendGenerations[conversationID, default: 0] += 1 }
             let refusal = Self.refusal(for: error)
@@ -49,6 +50,7 @@ extension TurnExecutor {
             return .stopped(.refused(refusal))
         } catch {
             trace.record(.streamRelease, LiveStreamRelease.discarded)
+            trace.record(.degenerationGuard, LiveDegenerationGuard.discarded)
             resendGenerations[conversationID, default: 0] += 1
             let verification = await executor.verificationSummary()
             trace.record(.verifiedCall, InDoubtVerification.outcome(for: verification))
@@ -74,14 +76,21 @@ extension TurnExecutor {
             attempts: attempts,
             trace: &trace
         )
-        // An answer the completion check could not support publishes under a Try again button.
-        // Try again re-sends the same text, and under the same key the guard would replay this very
-        // turn: the stored answer would come back with the check recorded as skipped, so the button
-        // would quietly erase the warning instead of asking again.
-        if case .refused? = trace.outcome(for: .progressGate) {
-            resendGenerations[conversationID, default: 0] += 1
-        }
+        freshenKeyIfAnsweredUnderWarning(trace, conversationID: conversationID)
         return .succeeded(body: outcome.result.body, attempts: attempts)
+    }
+
+    /// An answer the completion check could not support publishes under a Try again button.
+    /// Try again re-sends the same text, and under the same key the guard would replay this very
+    /// turn: the stored answer would come back with the check recorded as skipped, so the button
+    /// would quietly erase the warning instead of asking again.
+    ///
+    /// The same holds for an answer cut short because it started repeating itself: Try again
+    /// must reach the model, not replay the loop.
+    private func freshenKeyIfAnsweredUnderWarning(_ trace: PipelineTrace, conversationID: String) {
+        let warned: [PipelineStage] = [.progressGate, .degenerationGuard]
+        guard warned.contains(where: { trace.outcome(for: $0)?.isRefusal == true }) else { return }
+        resendGenerations[conversationID, default: 0] += 1
     }
 
     private func makeEffectExecutor(
@@ -141,6 +150,12 @@ extension TurnExecutor {
         trace.record(
             .streamRelease,
             replayed ? LiveStreamRelease.replayed : LiveStreamRelease.outcome(released)
+        )
+        trace.record(
+            .degenerationGuard,
+            replayed
+                ? LiveDegenerationGuard.replayed
+                : LiveDegenerationGuard.outcome(await executor.degenerationSummary())
         )
         trace.record(.sessionDelivery, .ran(detail: "delivered and acknowledged"))
 

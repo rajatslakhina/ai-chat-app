@@ -76,6 +76,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `LiveDegenerationGuard.swift`: stops reading an answer that has started repeating
     /// itself, so the rest of the loop is never generated or billed, and keeps one copy.
     case degenerationGuard
+    /// See `LiveAnswerContinuation.swift`: an answer the length limit cut is finished with one more
+    /// call, or delivered up to its last complete word, number or link under a refusal.
+    case answerContinuation
     case sessionDelivery
 
     // Making sense of the answer

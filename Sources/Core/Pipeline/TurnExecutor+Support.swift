@@ -41,16 +41,14 @@ extension TurnExecutor {
                 using: executor
             )
         } catch let error as IdempotencyError {
-            trace.record(.streamRelease, LiveStreamRelease.notCalled)
-            trace.record(.degenerationGuard, LiveDegenerationGuard.notCalled)
+            Self.recordUnanswered(&trace, called: false)
             trace.record(.verifiedCall, InDoubtVerification.notCalled)
             if case .indeterminateOutcome = error { resendGenerations[conversationID, default: 0] += 1 }
             let refusal = Self.refusal(for: error)
             trace.record(.idempotencyGuard, .refused(refusal))
             return .stopped(.refused(refusal))
         } catch {
-            trace.record(.streamRelease, LiveStreamRelease.discarded)
-            trace.record(.degenerationGuard, LiveDegenerationGuard.discarded)
+            Self.recordUnanswered(&trace, called: true)
             resendGenerations[conversationID, default: 0] += 1
             let verification = await executor.verificationSummary()
             trace.record(.verifiedCall, InDoubtVerification.outcome(for: verification))
@@ -85,10 +83,10 @@ extension TurnExecutor {
     /// turn: the stored answer would come back with the check recorded as skipped, so the button
     /// would quietly erase the warning instead of asking again.
     ///
-    /// The same holds for an answer cut short because it started repeating itself: Try again
-    /// must reach the model, not replay the loop.
+    /// The same holds for an answer cut short because it started repeating itself, or cut off at
+    /// the length limit: Try again must reach the model, not replay the cut answer.
     private func freshenKeyIfAnsweredUnderWarning(_ trace: PipelineTrace, conversationID: String) {
-        let warned: [PipelineStage] = [.progressGate, .degenerationGuard]
+        let warned: [PipelineStage] = [.progressGate, .degenerationGuard, .answerContinuation]
         guard warned.contains(where: { trace.outcome(for: $0)?.isRefusal == true }) else { return }
         resendGenerations[conversationID, default: 0] += 1
     }
@@ -146,6 +144,40 @@ extension TurnExecutor {
         let deltaCount = await executor.deltaCount()
         trace.record(.providerRouting, .ran(detail: "answered by \(turn.modelID)"))
         trace.record(.streamAggregation, .ran(detail: "\(deltaCount) fragment(s) assembled"))
+        await recordAnswerStages(executor, replayed: replayed, trace: &trace)
+        trace.record(.sessionDelivery, .ran(detail: "delivered and acknowledged"))
+
+        let toolRecords = await executor.toolRecords()
+        let recorded = toolRecords.isEmpty && replayed
+            ? ProviderEffectExecutor.replayedRecords()
+            : toolRecords
+        for record in recorded {
+            trace.record(record.stage, record.outcome, durationMs: record.durationMs)
+        }
+    }
+
+    /// The answer stages when no answer reached them: the guard stopped the turn before the call
+    /// (`called: false`), or the call failed (`called: true`).
+    static func recordUnanswered(_ trace: inout PipelineTrace, called: Bool) {
+        trace.record(.streamRelease, called ? LiveStreamRelease.discarded : LiveStreamRelease.notCalled)
+        trace.record(
+            .degenerationGuard,
+            called ? LiveDegenerationGuard.discarded : LiveDegenerationGuard.notCalled
+        )
+        trace.record(
+            .answerContinuation,
+            called ? LiveAnswerContinuation.discarded : LiveAnswerContinuation.notCalled
+        )
+    }
+
+    /// The stages that watch the answer itself as it arrives: the live release gate, the
+    /// repetition check and the length limit. Split out of `recordCallStages` to keep that
+    /// function under SwiftLint's body limit when the length-limit stage was added.
+    private func recordAnswerStages(
+        _ executor: ProviderEffectExecutor,
+        replayed: Bool,
+        trace: inout PipelineTrace
+    ) async {
         let released = await executor.liveReleaseStats()
         trace.record(
             .streamRelease,
@@ -157,15 +189,12 @@ extension TurnExecutor {
                 ? LiveDegenerationGuard.replayed
                 : LiveDegenerationGuard.outcome(await executor.degenerationSummary())
         )
-        trace.record(.sessionDelivery, .ran(detail: "delivered and acknowledged"))
-
-        let toolRecords = await executor.toolRecords()
-        let recorded = toolRecords.isEmpty && replayed
-            ? ProviderEffectExecutor.replayedRecords()
-            : toolRecords
-        for record in recorded {
-            trace.record(record.stage, record.outcome, durationMs: record.durationMs)
-        }
+        let limit = await executor.outputLimit()
+        let record = await executor.continuationRecord()
+        trace.record(
+            .answerContinuation,
+            replayed ? LiveAnswerContinuation.replayed : LiveAnswerContinuation.outcome(record, limit: limit)
+        )
     }
 
     /// The outcome of trying to hold budget: a hold, no hold, or a refusal that stops the turn.
@@ -236,14 +265,19 @@ extension TurnExecutor {
     }
 
     /// Meters the real usage, settles the hold against it, and teaches the profiler.
+    ///
+    /// A turn is metered on its last call, except when its cut answer was continued: then the cut
+    /// call and the continuation were both billed, and `call.usageMark` says where this turn's
+    /// records start. Tool-hop turns still meter their last call only (see the README).
     func account(
         turn: PreparedTurn,
         body: String,
-        attempts: Int,
+        call: (attempts: Int, usageMark: Int),
         reservation: Reservation?,
         trace: inout PipelineTrace
     ) async -> TurnCompletion {
-        let recorded = await usage.mostRecent
+        let continued = LiveAnswerContinuation.madeACall(trace.outcome(for: .answerContinuation))
+        let recorded = continued ? await usage.combined(after: call.usageMark) : await usage.mostRecent
         let promptTokens = recorded?.promptTokens ?? 0
         let completionTokens = recorded?.completionTokens ?? 0
 
@@ -255,9 +289,10 @@ extension TurnExecutor {
                 ),
                 for: recorded.model
             )
+            let both = continued ? " (the cut answer and its continuation)" : ""
             trace.record(
                 .metering,
-                .ran(detail: "\(recorded.promptTokens) in / \(recorded.completionTokens) out")
+                .ran(detail: "\(recorded.promptTokens) in / \(recorded.completionTokens) out" + both)
             )
         } else {
             // Not a failure of ours: some upstreams omit the usage envelope entirely.
@@ -280,7 +315,7 @@ extension TurnExecutor {
             completionTokens: completionTokens,
             reportedCostUSD: recorded?.reportedCostUSD,
             meteredCostUSD: metered,
-            attempts: attempts
+            attempts: call.attempts
         )
     }
     /// Closes the hold against what the turn really cost, and reports that cost onwards.

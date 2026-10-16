@@ -291,6 +291,9 @@ packages:
   DegenerationGuardKit:
     url: https://github.com/rajatslakhina/degeneration-guard-kit
     from: 1.0.0
+  AnswerContinuationKit:
+    url: https://github.com/rajatslakhina/answer-continuation-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -531,6 +534,8 @@ targets:
         product: LinkEgressKit
       - package: DegenerationGuardKit
         product: DegenerationGuardKit
+      - package: AnswerContinuationKit
+        product: AnswerContinuationKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

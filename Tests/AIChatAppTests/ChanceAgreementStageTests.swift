@@ -85,6 +85,26 @@ struct ChanceAgreementStageTests {
         #expect(reason.contains("there is no pair"))
     }
 
+    /// Reached only by accident before 2026-10-16, through whatever the shared panel history held
+    /// when a chat test's metadata pass ran; adding a chat test elsewhere moved it out of reach.
+    @Test("two gates over a single turn form no pair, and the stage says why")
+    func noOpWhenNoPairCanBeBuilt() async {
+        let history = ObservationHistory([
+            PanelObservation(
+                id: "turn-0",
+                verdicts: [Self.answerability: .affirm, Self.stability: .deny],
+                truth: nil
+            )
+        ])
+        var trace = PipelineTrace()
+        await pipeline().auditChanceAgreement(trace: &trace, history: history)
+        guard case let .noOp(reason) = outcome(trace) else {
+            Issue.record("expected .noOp, got \(String(describing: outcome(trace)))")
+            return
+        }
+        #expect(reason.contains("1 observed turn(s), but no pair of gates forms a panel"))
+    }
+
     @Test("gates that affirmed every turn admit no chance term, and that is the finding")
     func noOpWhenEveryGateIsConstant() async {
         var trace = PipelineTrace()

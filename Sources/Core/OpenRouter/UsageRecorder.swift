@@ -75,6 +75,23 @@ actor UsageRecorder: UsageObserving {
         records.dropFirst(mark).first
     }
 
+    /// Every call recorded after `mark`, summed into one: tokens and reported cost added up, the
+    /// model and request id of the last. For a turn whose cut answer was continued, both calls were
+    /// billed and both belong in the month's spend. `nil` when nothing was recorded.
+    func combined(after mark: Int) -> OpenRouterUsage? {
+        let calls = records.dropFirst(mark)
+        guard let last = calls.last else { return nil }
+        let reported = calls.compactMap(\.reportedCostUSD)
+        return OpenRouterUsage(
+            requestID: last.requestID,
+            model: last.model,
+            promptTokens: calls.reduce(0) { $0 + $1.promptTokens },
+            completionTokens: calls.reduce(0) { $0 + $1.completionTokens },
+            cachedPromptTokens: calls.reduce(0) { $0 + $1.cachedPromptTokens },
+            reportedCostUSD: reported.isEmpty ? nil : reported.reduce(0, +)
+        )
+    }
+
     func reset() {
         records.removeAll()
     }

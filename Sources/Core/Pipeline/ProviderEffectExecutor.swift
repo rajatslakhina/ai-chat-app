@@ -1,4 +1,5 @@
 import AgentLoopKit
+import AnswerContinuationKit
 import DegenerationGuardKit
 import Foundation
 import IdempotencyKit
@@ -18,8 +19,8 @@ import VerifiedCallKit
 /// called a tool and then answered is one billable unit of work as far as a double-tapped Send is
 /// concerned, and splitting it would let a replay re-run the tool.
 actor ProviderEffectExecutor: EffectExecuting {
-    private let provider: OpenRouterProvider
-    private let request: LLMRequest
+    let provider: OpenRouterProvider
+    let request: LLMRequest
     private let retryPolicy: ExponentialBackoffRetryPolicy
     private let onDelta: @Sendable (String) -> Void
     private let tools: ToolRoundTrip?
@@ -35,6 +36,8 @@ actor ProviderEffectExecutor: EffectExecuting {
     private var releaseStats: ReleaseStats?
     /// One loop monitor per model call; this is what they saw during the current attempt.
     private var degeneration = LiveDegenerationGuard.Summary()
+    /// How the final model call of the current attempt stopped, and what continuing it did.
+    var continuation = LiveAnswerContinuation.Record.none
     private var deltas = 0
     private var lastProviderError: ProviderError?
     private var toolStages: [StageRecord] = []
@@ -77,6 +80,7 @@ actor ProviderEffectExecutor: EffectExecuting {
     /// What the live-stream gate did on the attempt that succeeded. Nil when no gate ran.
     func liveReleaseStats() -> ReleaseStats? { releaseStats }
     func degenerationSummary() -> LiveDegenerationGuard.Summary { degeneration }
+    func continuationRecord() -> LiveAnswerContinuation.Record { continuation }
 
     /// What the tool stages did, for the caller to fold into the `PipelineTrace`. Empty when the
     /// effect never ran, which is exactly what a replayed turn looks like.
@@ -175,7 +179,7 @@ actor ProviderEffectExecutor: EffectExecuting {
 extension ProviderEffectExecutor {
     /// What one hop of the conversation with the model produced.
     private enum HopOutcome {
-        case text(String, raw: String)
+        case text(String, raw: String, stop: LLMResponse.FinishReason?)
         case toolCall(ProviderGatewayKit.ToolCallRequest, raw: String)
     }
 
@@ -197,15 +201,16 @@ extension ProviderEffectExecutor {
         toolStages = []
         releaseGate = releaseScanners.map { ReleaseGate(scanners: $0) }
         degeneration = LiveDegenerationGuard.Summary()
+        continuation = .none
         var state = TurnState(
             messages: request.messages,
             prompt: request.messages.last?.content ?? ""
         )
         while true {
             switch try await streamOnce(messages: state.messages, into: &state.assembled) {
-            case let .text(text, raw):
+            case let .text(text, raw, stop):
                 if state.assembled.isEmpty { state.assembled = text }
-                let answer = state.assembled
+                let answer = await finishIfCut(state.assembled, stop: stop, messages: state.messages)
                 finish(&state, answer: answer, raw: raw)
                 return answer
             case let .toolCall(call, raw):
@@ -257,16 +262,17 @@ extension ProviderEffectExecutor {
                 if let finding = monitor.ingest(fragment).finding {
                     let kept = DegenerationGuard.salvage(raw, keeping: finding).text
                     assembled = before + kept
-                    return .text(kept, raw: raw)
+                    return .text(kept, raw: raw, stop: nil)
                 }
             case let .completed(response):
-                return .text(response.text.isEmpty ? raw : response.text, raw: raw)
+                let text = response.text.isEmpty ? raw : response.text
+                return .text(text, raw: raw, stop: response.finishReason)
             case let .toolCallRequested(call):
                 attemptEvidence += 1
                 return .toolCall(call, raw: raw)
             }
         }
-        return .text(raw, raw: raw)
+        return .text(raw, raw: raw, stop: nil)
     }
 
     /// Authorizes and dispatches one requested call. Returns the observation to send back, or nil

@@ -174,7 +174,7 @@ struct TurnExecutorHappyPathTests {
         let owned: [PipelineStage] = [
             .workloadProfile, .costForecast, .budgetReserve, .idempotencyGuard,
             .retryPolicy, .hedgedRequest, .modelCascade, .providerRouting, .streamAggregation, .streamRelease,
-            .degenerationGuard, .sessionDelivery,
+            .degenerationGuard, .answerContinuation, .sessionDelivery,
             .metering, .budgetSettle
         ]
         for stage in owned {

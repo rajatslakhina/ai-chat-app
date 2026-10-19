@@ -228,6 +228,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case sessionRestore
     case guardrailOutput
     case metering
+    /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
+    /// held at the upper bound, and settled from OpenRouter's billing record.
+    case usageRecovery
     case budgetSettle
     case tracing
 }

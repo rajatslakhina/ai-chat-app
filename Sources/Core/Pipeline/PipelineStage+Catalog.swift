@@ -101,6 +101,7 @@ extension PipelineStage {
         case .progressGate: return "ProgressGateKit"
         case .batchInference: return "BatchInferenceKit"
         case .metering: return "TokenMeterKit"
+        case .usageRecovery: return "UsageRecoveryKit"
         case .tracing: return "TraceKit"
         }
     }
@@ -202,6 +203,7 @@ extension PipelineStage {
         case .batchInference: return "Batch inference"
         case .guardrailOutput: return "Output guardrail"
         case .metering: return "Metering"
+        case .usageRecovery: return "Usage that never arrived"
         case .budgetSettle: return "Budget settle"
         case .tracing: return "Tracing"
         }

@@ -1,6 +1,7 @@
 import Foundation
 import ProviderGatewayKit
 import StreamAggregatorKit
+import UsageRecoveryKit
 
 extension ProviderIdentifier {
     static let openRouter = ProviderIdentifier("openrouter")
@@ -164,6 +165,9 @@ struct OpenRouterProvider: LLMProvider {
         }
 
         var state = StreamState()
+        state.generationID = GenerationIDExtractor.openRouter.generationID(
+            fromHeaders: http.allHeaderFields.reduce(into: [:]) { $0["\($1.key)"] = "\($1.value)" }
+        )?.rawValue
         var lines = SSELineAccumulator()
         var finished = false
 
@@ -172,12 +176,18 @@ struct OpenRouterProvider: LLMProvider {
             state.consume(line, model: configuration.model, continuation: continuation)
         }
 
-        for try await byte in bytes {
-            guard let line = lines.feed(byte) else { continue }
-            if handle(line) {
-                finished = true
-                break
+        do {
+            for try await byte in bytes {
+                guard let line = lines.feed(byte) else { continue }
+                if handle(line) {
+                    finished = true
+                    break
+                }
             }
+        } catch {
+            // The usage chunk is the last one, so a stream that ends here never delivers it.
+            await reportUnmetered(state, request: request, ending: Self.ending(for: error))
+            throw error
         }
         // A stream that ended without a trailing blank line still has an event pending; without
         // these drains the final chunk — the one carrying usage — is silently discarded.
@@ -190,47 +200,8 @@ struct OpenRouterProvider: LLMProvider {
             _ = handle("")
         }
 
-        if let usage = state.usage {
-            await usageObserver.record(usage)
-        }
+        await reportUsage(of: state, request: request)
         emitTerminal(Self.outcome(from: state.folder.snapshot), into: continuation)
-    }
-
-    /// The mutable state one SSE stream accumulates, lifted out of `streamSSE` so that function
-    /// stays readable and each concern can be reasoned about on its own.
-    private struct StreamState {
-        var parser = SSEParser()
-        var folder = DeltaFolder()
-        var usage: OpenRouterUsage?
-        private let decoder = JSONDecoder()
-
-        /// Feeds one line. Returns true when the stream has terminated.
-        mutating func consume(
-            _ line: String,
-            model: String,
-            continuation: AsyncThrowingStream<LLMStreamEvent, Error>.Continuation
-        ) -> Bool {
-            guard let frame = parser.feed(line) else { return false }
-            guard case let .data(payload) = frame else { return true }  // `.done` ends it.
-            guard let chunk = try? decoder.decode(
-                OpenRouterStreamChunk.self,
-                from: Data(payload.utf8)
-            ) else {
-                // A frame that is not a chunk is not fatal — OpenRouter has added envelope fields
-                // before. Dropping one unknown frame beats failing a turn that is otherwise fine.
-                return false
-            }
-            if let chunkUsage = chunk.openRouterUsage(fallbackModel: model) {
-                usage = chunkUsage
-            }
-            for delta in chunk.streamDeltas {
-                if case let .content(fragment) = delta {
-                    continuation.yield(.textDelta(fragment))
-                }
-                _ = folder.fold(delta)
-            }
-            return false
-        }
     }
 
     /// Turns an assembled streamed message into the gateway's terminal event.
@@ -376,4 +347,96 @@ extension ProviderCapabilities {
         costTier: .medium,
         locality: .network
     )
+}
+
+// MARK: - Stream state and usage reporting
+
+/// Kept in an extension in this file so the struct body stays inside SwiftLint's limit; `private`
+/// members of `OpenRouterProvider` are visible here because it is the same file.
+extension OpenRouterProvider {
+    /// The usage chunk when it came; otherwise what the stream showed of a call that was billed anyway.
+    private func reportUsage(of state: StreamState, request: LLMRequest) async {
+        guard let usage = state.usage else {
+            await reportUnmetered(state, request: request, ending: .completed)
+            return
+        }
+        await usageObserver.record(usage)
+    }
+
+    /// Reports a stream that ended without usage, if anything identifies it as a real generation:
+    /// a generation id, or at least one chunk. A request refused before streaming sends neither.
+    private func reportUnmetered(
+        _ state: StreamState,
+        request: LLMRequest,
+        ending: UnmeteredCall.Ending
+    ) async {
+        guard state.generationID != nil || state.chunks > 0 else { return }
+        let limit = request.maxOutputTokens
+        await usageObserver.recordUnmetered(
+            UnmeteredCall(
+                generationID: state.generationID,
+                model: state.model ?? configuration.model,
+                receivedText: state.folder.snapshot.content,
+                contentChunks: state.contentChunks,
+                maxOutputTokens: limit,
+                reasoningCeiling: (effort.current?.reasoningPercent ?? 0) * limit / 100,
+                ending: ending
+            )
+        )
+    }
+
+    /// A cancelled read is the app leaving; anything else thrown mid-stream is the connection.
+    static func ending(for error: Error) -> UnmeteredCall.Ending {
+        if error is CancellationError || (error as? URLError)?.code == .cancelled {
+            return .stoppedReading
+        }
+        return .dropped
+    }
+
+    /// The mutable state one SSE stream accumulates, lifted out of `streamSSE` so that function
+    /// stays readable and each concern can be reasoned about on its own.
+    private struct StreamState {
+        var parser = SSEParser()
+        var folder = DeltaFolder()
+        var usage: OpenRouterUsage?
+        var generationID: String?
+        var model: String?
+        var chunks = 0
+        var contentChunks = 0
+        private let decoder = JSONDecoder()
+
+        /// Feeds one line. Returns true when the stream has terminated.
+        mutating func consume(
+            _ line: String,
+            model: String,
+            continuation: AsyncThrowingStream<LLMStreamEvent, Error>.Continuation
+        ) -> Bool {
+            guard let frame = parser.feed(line) else { return false }
+            guard case let .data(payload) = frame else { return true }  // `.done` ends it.
+            guard let chunk = try? decoder.decode(
+                OpenRouterStreamChunk.self,
+                from: Data(payload.utf8)
+            ) else {
+                // A frame that is not a chunk is not fatal — OpenRouter has added envelope fields
+                // before. Dropping one unknown frame beats failing a turn that is otherwise fine.
+                return false
+            }
+            if let chunkUsage = chunk.openRouterUsage(fallbackModel: model) {
+                usage = chunkUsage
+            }
+            chunks += 1
+            if generationID == nil, let id = chunk.id, let valid = try? GenerationID(id) {
+                generationID = valid.rawValue
+            }
+            self.model = self.model ?? chunk.model
+            for delta in chunk.streamDeltas {
+                if case let .content(fragment) = delta {
+                    contentChunks += 1
+                    continuation.yield(.textDelta(fragment))
+                }
+                _ = folder.fold(delta)
+            }
+            return false
+        }
+    }
 }

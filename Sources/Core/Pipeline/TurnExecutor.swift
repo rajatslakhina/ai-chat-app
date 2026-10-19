@@ -68,6 +68,9 @@ actor TurnExecutor {
     /// How many tool calls one user message may fund before the turn is stopped. A model that
     /// never converges has already spent this much of the user's money.
     let maxToolHops: Int
+    /// Bounds and settles calls that streamed without reporting usage. Nil in harnesses that do
+    /// not exercise it; the stage then says so instead of silently settling at zero.
+    let usageRecovery: LiveUsageRecovery?
 
     /// Generation parameters, already clamped to what `LLMRequest` will accept.
     private(set) var settings: TurnSettings
@@ -81,7 +84,7 @@ actor TurnExecutor {
     /// Called with the integer microcents a settled turn actually cost, so the app can carry the
     /// month's running total across launches. The governor's own ledger cannot: it is in memory,
     /// and a monthly budget that resets whenever the app is killed is not a monthly budget.
-    private let onSettled: @Sendable (Int) -> Void
+    let onSettled: @Sendable (Int) -> Void
 
     /// A monotonic logical clock. `QuotaGovernorKit` takes `Int` ticks and refuses to go
     /// backwards, so the app must own the counter rather than reading a wall clock — two turns
@@ -111,6 +114,7 @@ actor TurnExecutor {
         scopes: BudgetScopes,
         tools: ToolRoundTrip? = nil,
         maxToolHops: Int = 3,
+        usageRecovery: LiveUsageRecovery? = nil,
         settings: TurnSettings = TurnSettings(),
         budget: MonthlyBudget = MonthlyBudget(),
         onSettled: @escaping @Sendable (Int) -> Void = { _ in }
@@ -129,6 +133,7 @@ actor TurnExecutor {
         self.scopes = scopes
         self.tools = tools
         self.maxToolHops = max(1, maxToolHops)
+        self.usageRecovery = usageRecovery
     }
 
     func nextTick() -> Int {
@@ -243,20 +248,22 @@ actor TurnExecutor {
         // a second `guard` returning a `.failed(message: "unreachable")` no turn could produce.
         //
         // The recorder's count is taken first so `account` can tell what *this* turn added to it.
-        let usageMark = await usage.recordCount
+        let records = await usage.recordCount
+        let unmetered = await usage.unmeteredCount
         switch await callProvider(turn, key: key, conversationID: conversationID, trace: &trace) {
         case let .stopped(result):
-            await releaseIfHeld(reservation)
+            let marks = CallMarks(attempts: 0, records: records, unmetered: unmetered)
+            await settleStopped(reservation, turn: turn, marks: marks, trace: &trace)
             return result
         case let .succeeded(body, attempts):
             var completion = await account(
                 turn: turn,
                 body: body,
-                call: (attempts, usageMark),
+                call: CallMarks(attempts: attempts, records: records, unmetered: unmetered),
                 reservation: reservation,
                 trace: &trace
             )
-            completion.firstCall = await usage.firstRecord(after: usageMark)
+            completion.firstCall = await usage.firstRecord(after: records)
             return .completed(completion)
         }
     }

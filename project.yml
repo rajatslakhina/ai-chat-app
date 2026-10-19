@@ -294,6 +294,9 @@ packages:
   AnswerContinuationKit:
     url: https://github.com/rajatslakhina/answer-continuation-kit
     from: 1.0.0
+  UsageRecoveryKit:
+    url: https://github.com/rajatslakhina/usage-recovery-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -536,6 +539,8 @@ targets:
         product: DegenerationGuardKit
       - package: AnswerContinuationKit
         product: AnswerContinuationKit
+      - package: UsageRecoveryKit
+        product: UsageRecoveryKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -267,17 +267,20 @@ extension TurnExecutor {
     /// Meters the real usage, settles the hold against it, and teaches the profiler.
     ///
     /// A turn is metered on its last call, except when its cut answer was continued: then the cut
-    /// call and the continuation were both billed, and `call.usageMark` says where this turn's
-    /// records start. Tool-hop turns still meter their last call only (see the README).
+    /// call and the continuation were both billed, and `call.records` says where this turn's
+    /// records start. Tool-hop turns still meter their last call only (see the README). Only this
+    /// turn's records count: a turn that recorded nothing is never metered on the previous turn's.
     func account(
         turn: PreparedTurn,
         body: String,
-        call: (attempts: Int, usageMark: Int),
+        call: CallMarks,
         reservation: Reservation?,
         trace: inout PipelineTrace
     ) async -> TurnCompletion {
         let continued = LiveAnswerContinuation.madeACall(trace.outcome(for: .answerContinuation))
-        let recorded = continued ? await usage.combined(after: call.usageMark) : await usage.mostRecent
+        let recorded = continued
+            ? await usage.combined(after: call.records)
+            : await usage.lastRecord(after: call.records)
         let promptTokens = recorded?.promptTokens ?? 0
         let completionTokens = recorded?.completionTokens ?? 0
 
@@ -299,11 +302,18 @@ extension TurnExecutor {
             trace.record(.metering, .noOp(reason: "the provider reported no usage for this call"))
         }
         let metered = await meter.cost(for: recorded?.model ?? turn.modelID)
+        let held = await recoverIfUnmetered(
+            reported: recorded != nil,
+            mark: call.unmetered,
+            turn: turn,
+            trace: &trace
+        )
 
         await settle(
             reservation,
-            tokens: promptTokens + completionTokens,
-            microcents: Self.microcents(from: recorded?.reportedCostUSD ?? 0),
+            tokens: held?.tokens ?? promptTokens + completionTokens,
+            microcents: held?.microcents ?? Self.microcents(from: recorded?.reportedCostUSD ?? 0),
+            reportsSpend: held == nil,
             trace: &trace
         )
         await recordObservation(turn: turn, prompt: promptTokens, completion: completionTokens)
@@ -322,14 +332,16 @@ extension TurnExecutor {
     ///
     /// The report happens whether or not anything was held, because an uncapped turn still spends
     /// money and the month's total has to include it — the governor's ledger does not survive a
-    /// relaunch, so it cannot be the thing that remembers.
-    private func settle(
+    /// relaunch, so it cannot be the thing that remembers. A recovered charge does not report here:
+    /// its bill, or its bound if no bill comes, is reported once when the lookup resolves.
+    func settle(
         _ reservation: Reservation?,
         tokens: Int,
         microcents: Int,
+        reportsSpend: Bool = true,
         trace: inout PipelineTrace
     ) async {
-        defer { reportSpend(microcents) }
+        defer { if reportsSpend { reportSpend(microcents) } }
         guard let reservation else {
             trace.record(.budgetSettle, .skipped(reason: "nothing was reserved"))
             return

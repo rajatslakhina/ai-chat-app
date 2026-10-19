@@ -30,12 +30,43 @@ struct OpenRouterUsage: Sendable, Equatable {
     var totalTokens: Int { promptTokens + completionTokens }
 }
 
+/// A streamed call that ended without its usage envelope, as far as the provider saw it.
+///
+/// OpenRouter sends usage in the last chunk, so a stream that ends early never delivers it: the app
+/// stopped reading (a repetition cut, a cancelled turn), or the connection dropped. The call was
+/// still billed, so instead of reporting nothing the provider reports what it saw, and the
+/// `usageRecovery` stage turns that into a bounded charge and a billing lookup.
+struct UnmeteredCall: Sendable, Equatable {
+    enum Ending: Sendable, Equatable {
+        /// The stream reached its end and the usage chunk never came.
+        case completed
+        /// The app stopped reading before the end.
+        case stoppedReading
+        /// The connection failed mid-stream.
+        case dropped
+    }
+
+    /// From the `X-Generation-Id` header, or the first chunk's `id`.
+    let generationID: String?
+    let model: String
+    let receivedText: String
+    /// Chunks that carried answer text; each held at least one token.
+    let contentChunks: Int
+    let maxOutputTokens: Int
+    /// The most reasoning the request allowed: the effort's share of the output limit, or 0.
+    let reasoningCeiling: Int
+    let ending: Ending
+}
+
 /// Receives usage as calls complete.
 ///
 /// A protocol so the provider can be tested without standing up the app's real metering stack,
 /// and so a UI-test launch can record into nothing at all.
 protocol UsageObserving: Sendable {
     func record(_ usage: OpenRouterUsage) async
+    /// A streamed call ended without usage. Not defaulted: an observer that silently dropped these
+    /// would hide exactly the spend the report exists for.
+    func recordUnmetered(_ call: UnmeteredCall) async
 }
 
 /// Collects usage in memory, newest last.
@@ -44,9 +75,28 @@ protocol UsageObserving: Sendable {
 /// router's fallback chain and any batch fan-out both produce concurrent completions.
 actor UsageRecorder: UsageObserving {
     private(set) var records: [OpenRouterUsage] = []
+    private(set) var unmetered: [UnmeteredCall] = []
 
     func record(_ usage: OpenRouterUsage) {
         records.append(usage)
+    }
+
+    func recordUnmetered(_ call: UnmeteredCall) {
+        unmetered.append(call)
+    }
+
+    /// How many calls have ended without usage, so a turn can ask which of them were its own.
+    var unmeteredCount: Int { unmetered.count }
+
+    /// The calls after `mark`, a count taken earlier from `unmeteredCount`, that ended without usage.
+    func unmetered(after mark: Int) -> [UnmeteredCall] {
+        Array(unmetered.dropFirst(mark))
+    }
+
+    /// The last call recorded after `mark`. Unlike `mostRecent`, never a previous turn's call: a turn
+    /// that recorded nothing (a replay, or a stream that ended without usage) gets `nil`.
+    func lastRecord(after mark: Int) -> OpenRouterUsage? {
+        records.dropFirst(mark).last
     }
 
     var totalPromptTokens: Int { records.reduce(0) { $0 + $1.promptTokens } }
@@ -94,6 +144,7 @@ actor UsageRecorder: UsageObserving {
 
     func reset() {
         records.removeAll()
+        unmetered.removeAll()
     }
 }
 
@@ -101,4 +152,5 @@ actor UsageRecorder: UsageObserving {
 /// across a long launch is just noise.
 struct NullUsageObserver: UsageObserving {
     func record(_ usage: OpenRouterUsage) async {}
+    func recordUnmetered(_ call: UnmeteredCall) async {}
 }

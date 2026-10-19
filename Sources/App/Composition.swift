@@ -84,6 +84,7 @@ struct Composition: Sendable {
             usage: usage,
             scopes: scopes,
             tools: tools,
+            usageRecovery: makeUsageRecovery(registry: registry, configuration: configuration),
             budget: budget,
             onSettled: onSettled
         )
@@ -302,6 +303,18 @@ struct Composition: Sendable {
             return fallback
         }
         return governor
+    }
+
+    /// Bounds and settles calls that streamed without reporting usage, from OpenRouter's billing
+    /// record (`GET /generation`) and the live catalogue's prices.
+    private static func makeUsageRecovery(
+        registry: PricingRegistry,
+        configuration: OpenRouterConfiguration
+    ) -> LiveUsageRecovery {
+        LiveUsageRecovery(
+            registry: registry,
+            lookup: OpenRouterGenerationLookup(configuration: configuration, session: .shared)
+        )
     }
 
     /// An empty price book. `PriceBook([])` cannot actually throw — the only error is a duplicate

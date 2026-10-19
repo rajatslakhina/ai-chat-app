@@ -53,6 +53,17 @@ enum ReasoningEffort: String, Codable, CaseIterable, Sendable, Identifiable {
 
     /// What a conversation uses when it has never been told otherwise.
     static let fallback = ReasoningEffort.medium
+
+    /// The share of `max_tokens` OpenRouter allocates to reasoning at this effort, in percent. Billed
+    /// as output, and not streamed to this app, so it is what a call cut short may have spent unseen.
+    var reasoningPercent: Int {
+        switch self {
+        case .low: return 20
+        case .medium: return 50
+        case .high: return 80
+        case .extra: return 95
+        }
+    }
 }
 
 /// The effort the next request should carry.

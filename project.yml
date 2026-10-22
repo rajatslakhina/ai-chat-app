@@ -300,6 +300,9 @@ packages:
   TokenCalibrationKit:
     url: https://github.com/rajatslakhina/token-calibration-kit
     from: 1.1.0
+  StanceGuardKit:
+    url: https://github.com/rajatslakhina/stance-guard-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -546,6 +549,8 @@ targets:
         product: UsageRecoveryKit
       - package: TokenCalibrationKit
         product: TokenCalibrationKit
+      - package: StanceGuardKit
+        product: StanceGuardKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

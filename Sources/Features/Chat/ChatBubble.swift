@@ -52,6 +52,9 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     /// When this message appeared. Shown in the details sheet — nothing recorded a time before,
     /// so a restored thread had no way to say when any of it happened.
     var createdAt: Date
+    /// A note from `stanceGuard`: this answer gave up the previous one's position without new evidence.
+    /// Kept apart from `text` so the history and the cache never carry it.
+    var stanceNote: String?
 
     init(
         id: UUID = UUID(),

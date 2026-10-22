@@ -22,6 +22,10 @@ struct AnswerReview: Sendable, Equatable {
     let claimCount: Int
     /// A refusal that must reach the user instead of the answer.
     let refusal: Refusal?
+    /// Set when the answer gave up the previous answer's position after a message with no new evidence.
+    /// Shown under the bubble, never added to the answer text, so it stays out of the response cache and
+    /// out of the history the next turn re-sends.
+    var stanceNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -100,8 +104,9 @@ actor PostModelPipeline {
         let review = await verify(
             answer: answer, sources: sources, in: conversationID, links: context, trace: &trace
         )
+        let checked = Self.checkStance(review, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return review
+        return checked
     }
 
     private func verify(

@@ -389,3 +389,33 @@ struct ProfileAndListRenderTests {
         render(MessageDetailsSheet(bubble: ChatBubble(role: .assistant, text: "hi")), scheme: .dark)
     }
 }
+
+/// The answer row's optional parts: the note `stanceGuard` sets, the actions row, and the tool chip
+/// in each state. No snapshot fixture carries any of them, so their lines had never run.
+@MainActor
+@Suite("Answer row parts render")
+struct AnswerRowRenderTests {
+    @Test("a delivered answer with a stance note renders it beside the actions row, in both schemes")
+    func stanceNote() {
+        var bubble = ChatBubble(role: .assistant, text: "You're right, it was 1968.")
+        bubble.stanceNote = "This answer changed after a message that brought no new evidence."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(bubble.text == "You're right, it was 1968.", "the note is never part of the answer text")
+    }
+
+    @Test("every tool chip state renders")
+    func toolChips() {
+        let states: [ChatBubble.ToolState] = [
+            .running("calculator"),
+            .used(["calculator", "current_time"]),
+            .failed(tool: "calculator", message: "timed out")
+        ]
+        for state in states {
+            var bubble = ChatBubble(role: .assistant, text: "Six sevens are 42.")
+            bubble.toolState = state
+            render(BubbleRow(bubble: bubble))
+        }
+    }
+}

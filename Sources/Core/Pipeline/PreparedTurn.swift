@@ -68,6 +68,8 @@ struct PreparedTurn: Sendable, Equatable {
     let didCompact: Bool
     /// Approximate input size after all of the above, for the context meter.
     let estimatedInputTokens: Int
+    /// The context window the turn was compacted for, so `tokenCalibration` checks the same one.
+    var contextWindowTokens: Int = PipelineSettings().contextWindowTokens
 
     /// `LLMMessage` carries a `UUID` that is fresh on every construction, so the synthesized `==`
     /// would report two structurally identical turns as different. Comparison is on what the

@@ -297,6 +297,9 @@ packages:
   UsageRecoveryKit:
     url: https://github.com/rajatslakhina/usage-recovery-kit
     from: 1.0.0
+  TokenCalibrationKit:
+    url: https://github.com/rajatslakhina/token-calibration-kit
+    from: 1.1.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -541,6 +544,8 @@ targets:
         product: AnswerContinuationKit
       - package: UsageRecoveryKit
         product: UsageRecoveryKit
+      - package: TokenCalibrationKit
+        product: TokenCalibrationKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

@@ -53,6 +53,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     case censoredFeedback
     /// See rationale in `PipelineStage+Rationale.swift`.
     case explorationChannel
+    /// See `LiveTokenCalibration.swift`: counts the request's prompt tokens from the bills this
+    /// model has already sent, not from characters / 4, and refuses a request that cannot fit the
+    /// context window before it is sent and rejected. Learns from every turn's first billed call.
+    case tokenCalibration
     case workloadProfile
     case costForecast
     case budgetReserve

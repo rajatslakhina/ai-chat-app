@@ -85,6 +85,7 @@ struct Composition: Sendable {
             scopes: scopes,
             tools: tools,
             usageRecovery: makeUsageRecovery(registry: registry, configuration: configuration),
+            tokenCalibration: LiveTokenCalibration(wireModel: configuration.model),
             budget: budget,
             onSettled: onSettled
         )

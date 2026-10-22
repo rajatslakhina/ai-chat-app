@@ -209,7 +209,8 @@ actor PreModelPipeline {
                 displayUserText: userText,
                 sources: sources,
                 didCompact: didCompact,
-                estimatedInputTokens: finalMessages.reduce(0) { $0 + $1.estimatedTokens }
+                estimatedInputTokens: finalMessages.reduce(0) { $0 + $1.estimatedTokens },
+                contextWindowTokens: settings.contextWindowTokens
             )
         )
     }

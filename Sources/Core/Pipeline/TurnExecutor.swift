@@ -71,6 +71,8 @@ actor TurnExecutor {
     /// Bounds and settles calls that streamed without reporting usage. Nil in harnesses that do
     /// not exercise it; the stage then says so instead of silently settling at zero.
     let usageRecovery: LiveUsageRecovery?
+    /// Nil leaves the `tokenCalibration` stage skipped, as harnesses that never bill want.
+    let tokenCalibration: LiveTokenCalibration?
 
     /// Generation parameters, already clamped to what `LLMRequest` will accept.
     private(set) var settings: TurnSettings
@@ -115,6 +117,7 @@ actor TurnExecutor {
         tools: ToolRoundTrip? = nil,
         maxToolHops: Int = 3,
         usageRecovery: LiveUsageRecovery? = nil,
+        tokenCalibration: LiveTokenCalibration? = nil,
         settings: TurnSettings = TurnSettings(),
         budget: MonthlyBudget = MonthlyBudget(),
         onSettled: @escaping @Sendable (Int) -> Void = { _ in }
@@ -134,6 +137,7 @@ actor TurnExecutor {
         self.tools = tools
         self.maxToolHops = max(1, maxToolHops)
         self.usageRecovery = usageRecovery
+        self.tokenCalibration = tokenCalibration
     }
 
     func nextTick() -> Int {
@@ -232,6 +236,9 @@ actor TurnExecutor {
             "\(conversationID):\(turn.modelID):\(turn.outboundUserText.hashValue):\(approvals):\(resends)"
         )
 
+        // 1b. Will it fit? Counted from this model's own bills, before anything is held or sent.
+        if let refusal = await checkTokenFit(turn, trace: &trace) { return .refused(refusal) }
+
         // 2. Workload profile — the shape of this conversation, learned from earlier turns.
         let plan = await derivePlan(for: turn, trace: &trace)
 
@@ -264,6 +271,7 @@ actor TurnExecutor {
                 trace: &trace
             )
             completion.firstCall = await usage.firstRecord(after: records)
+            await learnTokenRates(turn, firstCall: completion.firstCall)
             return .completed(completion)
         }
     }

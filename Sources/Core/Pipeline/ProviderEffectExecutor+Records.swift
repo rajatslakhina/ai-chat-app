@@ -64,4 +64,42 @@ extension ProviderEffectExecutor {
             StageRecord(stage: $0, outcome: outcome, durationMs: 0)
         } + StructuralToolSkips.records
     }
+
+    /// The agent-loop stage's outcome for a finished transcript. Moved here, as a pure function of its
+    /// inputs, to keep `ProviderEffectExecutor.swift` under SwiftLint's length limit.
+    static func agentLoopOutcome(
+        for transcript: AgentTranscript,
+        hasTools: Bool,
+        maxToolHops: Int
+    ) -> StageOutcome {
+        guard hasTools else {
+            return .skipped(reason: "no tools registered for this conversation")
+        }
+        let called = Self.toolNames(in: transcript)
+        switch transcript.haltReason {
+        case .finalAnswer where called.isEmpty:
+            // Not an absence: the loop ran and correctly did nothing, which is the distinction
+            // `.noOp` exists to preserve against a stage that never reported at all.
+            return .noOp(reason: "model answered directly; no tool call requested")
+        case .finalAnswer:
+            return .ran(
+                detail: "\(called.count) tool call(s) over \(transcript.steps.count) step(s): "
+                    + called.joined(separator: ", ")
+            )
+        case .maxStepsExceeded:
+            return .refused(
+                Refusal(
+                    stage: .agentLoop,
+                    headline: "Stopped after \(maxToolHops) tool calls",
+                    explanation: "The assistant kept looking things up without answering.",
+                    recovery: .switchModel
+                )
+            )
+        case let .parseFailed(error):
+            // The provider broke rather than the system declining, so this is a failure.
+            return .failed(message: error.description)
+        case let .toolDispatchFailed(error):
+            return .failed(message: error.description)
+        }
+    }
 }

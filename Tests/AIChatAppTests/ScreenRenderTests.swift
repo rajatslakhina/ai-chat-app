@@ -405,6 +405,16 @@ struct AnswerRowRenderTests {
         #expect(bubble.text == "You're right, it was 1968.", "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a number note renders it, in both schemes")
+    func numberNote() {
+        var bubble = ChatBubble(role: .assistant, text: "The result is 315.")
+        bubble.numberNote = "Checked 1 number against what this turn returned. Doesn't match: 315."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(bubble.text == "The result is 315.", "the note is never part of the answer text")
+    }
+
     @Test("every tool chip state renders")
     func toolChips() {
         let states: [ChatBubble.ToolState] = [

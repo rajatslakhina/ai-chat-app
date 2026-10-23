@@ -250,6 +250,7 @@ final class ChatViewModel {
             sources: turn.sources,
             conversationID: conversationID,
             messages: turn.messages,
+            toolOutputs: completion.toolOutputs,
             trace: &freshTrace
         )
         trace = freshTrace
@@ -274,6 +275,7 @@ final class ChatViewModel {
             bubble.metrics = completion
             bubble.groundedFraction = reviewed.groundedFraction
             bubble.stanceNote = reviewed.stanceNote
+            bubble.numberNote = reviewed.numberNote
             bubble.claimCount = reviewed.claimCount
         }
         // A tool call the authority gate declined does not throw the answer away: the model's own

@@ -26,6 +26,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Shown under the bubble, never added to the answer text, so it stays out of the response cache and
     /// out of the history the next turn re-sends.
     var stanceNote: String?
+    /// Set when figures in the answer bind to nothing the turn returned, or contradict it. Shown under
+    /// the bubble like `stanceNote`, never added to the answer text.
+    var numberNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -98,6 +101,7 @@ actor PostModelPipeline {
         sources: [RetrievedSource],
         conversationID: String = SessionMasks.defaultConversation,
         messages: [LLMMessage] = [],
+        toolOutputs: [ToolOutput] = [],
         trace: inout PipelineTrace
     ) async -> AnswerReview {
         let context = await linkContext(conversationID: conversationID, messages: messages, sources: sources)
@@ -105,8 +109,12 @@ actor PostModelPipeline {
             answer: answer, sources: sources, in: conversationID, links: context, trace: &trace
         )
         let checked = Self.checkStance(review, messages: messages, trace: &trace)
+        let bound = Self.bindNumbers(
+            checked, evidence: NumberEvidence(toolOutputs: toolOutputs, sources: sources, messages: messages),
+            trace: &trace
+        )
         await label(trace: &trace)
-        return checked
+        return bound
     }
 
     private func verify(
@@ -301,7 +309,11 @@ actor PostModelPipeline {
             return VerifyOutcome(text: nil, fraction: nil, claims: 0, refusal: nil)
         }
     }
+}
 
+// MARK: - Judging grounded claims
+
+extension PostModelPipeline {
     /// The three questions asked of an answer grounding has already scored, in the order that
     /// makes each one worth asking.
     ///

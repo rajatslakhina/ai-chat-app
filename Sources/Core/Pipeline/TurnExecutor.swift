@@ -31,6 +31,8 @@ struct TurnCompletion: Sendable, Equatable {
     /// never passes for a request that reached the provider. A `var` with a default so a turn that
     /// carries no usage is built exactly as it was before this field existed.
     var firstCall: OpenRouterUsage?
+    /// What this turn's tool calls returned, for `numberBinding`. Empty for a replayed turn.
+    var toolOutputs: [ToolOutput] = []
 }
 
 /// Budget scopes this app reserves against, outermost first.
@@ -262,7 +264,7 @@ actor TurnExecutor {
             let marks = CallMarks(attempts: 0, records: records, unmetered: unmetered)
             await settleStopped(reservation, turn: turn, marks: marks, trace: &trace)
             return result
-        case let .succeeded(body, attempts):
+        case let .succeeded(body, attempts, tools):
             var completion = await account(
                 turn: turn,
                 body: body,
@@ -271,6 +273,7 @@ actor TurnExecutor {
                 trace: &trace
             )
             completion.firstCall = await usage.firstRecord(after: records)
+            completion.toolOutputs = tools
             await learnTokenRates(turn, firstCall: completion.firstCall)
             return .completed(completion)
         }

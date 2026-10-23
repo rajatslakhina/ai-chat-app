@@ -332,6 +332,12 @@ struct BubbleRow: View {
                     .foregroundStyle(Theme.Palette.refusal)
                     .accessibilityIdentifier("stanceNote")
             }
+            if let note = bubble.numberNote {
+                Text(note)
+                    .font(Theme.Typeface.metric)
+                    .foregroundStyle(Theme.Palette.refusal)
+                    .accessibilityIdentifier("numberNote")
+            }
             // The chips that used to live here — sources, grounding, model, tokens, cost, retries
             // — moved into the details sheet. At any real width they truncated to a row of
             // ellipses, and an unreadable number costs the same space and attention as a

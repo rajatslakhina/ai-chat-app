@@ -41,6 +41,8 @@ actor ProviderEffectExecutor: EffectExecuting {
     private var deltas = 0
     private var lastProviderError: ProviderError?
     private var toolStages: [StageRecord] = []
+    /// What each successful tool call returned this attempt, for `numberBinding` to bind figures to.
+    private(set) var toolOutputs: [ToolOutput] = []
     /// Asks, before each resend, whether the failed attempt had already been billed.
     private let verifier = InDoubtVerification.caller()
     private var verification = InDoubtVerification.Summary()
@@ -199,6 +201,7 @@ extension ProviderEffectExecutor {
     /// turns the tool's result back into prose the user can read.
     private func runTurn() async throws -> String {
         toolStages = []
+        toolOutputs = []
         releaseGate = releaseScanners.map { ReleaseGate(scanners: $0) }
         degeneration = LiveDegenerationGuard.Summary()
         continuation = .none
@@ -295,6 +298,7 @@ extension ProviderEffectExecutor {
             in: context
         )
         toolStages.append(contentsOf: resolution.records)
+        if let output = resolution.result.flatMap(ToolOutput.init) { toolOutputs.append(output) }
         state.progress.absorb(
             tool: call.toolName,
             dispatched: resolution.result != nil,
@@ -436,42 +440,12 @@ extension ProviderEffectExecutor {
         toolStages.append(
             StageRecord(
                 stage: .agentLoop,
-                outcome: agentLoopOutcome(for: transcript),
+                outcome: Self.agentLoopOutcome(
+                    for: transcript, hasTools: !request.tools.isEmpty, maxToolHops: maxToolHops
+                ),
                 durationMs: 0
             )
         )
-    }
-
-    private func agentLoopOutcome(for transcript: AgentTranscript) -> StageOutcome {
-        guard !request.tools.isEmpty else {
-            return .skipped(reason: "no tools registered for this conversation")
-        }
-        let called = Self.toolNames(in: transcript)
-        switch transcript.haltReason {
-        case .finalAnswer where called.isEmpty:
-            // Not an absence: the loop ran and correctly did nothing, which is the distinction
-            // `.noOp` exists to preserve against a stage that never reported at all.
-            return .noOp(reason: "model answered directly; no tool call requested")
-        case .finalAnswer:
-            return .ran(
-                detail: "\(called.count) tool call(s) over \(transcript.steps.count) step(s): "
-                    + called.joined(separator: ", ")
-            )
-        case .maxStepsExceeded:
-            return .refused(
-                Refusal(
-                    stage: .agentLoop,
-                    headline: "Stopped after \(maxToolHops) tool calls",
-                    explanation: "The assistant kept looking things up without answering.",
-                    recovery: .switchModel
-                )
-            )
-        case let .parseFailed(error):
-            // The provider broke rather than the system declining, so this is a failure.
-            return .failed(message: error.description)
-        case let .toolDispatchFailed(error):
-            return .failed(message: error.description)
-        }
     }
 }
 

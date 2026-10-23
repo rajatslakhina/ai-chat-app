@@ -9,7 +9,7 @@ import TokenMeterKit
 extension TurnExecutor {
     /// What the guarded provider call produced.
     enum CallResult {
-        case succeeded(body: String, attempts: Int)
+        case succeeded(body: String, attempts: Int, tools: [ToolOutput])
         /// The turn ended here — either refused or failed. The value is what to return.
         case stopped(TurnResult)
     }
@@ -75,7 +75,7 @@ extension TurnExecutor {
             trace: &trace
         )
         freshenKeyIfAnsweredUnderWarning(trace, conversationID: conversationID)
-        return .succeeded(body: outcome.result.body, attempts: attempts)
+        return .succeeded(body: outcome.result.body, attempts: attempts, tools: await executor.toolOutputs)
     }
 
     /// An answer the completion check could not support publishes under a Try again button.

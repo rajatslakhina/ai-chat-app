@@ -55,6 +55,9 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     /// A note from `stanceGuard`: this answer gave up the previous one's position without new evidence.
     /// Kept apart from `text` so the history and the cache never carry it.
     var stanceNote: String?
+    /// A note from `numberBinding`: figures in this answer that nothing the turn returned backs.
+    /// Kept apart from `text` for the same reason as `stanceNote`.
+    var numberNote: String?
 
     init(
         id: UUID = UUID(),

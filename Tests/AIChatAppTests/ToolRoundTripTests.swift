@@ -318,6 +318,9 @@ struct ToolRoundTripHappyPathTests {
         }
         #expect(completion.firstCall?.promptTokens == 40, "the tool call's own request")
         #expect(completion.promptTokens == 60, "the turn's headline figure is the last hop's, as before")
+        #expect(completion.toolOutputs == [
+            ToolOutput(tool: "calculator", text: #"{"expression":"(3 + 4) * 12","result":84}"#)
+        ], "what numberBinding binds the answer's figures to")
     }
 
     @Test("the registered tools reach the wire as JSON Schema functions")

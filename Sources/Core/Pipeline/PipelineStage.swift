@@ -234,6 +234,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+StanceGuard.swift`: whether the answer gave up the previous answer's
     /// position after a user message that brought no new evidence.
     case stanceGuard
+    /// See `PostModelPipeline+NumberBinding.swift`: whether every number in the answer is one a tool,
+    /// a retrieved source or the user actually gave this turn.
+    case numberBinding
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

@@ -58,6 +58,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     /// A note from `numberBinding`: figures in this answer that nothing the turn returned backs.
     /// Kept apart from `text` for the same reason as `stanceNote`.
     var numberNote: String?
+    /// A note from `instructionCompliance`: instructions in the request this answer did not keep.
+    var instructionNote: String?
 
     init(
         id: UUID = UUID(),

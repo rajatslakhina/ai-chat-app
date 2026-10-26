@@ -5,6 +5,21 @@ import Foundation
 /// A separate file because none of it needs the class's private state — and because
 /// `type_body_length` is a fair signal that a 270-line class body had stopped being one thing.
 extension ChatViewModel {
+    /// What the refusal banner's button does.
+    ///
+    /// Most recovery actions are resolved by resending: the user changed a setting, waited out a
+    /// rate limit, picked another model. Two cannot be. Approval: resending without a signature walks
+    /// straight back into the same refusal, which is what once made this button a dead end. And a
+    /// request whose instructions contradict each other: resending it meets the same refusal, so it
+    /// goes back into the composer to be changed.
+    func recover(from refusal: Refusal) {
+        switch refusal.recovery {
+        case .approveTool: beginApproval()
+        case .rephrase: rephraseLast()
+        default: retryLast()
+        }
+    }
+
     var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
     }

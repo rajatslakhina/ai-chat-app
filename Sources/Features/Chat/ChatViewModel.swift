@@ -127,6 +127,12 @@ final class ChatViewModel {
     }
 
     /// Re-sends the last user message after a refusal the user has resolved.
+    /// A request that contradicts itself goes back into the composer, unsent and uncharged.
+    func rephraseLast() {
+        activeRefusal = nil
+        draft = bubbles.last { $0.role == .user }?.text ?? draft
+    }
+
     func retryLast() {
         guard let last = bubbles.last(where: { $0.role == .user }) else { return }
         activeRefusal = nil
@@ -276,6 +282,7 @@ final class ChatViewModel {
             bubble.groundedFraction = reviewed.groundedFraction
             bubble.stanceNote = reviewed.stanceNote
             bubble.numberNote = reviewed.numberNote
+            bubble.instructionNote = reviewed.instructionNote
             bubble.claimCount = reviewed.claimCount
         }
         // A tool call the authority gate declined does not throw the answer away: the model's own

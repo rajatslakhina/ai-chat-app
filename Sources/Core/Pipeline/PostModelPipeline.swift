@@ -29,6 +29,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when figures in the answer bind to nothing the turn returned, or contradict it. Shown under
     /// the bubble like `stanceNote`, never added to the answer text.
     var numberNote: String?
+    /// Set when the answer broke instructions in the request a program can check. Shown under the
+    /// bubble like `stanceNote`, never added to the answer text.
+    var instructionNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -113,8 +116,9 @@ actor PostModelPipeline {
             checked, evidence: NumberEvidence(toolOutputs: toolOutputs, sources: sources, messages: messages),
             trace: &trace
         )
+        let followed = await Self.checkInstructions(bound, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return bound
+        return followed
     }
 
     private func verify(

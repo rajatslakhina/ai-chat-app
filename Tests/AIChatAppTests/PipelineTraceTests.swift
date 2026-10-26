@@ -51,9 +51,9 @@ struct PipelineStageTests {
             "VerifiedCallKit", "ProgressGateKit", "ContentBoundaryKit", "TrajectoryConsistencyKit",
             "HiddenTextKit", "SessionMaskKit", "LinkEgressKit", "DegenerationGuardKit",
             "AnswerContinuationKit", "UsageRecoveryKit", "TokenCalibrationKit", "StanceGuardKit",
-            "NumberBindingKit"
+            "NumberBindingKit", "InstructionComplianceKit"
         ]
-        #expect(expected.count == 95)
+        #expect(expected.count == 96)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")
@@ -71,6 +71,7 @@ struct PipelineStageTests {
         #expect(PipelineStage.budgetReserve.package == PipelineStage.budgetSettle.package)
         #expect(PipelineStage.hiddenTextInput.package == PipelineStage.hiddenTextOutput.package)
         #expect(PipelineStage.sessionMask.package == PipelineStage.sessionRestore.package)
+        #expect(PipelineStage.instructionConflict.package == PipelineStage.instructionCompliance.package)
     }
 }
 

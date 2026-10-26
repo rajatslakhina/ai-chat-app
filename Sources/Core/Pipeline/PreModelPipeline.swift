@@ -162,7 +162,7 @@ actor PreModelPipeline {
         case let .refused(refusal): return .refused(refusal)
         }
 
-        if let refusal = await Self.toolIntegrityRefusal(trace: &trace) { return .refused(refusal) }
+        if let early = await Self.earlyRefusal(outbound, unhidden.history, &trace) { return .refused(early) }
 
         let fleetAllowsRouting = Self.fleetRolloutGate(trace: &trace)
         let modelID = await chooseModel(for: outbound, fleetAllowsRouting: fleetAllowsRouting, trace: &trace)

@@ -13,6 +13,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// reads, removed from the message and the history before the guardrail screens either.
     case hiddenTextInput
     case guardrailInput
+    /// See `PreModelPipeline+InstructionCompliance.swift`: instructions in the request that no answer
+    /// can follow together, turned back before anything is paid for.
+    case instructionConflict
     /// See rationale in `PreModelPipeline+FleetRollout.swift`.
     case fleetRollout
     case semanticRoute
@@ -237,6 +240,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+NumberBinding.swift`: whether every number in the answer is one a tool,
     /// a retrieved source or the user actually gave this turn.
     case numberBinding
+    /// See `PostModelPipeline+InstructionCompliance.swift`: whether the answer kept the instructions a
+    /// program can check (length, lists, words, case, openings, endings, formats), standing ones included.
+    case instructionCompliance
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

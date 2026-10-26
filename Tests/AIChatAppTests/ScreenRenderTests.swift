@@ -415,6 +415,17 @@ struct AnswerRowRenderTests {
         #expect(bubble.text == "The result is 315.", "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with an instruction note renders it, in both schemes")
+    func instructionNote() {
+        var bubble = ChatBubble(role: .assistant, text: "- one\n- two\n- three\n- four\n- five\n- six")
+        bubble.instructionNote = "This answer doesn't follow the one instruction in your request: "
+            + "between 3 and 5 list items (6 list items). Ask for a rewrite that follows them."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("instruction"), "the note is never part of the answer text")
+    }
+
     @Test("every tool chip state renders")
     func toolChips() {
         let states: [ChatBubble.ToolState] = [

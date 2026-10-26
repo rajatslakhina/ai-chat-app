@@ -306,6 +306,9 @@ packages:
   NumberBindingKit:
     url: https://github.com/rajatslakhina/number-binding-kit
     from: 1.0.0
+  InstructionComplianceKit:
+    url: https://github.com/rajatslakhina/instruction-compliance-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -556,6 +559,8 @@ targets:
         product: StanceGuardKit
       - package: NumberBindingKit
         product: NumberBindingKit
+      - package: InstructionComplianceKit
+        product: InstructionComplianceKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

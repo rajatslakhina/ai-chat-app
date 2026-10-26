@@ -108,17 +108,9 @@ struct ChatView: View {
                             .contextMenu { menu(for: bubble) }
                     }
                     if let refusal = model.activeRefusal {
-                        // Every other recovery action is resolved by resending — the user changed
-                        // a setting, waited out a rate limit, picked another model. Approval is
-                        // the one that cannot be: resending without a signature walks straight
-                        // back into the same refusal, which is what made this button a dead end.
-                        RefusalBanner(refusal: refusal) {
-                            if case .approveTool = refusal.recovery {
-                                model.beginApproval()
-                            } else {
-                                model.retryLast()
-                            }
-                        }
+                        // What the button does is decided in `ChatViewModel.recover(from:)`, where
+                        // a test can reach every branch.
+                        RefusalBanner(refusal: refusal) { model.recover(from: refusal) }
                     }
                 }
                 .padding(Theme.Spacing.regular)
@@ -337,6 +329,12 @@ struct BubbleRow: View {
                     .font(Theme.Typeface.metric)
                     .foregroundStyle(Theme.Palette.refusal)
                     .accessibilityIdentifier("numberNote")
+            }
+            if let note = bubble.instructionNote {
+                Text(note)
+                    .font(Theme.Typeface.metric)
+                    .foregroundStyle(Theme.Palette.refusal)
+                    .accessibilityIdentifier("instructionNote")
             }
             // The chips that used to live here — sources, grounding, model, tokens, cost, retries
             // — moved into the details sheet. At any real width they truncated to a row of

@@ -18,6 +18,8 @@ struct Refusal: Sendable, Equatable {
         case shortenConversation
         case approveTool(name: String)
         case addCredit
+        /// The message goes back into the composer, unsent, for the user to change.
+        case rephrase
     }
 
     /// The button title for `recovery`, or nil when nothing can be done from here.
@@ -31,6 +33,7 @@ struct Refusal: Sendable, Equatable {
         case .shortenConversation: return "Start a new conversation"
         case let .approveTool(name): return "Approve \(name)"
         case .addCredit: return "Add credit"
+        case .rephrase: return "Edit your message"
         case nil: return nil
         }
     }

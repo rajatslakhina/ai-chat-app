@@ -84,7 +84,12 @@ class ScreensUITestCase: XCTestCase {
         XCTAssertTrue(reveal(toggle, in: app), "\(identifier) is not on screen")
         let before = toggle.value as? String
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
-        XCTAssertNotEqual(toggle.value as? String, before, "\(identifier) did not change")
+        // Waits rather than reading straight after the tap: under heavy load (2026-10-26, load
+        // average near 60) the value was read before the switch had reported its new state.
+        let moved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value != %@", before ?? ""), object: toggle
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 3), .completed, "\(identifier) did not change")
     }
 
     /// The element carrying `identifier`, whatever XCUITest decided its type is.

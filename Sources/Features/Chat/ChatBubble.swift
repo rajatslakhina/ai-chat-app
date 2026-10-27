@@ -60,6 +60,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var numberNote: String?
     /// A note from `instructionCompliance`: instructions in the request this answer did not keep.
     var instructionNote: String?
+    /// A note from `calendarCheck`: date arithmetic in this answer that the calendar does not bear out.
+    var calendarNote: String?
 
     init(
         id: UUID = UUID(),

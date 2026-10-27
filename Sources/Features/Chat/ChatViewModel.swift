@@ -283,6 +283,7 @@ final class ChatViewModel {
             bubble.stanceNote = reviewed.stanceNote
             bubble.numberNote = reviewed.numberNote
             bubble.instructionNote = reviewed.instructionNote
+            bubble.calendarNote = reviewed.calendarNote
             bubble.claimCount = reviewed.claimCount
         }
         // A tool call the authority gate declined does not throw the answer away: the model's own

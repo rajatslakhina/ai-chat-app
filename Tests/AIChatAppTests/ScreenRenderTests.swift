@@ -426,6 +426,17 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("instruction"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a calendar note renders it, in both schemes")
+    func calendarNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Your trial ends 90 days later, on June 2, 2026.")
+        bubble.calendarNote = "Calendar check: 90 days after March 3, 2026 is Monday, June 1, 2026 "
+            + "(the answer said June 2, 2026)."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Calendar check"), "the note is never part of the answer text")
+    }
+
     @Test("every tool chip state renders")
     func toolChips() {
         let states: [ChatBubble.ToolState] = [

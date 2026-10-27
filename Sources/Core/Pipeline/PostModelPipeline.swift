@@ -32,6 +32,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when the answer broke instructions in the request a program can check. Shown under the
     /// bubble like `stanceNote`, never added to the answer text.
     var instructionNote: String?
+    /// Set when the answer's date arithmetic is wrong, names a date that does not exist, or holds only
+    /// under one reading. Shown under the bubble like `stanceNote`, never added to the answer text.
+    var calendarNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -99,12 +102,15 @@ actor PostModelPipeline {
     ///
     /// `messages` are what the model was sent this turn. The link check reads them as the text an
     /// exfiltrating URL would carry; without them it still checks schemes, hosts and session tokens.
+    ///
+    /// `now` is what "today" and "next Friday" in the answer mean to the calendar check.
     func review(
         answer: String,
         sources: [RetrievedSource],
         conversationID: String = SessionMasks.defaultConversation,
         messages: [LLMMessage] = [],
         toolOutputs: [ToolOutput] = [],
+        now: Date = Date(),
         trace: inout PipelineTrace
     ) async -> AnswerReview {
         let context = await linkContext(conversationID: conversationID, messages: messages, sources: sources)
@@ -117,8 +123,9 @@ actor PostModelPipeline {
             trace: &trace
         )
         let followed = await Self.checkInstructions(bound, messages: messages, trace: &trace)
+        let dated = await Self.checkCalendar(followed, messages: messages, now: now, trace: &trace)
         await label(trace: &trace)
-        return followed
+        return dated
     }
 
     private func verify(

@@ -309,6 +309,9 @@ packages:
   InstructionComplianceKit:
     url: https://github.com/rajatslakhina/instruction-compliance-kit
     from: 1.0.0
+  CalendarClaimKit:
+    url: https://github.com/rajatslakhina/calendar-claim-kit
+    from: 1.0.1
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -561,6 +564,8 @@ targets:
         product: NumberBindingKit
       - package: InstructionComplianceKit
         product: InstructionComplianceKit
+      - package: CalendarClaimKit
+        product: CalendarClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

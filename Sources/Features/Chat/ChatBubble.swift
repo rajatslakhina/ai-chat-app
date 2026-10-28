@@ -62,6 +62,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var instructionNote: String?
     /// A note from `calendarCheck`: date arithmetic in this answer that the calendar does not bear out.
     var calendarNote: String?
+    /// A note from `languageMatch`: sentences or words not in the language the user wrote in or asked for.
+    var languageNote: String?
 
     init(
         id: UUID = UUID(),
@@ -89,5 +91,20 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
 
     var isPending: Bool {
         delivery == .sending || delivery == .streaming
+    }
+}
+
+extension ChatBubble {
+    /// Copies what the post-model stages found in a delivered answer: how much of it is grounded, how
+    /// many claims it makes, and the notes shown under it. One place, so a new stage's note cannot be
+    /// computed and then silently dropped on the way to the screen.
+    mutating func applyReview(_ review: AnswerReview) {
+        groundedFraction = review.groundedFraction
+        claimCount = review.claimCount
+        stanceNote = review.stanceNote
+        numberNote = review.numberNote
+        instructionNote = review.instructionNote
+        calendarNote = review.calendarNote
+        languageNote = review.languageNote
     }
 }

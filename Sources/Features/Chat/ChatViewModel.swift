@@ -279,12 +279,7 @@ final class ChatViewModel {
             if !reviewed.publishableText.isEmpty { bubble.text = reviewed.publishableText }
             bubble.delivery = .delivered
             bubble.metrics = completion
-            bubble.groundedFraction = reviewed.groundedFraction
-            bubble.stanceNote = reviewed.stanceNote
-            bubble.numberNote = reviewed.numberNote
-            bubble.instructionNote = reviewed.instructionNote
-            bubble.calendarNote = reviewed.calendarNote
-            bubble.claimCount = reviewed.claimCount
+            bubble.applyReview(reviewed)
         }
         // A tool call the authority gate declined does not throw the answer away: the model's own
         // prose still publishes, and the refusal renders above the composer underneath it. The

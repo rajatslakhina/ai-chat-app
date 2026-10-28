@@ -246,6 +246,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+CalendarCheck.swift`: whether the answer's date arithmetic holds
     /// (weekdays, offsets, spans, business days, leap years, dates that do not exist).
     case calendarCheck
+    /// See `PostModelPipeline+LanguageMatch.swift`: whether the answer is in the language the user wrote
+    /// in or asked for, sentence by sentence and word by word.
+    case languageMatch
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

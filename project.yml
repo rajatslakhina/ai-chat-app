@@ -312,6 +312,9 @@ packages:
   CalendarClaimKit:
     url: https://github.com/rajatslakhina/calendar-claim-kit
     from: 1.0.1
+  LanguageConfusionKit:
+    url: https://github.com/rajatslakhina/language-confusion-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -566,6 +569,8 @@ targets:
         product: InstructionComplianceKit
       - package: CalendarClaimKit
         product: CalendarClaimKit
+      - package: LanguageConfusionKit
+        product: LanguageConfusionKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

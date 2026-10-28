@@ -35,6 +35,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when the answer's date arithmetic is wrong, names a date that does not exist, or holds only
     /// under one reading. Shown under the bubble like `stanceNote`, never added to the answer text.
     var calendarNote: String?
+    /// Set when sentences or words of the answer are not in the language the user wrote in or asked
+    /// for. Shown under the bubble like `stanceNote`, never added to the answer text.
+    var languageNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -124,8 +127,9 @@ actor PostModelPipeline {
         )
         let followed = await Self.checkInstructions(bound, messages: messages, trace: &trace)
         let dated = await Self.checkCalendar(followed, messages: messages, now: now, trace: &trace)
+        let worded = await Self.checkLanguage(dated, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return dated
+        return worded
     }
 
     private func verify(

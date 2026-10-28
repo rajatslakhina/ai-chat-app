@@ -437,6 +437,17 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Calendar check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a language note renders it, in both schemes")
+    func languageNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Une liste est modifiable. In practice, use a tuple.")
+        bubble.languageNote = "Language check: 1 of 2 sentences is in English, not French (you wrote in French): "
+            + "“In practice, use a tuple.”."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Language check"), "the note is never part of the answer text")
+    }
+
     @Test("every tool chip state renders")
     func toolChips() {
         let states: [ChatBubble.ToolState] = [

@@ -249,6 +249,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+LanguageMatch.swift`: whether the answer is in the language the user wrote
     /// in or asked for, sentence by sentence and word by word.
     case languageMatch
+    /// See `PostModelPipeline+PackageCheck.swift`: whether the packages the answer's commands and manifests
+    /// install exist, on the right registry, at the pinned version, and are not days old or look-alikes.
+    case packageCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

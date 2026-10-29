@@ -4,6 +4,7 @@ import CostEstimatorKit
 import Foundation
 import GuardrailKit
 import IdempotencyKit
+import PackageClaimKit
 import PromptTemplateKit
 import ProviderGatewayKit
 import QuotaGovernorKit
@@ -93,7 +94,7 @@ struct Composition: Sendable {
         return Composition(
             pipeline: pipeline,
             executor: executor,
-            review: PostModelPipeline(guardrail: GuardrailPipeline(policy: GuardrailPolicy()), masks: masks),
+            review: makeReview(masks: masks),
             usage: usage,
             meter: meter,
             registry: registry,
@@ -151,6 +152,18 @@ struct Composition: Sendable {
             return ModelCatalogClient(configuration: configuration)
         }
         return StaticModelCatalog()
+    }
+
+    /// The post-model stages. `packageCheck` is the one that makes requests of its own: it asks PyPI, npm
+    /// and crates.io whether the packages an answer installs exist, sending only their names, and only
+    /// when an answer has an install command or manifest in its code. Four seconds, not the kit's eight:
+    /// the note is worth less than an answer kept waiting.
+    private static func makeReview(masks: SessionMasks) -> PostModelPipeline {
+        PostModelPipeline(
+            guardrail: GuardrailPipeline(policy: GuardrailPolicy()),
+            masks: masks,
+            packages: PackageVetter(registry: PublicRegistry(timeout: 4))
+        )
     }
 
     /// The pipeline that names conversations and suggests what to ask next.

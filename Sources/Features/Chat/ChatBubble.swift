@@ -64,6 +64,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var calendarNote: String?
     /// A note from `languageMatch`: sentences or words not in the language the user wrote in or asked for.
     var languageNote: String?
+    /// A note from `packageCheck`: packages this answer installs that do not exist, or deserve a look.
+    var packageNote: String?
 
     init(
         id: UUID = UUID(),
@@ -106,5 +108,6 @@ extension ChatBubble {
         instructionNote = review.instructionNote
         calendarNote = review.calendarNote
         languageNote = review.languageNote
+        packageNote = review.packageNote
     }
 }

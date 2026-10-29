@@ -6,6 +6,7 @@ import Foundation
 import GroundingKit
 import GuardrailKit
 import LinkEgressKit
+import PackageClaimKit
 import ProviderGatewayKit
 import TraceKit
 
@@ -38,6 +39,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when sentences or words of the answer are not in the language the user wrote in or asked
     /// for. Shown under the bubble like `stanceNote`, never added to the answer text.
     var languageNote: String?
+    /// Set when a package the answer tells someone to install does not exist, pins a version that was
+    /// never released, or is new, deprecated or a near-spelling. Shown under the bubble like `stanceNote`.
+    var packageNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -67,6 +71,10 @@ actor PostModelPipeline {
     /// The same store `PreModelPipeline` masks with. Internal because the restore stage lives in
     /// `PostModelPipeline+SessionMask.swift`.
     let masks: SessionMasks
+    /// Checks install commands against the package registries. Optional for the same reason as
+    /// `consistencyChecker`: without one, `packageCheck` records `.skipped`. Internal because the stage
+    /// lives in `PostModelPipeline+PackageCheck.swift`.
+    let packages: PackageVetter?
     private var tick = 0
     /// Spans this pipeline has closed. Counted here rather than read back from `Tracer`, whose
     /// only accessor wants a root id we do not hold — inventing one would report zero forever.
@@ -79,7 +87,8 @@ actor PostModelPipeline {
         tracer: Tracer = Tracer(),
         calibration: CalibrationStore = ConformalLedger.shared,
         censoring: FeedbackLedger? = CensoringLedger.shared,
-        masks: SessionMasks = SessionMasks()
+        masks: SessionMasks = SessionMasks(),
+        packages: PackageVetter? = nil
     ) {
         self.guardrail = guardrail
         self.verifier = verifier
@@ -88,6 +97,7 @@ actor PostModelPipeline {
         self.calibration = calibration
         self.censoring = censoring
         self.masks = masks
+        self.packages = packages
     }
 
     /// Internal for the same reason as `consistencyChecker` — the stages that need a tick
@@ -106,7 +116,8 @@ actor PostModelPipeline {
     /// `messages` are what the model was sent this turn. The link check reads them as the text an
     /// exfiltrating URL would carry; without them it still checks schemes, hosts and session tokens.
     ///
-    /// `now` is what "today" and "next Friday" in the answer mean to the calendar check.
+    /// `now` is what "today" and "next Friday" in the answer mean to the calendar check, and what "first
+    /// published 3 days ago" is measured from for the package check.
     func review(
         answer: String,
         sources: [RetrievedSource],
@@ -128,8 +139,9 @@ actor PostModelPipeline {
         let followed = await Self.checkInstructions(bound, messages: messages, trace: &trace)
         let dated = await Self.checkCalendar(followed, messages: messages, now: now, trace: &trace)
         let worded = await Self.checkLanguage(dated, messages: messages, trace: &trace)
+        let installable = await checkPackages(worded, now: now, trace: &trace)
         await label(trace: &trace)
-        return worded
+        return installable
     }
 
     private func verify(

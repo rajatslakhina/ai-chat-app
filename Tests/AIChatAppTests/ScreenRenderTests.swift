@@ -448,6 +448,17 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Language check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a package note renders it, in both schemes")
+    func packageNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Run `pip install reqeusts`.")
+        bubble.packageNote = "Package check: `reqeusts` (`pip install`): no package by that name on PyPI; "
+            + "did you mean `requests`?"
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Package check"), "the note is never part of the answer text")
+    }
+
     @Test("every tool chip state renders")
     func toolChips() {
         let states: [ChatBubble.ToolState] = [

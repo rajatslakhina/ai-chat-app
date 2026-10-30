@@ -61,14 +61,20 @@ class ScreensUITestCase: XCTestCase {
     /// A SwiftUI `List` builds its rows lazily, so a row below the fold does not merely fail
     /// `isHittable` — it does not exist at all. Every one of these screens is taller than a phone,
     /// so without this the assertions would only ever cover the top of each of them.
+    ///
+    /// `fully` waits until the whole frame is inside the window. A `List` row exists as soon as a sliver
+    /// of it is on screen: on 2026-10-30 `cacheToggle` "existed" at y 860 of an 874-point window, and a
+    /// tap at its centre landed off screen, so the switch never moved.
     @discardableResult
     func reveal(
         _ element: XCUIElement,
         in app: XCUIApplication,
-        swipes: Int = 12
+        swipes: Int = 12,
+        fully: Bool = false
     ) -> Bool {
+        let window = app.windows.firstMatch.frame
         for _ in 0..<swipes {
-            if element.exists { return true }
+            if element.exists, !fully || window.contains(element.frame) { return true }
             app.swipeUp()
         }
         return element.exists
@@ -81,7 +87,7 @@ class ScreensUITestCase: XCTestCase {
     /// switch does not move — which reads as a filtering bug rather than as a missed tap.
     func flip(_ identifier: String, in app: XCUIApplication) {
         let toggle = app.switches[identifier]
-        XCTAssertTrue(reveal(toggle, in: app), "\(identifier) is not on screen")
+        XCTAssertTrue(reveal(toggle, in: app, fully: true), "\(identifier) is not on screen")
         let before = toggle.value as? String
         toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
         // Waits rather than reading straight after the tap: under heavy load (2026-10-26, load

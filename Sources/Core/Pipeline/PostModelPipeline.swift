@@ -42,6 +42,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when a package the answer tells someone to install does not exist, pins a version that was
     /// never released, or is new, deprecated or a near-spelling. Shown under the bubble like `stanceNote`.
     var packageNote: String?
+    /// Set when arithmetic the answer worked out on its own is wrong, rounded the wrong way, or gives
+    /// percentage points as a percent change. Shown under the bubble like `stanceNote`.
+    var arithmeticNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -140,8 +143,9 @@ actor PostModelPipeline {
         let dated = await Self.checkCalendar(followed, messages: messages, now: now, trace: &trace)
         let worded = await Self.checkLanguage(dated, messages: messages, trace: &trace)
         let installable = await checkPackages(worded, now: now, trace: &trace)
+        let summed = await Self.checkArithmetic(installable, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return installable
+        return summed
     }
 
     private func verify(

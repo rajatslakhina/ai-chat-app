@@ -448,6 +448,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Language check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with an arithmetic note renders it, in both schemes")
+    func arithmeticNote() {
+        var bubble = ChatBubble(role: .assistant, text: "15% of $480 is $62.")
+        bubble.arithmeticNote = "Arithmetic check: 15% of $480 is $72, not $62."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Arithmetic check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a package note renders it, in both schemes")
     func packageNote() {
         var bubble = ChatBubble(role: .assistant, text: "Run `pip install reqeusts`.")

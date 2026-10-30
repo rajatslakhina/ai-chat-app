@@ -252,6 +252,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+PackageCheck.swift`: whether the packages the answer's commands and manifests
     /// install exist, on the right registry, at the pinned version, and are not days old or look-alikes.
     case packageCheck
+    /// See `PostModelPipeline+ArithmeticCheck.swift`: whether the arithmetic the answer works out on its
+    /// own (equations, percentages, percentage changes) holds once it is done exactly.
+    case arithmeticCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

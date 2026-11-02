@@ -255,6 +255,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+ArithmeticCheck.swift`: whether the arithmetic the answer works out on its
     /// own (equations, percentages, percentage changes) holds once it is done exactly.
     case arithmeticCheck
+    /// See `PostModelPipeline+UnitCheck.swift`: whether the unit conversions the answer makes on its own
+    /// (distances, temperatures, recipes, data sizes) hold once they are done exactly.
+    case unitCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

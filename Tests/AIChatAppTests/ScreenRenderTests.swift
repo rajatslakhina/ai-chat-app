@@ -458,6 +458,17 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Arithmetic check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a unit note renders it, in both schemes")
+    func unitNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Use 2 cups of flour (500 g).")
+        bubble.unitNote = "Unit check: 2 cups of flour is 237 to 284 g, not 500 g. 500 g weighs 2 cups of flour "
+            + "as if it were water."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Unit check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a package note renders it, in both schemes")
     func packageNote() {
         var bubble = ChatBubble(role: .assistant, text: "Run `pip install reqeusts`.")

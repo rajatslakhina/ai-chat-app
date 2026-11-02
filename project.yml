@@ -321,6 +321,9 @@ packages:
   ArithmeticClaimKit:
     url: https://github.com/rajatslakhina/arithmetic-claim-kit
     from: 1.0.0
+  UnitClaimKit:
+    url: https://github.com/rajatslakhina/unit-claim-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -581,6 +584,8 @@ targets:
         product: PackageClaimKit
       - package: ArithmeticClaimKit
         product: ArithmeticClaimKit
+      - package: UnitClaimKit
+        product: UnitClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

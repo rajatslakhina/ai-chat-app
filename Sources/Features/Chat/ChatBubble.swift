@@ -68,6 +68,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var packageNote: String?
     /// A note from `arithmeticCheck`: results this answer worked out that do not hold, with the exact value.
     var arithmeticNote: String?
+    /// A note from `unitCheck`: unit conversions this answer made that do not hold, with the exact value.
+    var unitNote: String?
 
     init(
         id: UUID = UUID(),
@@ -112,5 +114,6 @@ extension ChatBubble {
         languageNote = review.languageNote
         packageNote = review.packageNote
         arithmeticNote = review.arithmeticNote
+        unitNote = review.unitNote
     }
 }

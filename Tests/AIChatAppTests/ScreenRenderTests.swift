@@ -458,6 +458,17 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Arithmetic check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a regex note renders it, in both schemes")
+    func regexNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Use `\\d{5}`. It does not match `123456`.")
+        bubble.regexNote = "Regex check: `\\d{5}` matches `12345` inside `123456`, though the answer says it "
+            + "does not: the pattern has no `^` and `$` anchors, so a match anywhere in the input counts."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Regex check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a unit note renders it, in both schemes")
     func unitNote() {
         var bubble = ChatBubble(role: .assistant, text: "Use 2 cups of flour (500 g).")

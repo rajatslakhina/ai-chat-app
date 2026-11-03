@@ -318,53 +318,11 @@ struct BubbleRow: View {
         case .sending:
             Text("Sending…").font(Theme.Typeface.metric).foregroundStyle(.tertiary)
         case .streaming, .delivered:
-            if let note = bubble.stanceNote {
-                Text(note)
+            ForEach(bubble.reviewNotes) { note in
+                Text(note.text)
                     .font(Theme.Typeface.metric)
                     .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("stanceNote")
-            }
-            if let note = bubble.numberNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("numberNote")
-            }
-            if let note = bubble.instructionNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("instructionNote")
-            }
-            if let note = bubble.calendarNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("calendarNote")
-            }
-            if let note = bubble.languageNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("languageNote")
-            }
-            if let note = bubble.packageNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("packageNote")
-            }
-            if let note = bubble.arithmeticNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("arithmeticNote")
-            }
-            if let note = bubble.unitNote {
-                Text(note)
-                    .font(Theme.Typeface.metric)
-                    .foregroundStyle(Theme.Palette.refusal)
-                    .accessibilityIdentifier("unitNote")
+                    .accessibilityIdentifier(note.id)
             }
             // The chips that used to live here — sources, grounding, model, tokens, cost, retries
             // — moved into the details sheet. At any real width they truncated to a row of

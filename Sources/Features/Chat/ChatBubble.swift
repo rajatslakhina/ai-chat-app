@@ -70,6 +70,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var arithmeticNote: String?
     /// A note from `unitCheck`: unit conversions this answer made that do not hold, with the exact value.
     var unitNote: String?
+    /// A note from `regexCheck`: regex claims in this answer that do not hold when run.
+    var regexNote: String?
 
     init(
         id: UUID = UUID(),
@@ -115,5 +117,23 @@ extension ChatBubble {
         packageNote = review.packageNote
         arithmeticNote = review.arithmeticNote
         unitNote = review.unitNote
+        regexNote = review.regexNote
     }
+
+    /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
+    /// identifier the UI tests look for. One list, so the view draws every note the same way.
+    var reviewNotes: [ReviewNote] {
+        let notes: [(String, String?)] = [
+            ("stanceNote", stanceNote), ("numberNote", numberNote), ("instructionNote", instructionNote),
+            ("calendarNote", calendarNote), ("languageNote", languageNote), ("packageNote", packageNote),
+            ("arithmeticNote", arithmeticNote), ("unitNote", unitNote), ("regexNote", regexNote)
+        ]
+        return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
+    }
+}
+
+/// One note under an answer: what a post-model stage found, and the identifier it is drawn with.
+struct ReviewNote: Identifiable, Equatable, Sendable {
+    let id: String
+    let text: String
 }

@@ -48,6 +48,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when a unit conversion the answer made on its own is wrong, rounded the wrong way, or holds
     /// only for another size of the unit. Shown under the bubble like `stanceNote`.
     var unitNote: String?
+    /// Set when a regular expression in the answer does not do what the answer says it does, or does not
+    /// compile, or backtracks without end. Shown under the bubble like `stanceNote`.
+    var regexNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -148,8 +151,9 @@ actor PostModelPipeline {
         let installable = await checkPackages(worded, now: now, trace: &trace)
         let summed = await Self.checkArithmetic(installable, messages: messages, trace: &trace)
         let converted = await Self.checkUnits(summed, messages: messages, trace: &trace)
+        let matched = await Self.checkRegexes(converted, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return converted
+        return matched
     }
 
     private func verify(

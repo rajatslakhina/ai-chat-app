@@ -51,6 +51,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when a regular expression in the answer does not do what the answer says it does, or does not
     /// compile, or backtracks without end. Shown under the bubble like `stanceNote`.
     var regexNote: String?
+    /// Set when something the answer says about a string (a letter count, a length, an encoding, a
+    /// digest, a code result) does not hold once run. Shown under the bubble like `stanceNote`.
+    var stringNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -152,8 +155,9 @@ actor PostModelPipeline {
         let summed = await Self.checkArithmetic(installable, messages: messages, trace: &trace)
         let converted = await Self.checkUnits(summed, messages: messages, trace: &trace)
         let matched = await Self.checkRegexes(converted, messages: messages, trace: &trace)
+        let counted = await Self.checkStrings(matched, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return matched
+        return counted
     }
 
     private func verify(

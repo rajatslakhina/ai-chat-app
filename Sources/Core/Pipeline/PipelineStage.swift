@@ -261,6 +261,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+RegexCheck.swift`: whether the regular expressions the answer gives do what
     /// it says they do (its examples, its tables, its commented lines of code), once they are run.
     case regexCheck
+    /// See `PostModelPipeline+StringCheck.swift`: whether what the answer says about strings (letter
+    /// counts, lengths, encodings, digests, code results) holds once it is run.
+    case stringCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

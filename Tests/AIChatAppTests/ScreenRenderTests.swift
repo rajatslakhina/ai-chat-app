@@ -469,6 +469,17 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Regex check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a string note renders it, in both schemes")
+    func stringNote() {
+        var bubble = ChatBubble(role: .assistant, text: "There are 2 r's in \"strawberry\".")
+        bubble.stringNote = "String check: \"r\" occurs 3 times in \"strawberry\", not 2: the doubled \"rr\" "
+            + "was counted once."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("String check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a unit note renders it, in both schemes")
     func unitNote() {
         var bubble = ChatBubble(role: .assistant, text: "Use 2 cups of flour (500 g).")

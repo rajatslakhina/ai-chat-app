@@ -54,6 +54,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about a string (a letter count, a length, an encoding, a
     /// digest, a code result) does not hold once run. Shown under the bubble like `stanceNote`.
     var stringNote: String?
+    /// Set when something the answer says about JSON (a block labeled `json`, a serialization or parse
+    /// result, jq output) does not hold once run. Shown under the bubble like `stringNote`.
+    var jsonNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -156,8 +159,9 @@ actor PostModelPipeline {
         let converted = await Self.checkUnits(summed, messages: messages, trace: &trace)
         let matched = await Self.checkRegexes(converted, messages: messages, trace: &trace)
         let counted = await Self.checkStrings(matched, messages: messages, trace: &trace)
+        let parsed = await Self.checkJSON(counted, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return counted
+        return parsed
     }
 
     private func verify(

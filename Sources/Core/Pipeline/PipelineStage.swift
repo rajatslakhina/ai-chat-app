@@ -264,6 +264,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+StringCheck.swift`: whether what the answer says about strings (letter
     /// counts, lengths, encodings, digests, code results) holds once it is run.
     case stringCheck
+    /// See `PostModelPipeline+JSONCheck.swift`: whether what the answer says about JSON (a block labeled
+    /// `json`, a `json.dumps` or `JSON.parse` result, jq output) holds once it is parsed and run.
+    case jsonCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

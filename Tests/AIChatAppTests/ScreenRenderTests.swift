@@ -469,6 +469,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Regex check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a JSON note renders it, in both schemes")
+    func jsonNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Use this body:\n```json\n{\"name\": \"app\",}\n```")
+        bubble.jsonNote = "JSON check: The block shown as JSON does not parse: a trailing comma at line 1, column 15."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("JSON check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a string note renders it, in both schemes")
     func stringNote() {
         var bubble = ChatBubble(role: .assistant, text: "There are 2 r's in \"strawberry\".")

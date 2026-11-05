@@ -86,6 +86,7 @@ final class LoginFlowUITests: XCTestCase {
         app.secureTextFields["passphraseField"].tap()
         app.secureTextFields["passphraseField"].typeText("letmein")
         app.buttons["signInButton"].tap()
+        declinePasswordSave()
 
         // Signing in lands on the list, and the list is where a chat is started from.
         openChat(app)
@@ -106,6 +107,20 @@ final class LoginFlowUITests: XCTestCase {
             attachDiagnostics(of: app, named: "chatEmptyState never appeared")
         }
         XCTAssertTrue(reached)
+    }
+
+    /// iOS can offer to save the passphrase after a password sign-in. The offer belongs to
+    /// SafariViewService, not the app, and while it is up it swallows taps on the chat list: on
+    /// 2026-11-05 every failure of `testDemoCredentialsReachTheChatScreen` had a `Save Password?`
+    /// alert from SafariViewService in the simulator log, and both New chat taps were dropped. The
+    /// app's screenshot cannot show it. Decline the offer when it appears; nothing in the app changes.
+    private func declinePasswordSave() {
+        let service = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
+        let notNow = service.buttons["Not Now"]
+        guard notNow.waitForExistence(timeout: 4) else { return }
+        XCTContext.runActivity(named: "Declined the system Save Password? offer") { _ in
+            notNow.tap()
+        }
     }
 
     /// Keeps the screen and the element tree at the moment a wait gave up, in the result bundle.

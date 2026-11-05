@@ -330,6 +330,9 @@ packages:
   StringClaimKit:
     url: https://github.com/rajatslakhina/string-claim-kit
     from: 1.0.0
+  JSONClaimKit:
+    url: https://github.com/rajatslakhina/json-claim-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -596,6 +599,8 @@ targets:
         product: RegexClaimKit
       - package: StringClaimKit
         product: StringClaimKit
+      - package: JSONClaimKit
+        product: JSONClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

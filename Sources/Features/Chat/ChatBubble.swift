@@ -74,6 +74,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var regexNote: String?
     /// A note from `stringCheck`: things this answer says about strings that do not hold when run.
     var stringNote: String?
+    /// A note from `jsonCheck`: things this answer says about JSON that do not hold when parsed or run.
+    var jsonNote: String?
 
     init(
         id: UUID = UUID(),
@@ -121,6 +123,7 @@ extension ChatBubble {
         unitNote = review.unitNote
         regexNote = review.regexNote
         stringNote = review.stringNote
+        jsonNote = review.jsonNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -130,7 +133,7 @@ extension ChatBubble {
             ("stanceNote", stanceNote), ("numberNote", numberNote), ("instructionNote", instructionNote),
             ("calendarNote", calendarNote), ("languageNote", languageNote), ("packageNote", packageNote),
             ("arithmeticNote", arithmeticNote), ("unitNote", unitNote), ("regexNote", regexNote),
-            ("stringNote", stringNote)
+            ("stringNote", stringNote), ("jsonNote", jsonNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

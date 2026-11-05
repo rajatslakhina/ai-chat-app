@@ -225,8 +225,8 @@ check skips code, and regexes live in code, so this is the first post-model stag
   2 hold", or an unchecked pattern) / `.skipped` (a withheld answer). No network and no configuration.
 - **`ChatView` made room first.** It sat at 497/500 lines with eight copies of the same note block; they are
   now one `ForEach` over `ChatBubble.reviewNotes` (identifiers unchanged), and the file is 455 lines.
-- **The package repository does not exist yet** (see Remaining work); this branch resolves it through a local
-  SwiftPM mirror until it does.
+- **The package repository was published on 2026-11-05** (it could not be created by the 11-03 run); until
+  then the stage was gated through a local SwiftPM mirror. It now resolves from GitHub like every other package.
 
 Per file, from the full run: `PostModelPipeline+RegexCheck.swift` 100.00% (23/23), `PostModelPipeline.swift` 100.00% (225/225), `PipelineStage+Catalog.swift` 100.00% (219/219), `ChatBubble.swift` 100.00% (40/40, `reviewNotes` included); `ChatView.swift` 78.50% (588/749): the fold removed 36 covered lines and left the same 161 uncovered, which are UI-test territory.
 
@@ -250,8 +250,8 @@ check JSON a model is asked to produce for an app; this is JSON the model hands 
   or an unchecked block) / `.skipped` (a withheld answer). No network and no configuration.
 - **The note needed one line in `ChatBubble`** (property, `applyReview`, `reviewNotes`) and nothing in the
   view: `ChatView.swift` is unchanged.
-- **The package repository does not exist yet** (see Remaining work); this branch resolves it through a local
-  SwiftPM mirror, as `regexCheck` and `stringCheck` do.
+- **The package repository was published on 2026-11-05**, after the run could not create it; the stage was first
+  gated through a local SwiftPM mirror, then again with every package resolved from GitHub.
 
 Per file, from the full run: `PostModelPipeline+JSONCheck.swift` 100.00% (23/23), `PostModelPipeline.swift` 100.00% (227/227), `PipelineStage+Catalog.swift` 100.00% (223/223), `ChatBubble.swift` 100.00% (43/43); `ChatView.swift` 78.50% (588/749), unchanged.
 
@@ -274,8 +274,8 @@ r's in strawberry", "the base64 of hello is aGVsbG8K", a SHA-256 copied from `ec
   hold", or an unchecked claim) / `.skipped` (a withheld answer). No network and no configuration.
 - **The note needed one line in `ChatBubble`** (property, `applyReview`, `reviewNotes`) and nothing in the
   view, as the 11-03 fold intended: `ChatView.swift` is unchanged at 455 lines.
-- **The package repository does not exist yet** (see Remaining work); this branch resolves it through a local
-  SwiftPM mirror, as `regexCheck` does.
+- **The package repository was published on 2026-11-05** (it could not be created by the 11-04 run); until then
+  the stage was gated through a local SwiftPM mirror. It now resolves from GitHub like every other package.
 
 Per file, from the full run: `PostModelPipeline+StringCheck.swift` 100.00% (23/23), `PostModelPipeline.swift` 100.00% (226/226), `PipelineStage+Catalog.swift` 100.00% (221/221), `ChatBubble.swift` 100.00% (42/42); `ChatView.swift` 78.50% (588/749), unchanged.
 
@@ -2439,20 +2439,7 @@ rather than gamed.
 
 ## Remaining work
 
-- **Create `rajatslakhina/json-claim-kit` and push it with tag `1.0.0`, then push `pending/json-check-stage`.**
-  On 2026-11-05 the session again could not create the repository (public or private). The branch stacks on
-  `pending/string-check-stage` and `pending/regex-check-stage`, so those packages must exist first (next items);
-  pushing the newest branch publishes all three stages.
-- **Create `rajatslakhina/string-claim-kit` and push it with tag `1.0.0`, then push `pending/string-check-stage`.**
-  On 2026-11-04 the session again could not create the repository (public or private). The branch stacks on
-  `pending/regex-check-stage`, so `regex-claim-kit` must exist first (next item); pushing the newer branch
-  publishes both stages.
-- **Create `rajatslakhina/regex-claim-kit` and push it with tag `1.0.0`, then push `pending/regex-check-stage`.**
-  On 2026-11-03 the session could not create the repository at all (public or private). Until it exists, this
-  branch resolves the package only through a local mirror. `unit-claim-kit` must also be public first.
 - **A one-tap rewrite under the regex note** that sends `RegexReport.feedback`, and keep the note with the message.
-- **Make `unit-claim-kit` public, then push `pending/unit-check-stage`.** The repository could only be
-  created private on 2026-11-02, and a public app cannot resolve a private package for anyone else.
 - **Keep the unit note with the message**, and offer a one-tap rewrite that sends `ConversionReport.feedback`.
 - **Let the unit check know the user's units.** A user who asked for grams should see a cup left unconverted
   as worth a note too; today only stated conversions are checked.

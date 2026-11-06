@@ -479,6 +479,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("JSON check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a YAML note renders it, in both schemes")
+    func yamlNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Use this:\n```yaml\npython-version: 3.10\n```")
+        bubble.yamlNote = "YAML check: `python-version: 3.10` is not the string \"3.10\": it is the float 3.1."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("YAML check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a string note renders it, in both schemes")
     func stringNote() {
         var bubble = ChatBubble(role: .assistant, text: "There are 2 r's in \"strawberry\".")

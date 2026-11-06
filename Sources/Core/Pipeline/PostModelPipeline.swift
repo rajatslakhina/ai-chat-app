@@ -57,6 +57,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about JSON (a block labeled `json`, a serialization or parse
     /// result, jq output) does not hold once run. Shown under the bubble like `stringNote`.
     var jsonNote: String?
+    /// Set when something the answer says about YAML (a block labeled `yaml`, how an unquoted value reads, a
+    /// `yaml.safe_load` result) does not hold once parsed. Shown under the bubble like `jsonNote`.
+    var yamlNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -160,8 +163,9 @@ actor PostModelPipeline {
         let matched = await Self.checkRegexes(converted, messages: messages, trace: &trace)
         let counted = await Self.checkStrings(matched, messages: messages, trace: &trace)
         let parsed = await Self.checkJSON(counted, messages: messages, trace: &trace)
+        let loaded = await Self.checkYAML(parsed, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return parsed
+        return loaded
     }
 
     private func verify(

@@ -333,6 +333,9 @@ packages:
   JSONClaimKit:
     url: https://github.com/rajatslakhina/json-claim-kit
     from: 1.0.0
+  YAMLClaimKit:
+    url: https://github.com/rajatslakhina/yaml-claim-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -601,6 +604,8 @@ targets:
         product: StringClaimKit
       - package: JSONClaimKit
         product: JSONClaimKit
+      - package: YAMLClaimKit
+        product: YAMLClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

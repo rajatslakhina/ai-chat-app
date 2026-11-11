@@ -63,6 +63,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about TOML (a block labeled `toml`, how an unquoted value reads, a
     /// `tomllib.load` result) does not hold once parsed. Shown under the bubble like `yamlNote`.
     var tomlNote: String?
+    /// Set when something the answer says its SQL returns does not hold once the SQL runs on the data the
+    /// answer shows. Shown under the bubble like `tomlNote`.
+    var sqlNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -168,8 +171,9 @@ actor PostModelPipeline {
         let parsed = await Self.checkJSON(counted, messages: messages, trace: &trace)
         let loaded = await Self.checkYAML(parsed, messages: messages, trace: &trace)
         let configured = await Self.checkTOML(loaded, messages: messages, trace: &trace)
+        let queried = await Self.checkSQL(configured, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return configured
+        return queried
     }
 
     private func verify(

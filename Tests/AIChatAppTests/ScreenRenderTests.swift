@@ -479,6 +479,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("JSON check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a SQL note renders it, in both schemes")
+    func sqlNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Use this:\n```sql\nSELECT name FROM t WHERE email = NULL;\n```")
+        bubble.sqlNote = "SQL check: `SELECT name FROM t WHERE email = NULL;` returns no rows, not 2 rows: Ben, Chen."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("SQL check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a TOML note renders it, in both schemes")
     func tomlNote() {
         var bubble = ChatBubble(role: .assistant, text: "Use this:\n```toml\npython_version = 3.10\n```")

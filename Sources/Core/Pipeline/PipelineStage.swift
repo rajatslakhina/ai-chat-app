@@ -273,6 +273,9 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+TOMLCheck.swift`: whether what the answer says about TOML (a block labeled
     /// `toml`, how an unquoted value reads, a `tomllib.load` result) holds once parsed and loaded.
     case tomlCheck
+    /// See `PostModelPipeline+SQLCheck.swift`: whether what the answer says its SQL returns (a table of
+    /// output, a row count, a value in a comment) holds once the SQL runs on the data the answer shows.
+    case sqlCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

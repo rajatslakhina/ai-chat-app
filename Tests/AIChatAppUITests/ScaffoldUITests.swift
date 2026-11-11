@@ -117,7 +117,9 @@ final class LoginFlowUITests: XCTestCase {
     private func declinePasswordSave() {
         let service = XCUIApplication(bundleIdentifier: "com.apple.SafariViewService")
         let notNow = service.buttons["Not Now"]
-        guard notNow.waitForExistence(timeout: 4) else { return }
+        // 10, not 4: on 2026-11-11 the offer came up 5.8s after the sign-in tap, with the machine under
+        // load, after a 4s wait had already given up, and it swallowed the New chat tap.
+        guard notNow.waitForExistence(timeout: 10) else { return }
         XCTContext.runActivity(named: "Declined the system Save Password? offer") { _ in
             notNow.tap()
         }

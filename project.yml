@@ -341,7 +341,7 @@ packages:
     from: 1.0.0
   SQLClaimKit:
     url: https://github.com/rajatslakhina/sql-claim-kit
-    from: 1.0.0
+    from: 1.1.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0

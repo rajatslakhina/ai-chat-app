@@ -20,6 +20,11 @@ extension PostModelPipeline {
     /// Earlier answers are replayed through one `SQLLedger`, so a wrong result the chat already gave is
     /// marked as stated again. No refusal: a note under the bubble, kept out of the text, the cache and the
     /// history.
+    ///
+    /// An answer the output stages changed (an email redacted, a link rewritten) is skipped when it holds
+    /// SQL: two redacted emails become the same text, so the SQL that would run is not what the model wrote
+    /// and could fail a `UNIQUE` constraint the model's SQL never broke. Running the unredacted text instead
+    /// would put what the guardrail removed back into a note.
     static func checkSQL(
         _ review: AnswerReview,
         messages: [LLMMessage],
@@ -27,6 +32,12 @@ extension PostModelPipeline {
     ) async -> AnswerReview {
         guard review.refusal == nil else {
             let reason = "the answer was withheld, so there is nothing to check"
+            trace.record(.sqlCheck, .skipped(reason: reason))
+            return review
+        }
+        if review.wasModified, !SQLClaimChecker().claims(in: review.publishableText).isEmpty {
+            let reason = "the answer was changed before display (a redaction or a rewritten link), "
+                + "so its SQL is not what the model wrote"
             trace.record(.sqlCheck, .skipped(reason: reason))
             return review
         }

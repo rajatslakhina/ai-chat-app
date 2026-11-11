@@ -84,6 +84,31 @@ struct SQLCheckStageTests {
         #expect(postgresTrace.outcome(for: .sqlCheck) == .noOp(reason: "1 claim checked, 0 hold, 1 unchecked"))
     }
 
+    @Test("SQL the guardrail changed is skipped: two redacted emails would break a UNIQUE the model's SQL kept")
+    func redactedSQLIsSkipped() async {
+        let answer = "```sql\nCREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT UNIQUE);\n"
+            + "INSERT INTO users VALUES (1, 'ann@example.com'), (2, 'bo@example.com');\n"
+            + "SELECT id FROM users WHERE email = 'bo@example.com'; -- 2\n```"
+        let (reviewed, trace) = await review(answer)
+        #expect(reviewed.wasModified)
+        #expect(reviewed.publishableText != answer)
+        #expect(reviewed.sqlNote == nil)
+        #expect(trace.outcome(for: .sqlCheck) == .skipped(reason: "the answer was changed before display (a "
+            + "redaction or a rewritten link), so its SQL is not what the model wrote"))
+        let (plain, plainTrace) = await review("Your email ann@example.com is on file.")
+        #expect(plain.wasModified)
+        #expect(plainTrace.outcome(for: .sqlCheck) == .noOp(reason: "no claims about SQL"))
+    }
+
+    @Test("words after returns in a comment, and one row per customer, are not claims (SQLClaimKit 1.1.0)")
+    func proseIsNotAClaim() async {
+        let answer = "```sql\n" + schema + "SELECT name FROM customers WHERE email IS NULL; -- returns the ones "
+            + "to chase\n```\nThis returns one row per customer."
+        let (reviewed, trace) = await review(answer)
+        #expect(reviewed.sqlNote == nil)
+        #expect(trace.outcome(for: .sqlCheck) == .noOp(reason: "1 claim checked, 1 hold"))
+    }
+
     @Test("a withheld answer is not checked")
     func withheldIsSkipped() async {
         let refusal = Refusal(stage: .guardrailOutput, headline: "Withheld", explanation: "x", recovery: nil)

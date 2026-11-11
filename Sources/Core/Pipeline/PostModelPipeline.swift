@@ -60,6 +60,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about YAML (a block labeled `yaml`, how an unquoted value reads, a
     /// `yaml.safe_load` result) does not hold once parsed. Shown under the bubble like `jsonNote`.
     var yamlNote: String?
+    /// Set when something the answer says about TOML (a block labeled `toml`, how an unquoted value reads, a
+    /// `tomllib.load` result) does not hold once parsed. Shown under the bubble like `yamlNote`.
+    var tomlNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -164,8 +167,9 @@ actor PostModelPipeline {
         let counted = await Self.checkStrings(matched, messages: messages, trace: &trace)
         let parsed = await Self.checkJSON(counted, messages: messages, trace: &trace)
         let loaded = await Self.checkYAML(parsed, messages: messages, trace: &trace)
+        let configured = await Self.checkTOML(loaded, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return loaded
+        return configured
     }
 
     private func verify(

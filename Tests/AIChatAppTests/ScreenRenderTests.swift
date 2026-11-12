@@ -489,6 +489,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("SQL check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a version range note renders it, in both schemes")
+    func rangeNote() {
+        var bubble = ChatBubble(role: .assistant, text: "With npm, `^0.2.3` allows 0.3.0.")
+        bubble.rangeNote = "Version range check: `^0.2.3` does not allow 0.3.0: in npm it means >=0.2.3 <0.3.0."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Version range check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a TOML note renders it, in both schemes")
     func tomlNote() {
         var bubble = ChatBubble(role: .assistant, text: "Use this:\n```toml\npython_version = 3.10\n```")

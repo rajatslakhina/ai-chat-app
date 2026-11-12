@@ -66,6 +66,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says its SQL returns does not hold once the SQL runs on the data the
     /// answer shows. Shown under the bubble like `tomlNote`.
     var sqlNote: String?
+    /// Set when something the answer says about a version range (which versions it admits, what it means,
+    /// whether a specifier is valid) does not hold by the package manager's rules. Shown like `sqlNote`.
+    var rangeNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -172,8 +175,9 @@ actor PostModelPipeline {
         let loaded = await Self.checkYAML(parsed, messages: messages, trace: &trace)
         let configured = await Self.checkTOML(loaded, messages: messages, trace: &trace)
         let queried = await Self.checkSQL(configured, messages: messages, trace: &trace)
+        let ranged = await Self.checkRanges(queried, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return queried
+        return ranged
     }
 
     private func verify(

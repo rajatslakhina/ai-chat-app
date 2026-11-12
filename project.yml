@@ -342,6 +342,9 @@ packages:
   SQLClaimKit:
     url: https://github.com/rajatslakhina/sql-claim-kit
     from: 1.1.0
+  VersionRangeClaimKit:
+    url: https://github.com/rajatslakhina/version-range-claim-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -616,6 +619,8 @@ targets:
         product: TOMLClaimKit
       - package: SQLClaimKit
         product: SQLClaimKit
+      - package: VersionRangeClaimKit
+        product: VersionRangeClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

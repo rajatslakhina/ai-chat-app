@@ -276,6 +276,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// See `PostModelPipeline+SQLCheck.swift`: whether what the answer says its SQL returns (a table of
     /// output, a row count, a value in a comment) holds once the SQL runs on the data the answer shows.
     case sqlCheck
+    /// See `PostModelPipeline+RangeCheck.swift`: whether what the answer says about version ranges (which
+    /// versions `^0.2.3` admits, what `~=1.4` means, a specifier in a manifest) holds by the package
+    /// manager's own rules.
+    case rangeCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

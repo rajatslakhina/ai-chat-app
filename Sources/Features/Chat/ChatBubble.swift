@@ -82,6 +82,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var tomlNote: String?
     /// A note from `sqlCheck`: results this answer states for its SQL that do not hold when it runs.
     var sqlNote: String?
+    /// A note from `rangeCheck`: things this answer says about version ranges that do not hold.
+    var rangeNote: String?
 
     init(
         id: UUID = UUID(),
@@ -133,6 +135,7 @@ extension ChatBubble {
         yamlNote = review.yamlNote
         tomlNote = review.tomlNote
         sqlNote = review.sqlNote
+        rangeNote = review.rangeNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -143,7 +146,7 @@ extension ChatBubble {
             ("calendarNote", calendarNote), ("languageNote", languageNote), ("packageNote", packageNote),
             ("arithmeticNote", arithmeticNote), ("unitNote", unitNote), ("regexNote", regexNote),
             ("stringNote", stringNote), ("jsonNote", jsonNote), ("yamlNote", yamlNote),
-            ("tomlNote", tomlNote), ("sqlNote", sqlNote)
+            ("tomlNote", tomlNote), ("sqlNote", sqlNote), ("rangeNote", rangeNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

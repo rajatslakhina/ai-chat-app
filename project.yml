@@ -347,7 +347,7 @@ packages:
     from: 1.0.1
   GitignoreClaimKit:
     url: https://github.com/rajatslakhina/gitignore-claim-kit
-    from: 1.0.0
+    from: 1.0.1
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0

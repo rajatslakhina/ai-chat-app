@@ -4,7 +4,7 @@ import ProviderGatewayKit
 import Testing
 @testable import AIChatApp
 
-private let question = "How do I ignore the generated docs but keep one log file?"
+private let question = "How should my .gitignore handle the generated docs and one log file?"
 
 private func user(_ text: String) -> LLMMessage {
     LLMMessage(role: .user, content: text)
@@ -88,6 +88,18 @@ struct IgnoreCheckStageTests {
         let (docker, dockerTrace) = await review("In `.dockerignore`, `*.log` matches `logs/app.log`.")
         #expect(docker.ignoreNote == nil)
         #expect(dockerTrace.outcome(for: .ignoreCheck) == .noOp(reason: "1 claim checked, 0 hold, 1 unchecked"))
+    }
+
+    @Test("a sentence about a regex or a collection is not a .gitignore claim when nothing mentions one")
+    func otherDomainsStayQuiet() async {
+        let messages = [user("What does `[a-z]+` match, and what does compactMap do?")]
+        let answer = "`[a-z]+` matches `abc`, and `compactMap` ignores `nil` values."
+        let (reviewed, trace) = await review(answer, messages: messages)
+        #expect(reviewed.ignoreNote == nil)
+        #expect(trace.outcome(for: .ignoreCheck) == .noOp(reason: "no claims about ignore rules"))
+        let (unasked, unaskedTrace) = await review(docs, messages: [user("Where do the docs go?")])
+        #expect(unasked.ignoreNote == nil)
+        #expect(unaskedTrace.outcome(for: .ignoreCheck) == .noOp(reason: "no claims about ignore rules"))
     }
 
     @Test("a withheld answer is not checked")

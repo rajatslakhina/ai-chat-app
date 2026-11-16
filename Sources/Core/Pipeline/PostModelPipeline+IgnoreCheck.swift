@@ -14,8 +14,11 @@ extension PostModelPipeline {
     /// port of git's matcher. Another tool's ignore file (`.dockerignore`, `.npmignore`) is recognised and
     /// not checked; a claim that depends on `core.ignorecase` is a second look rather than a verdict.
     ///
-    /// Earlier answers in the conversation are replayed through one `IgnoreLedger`, so a wrong claim the
-    /// chat already gave is marked as stated again rather than reported as new.
+    /// Earlier answers in the conversation are replayed through one `IgnoreLedger`, each with its
+    /// question, so a wrong claim the chat already gave is marked as stated again rather than reported as
+    /// new. A sentence's own patterns are read as ignore rules only once the answer or a question in the
+    /// chat mentions an ignore file: "`[a-z]+` matches `abc`" in a chat about regexes is not a .gitignore
+    /// claim.
     ///
     /// No refusal: the answer is paid for, and one misread pattern does not make the rest wrong. A claim
     /// that does not hold gets a note under the bubble with what git does, the slip behind it and a line
@@ -31,10 +34,11 @@ extension PostModelPipeline {
             return review
         }
         let ledger = IgnoreLedger()
-        for earlier in conversation(messages).dropLast() {
-            _ = await ledger.review(earlier.answer)
+        let turns = conversation(messages)
+        for earlier in turns.dropLast() {
+            _ = await ledger.review(earlier.answer, context: earlier.question)
         }
-        let report = await ledger.review(review.publishableText)
+        let report = await ledger.review(review.publishableText, context: turns.last?.question ?? "")
         guard !report.flagged.isEmpty else {
             trace.record(.ignoreCheck, .noOp(reason: report.summary))
             return review

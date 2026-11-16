@@ -489,6 +489,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("SQL check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a gitignore note renders it, in both schemes")
+    func ignoreNote() {
+        var bubble = ChatBubble(role: .assistant, text: "`doc/*.txt` matches `doc/server/arch.txt` too.")
+        bubble.ignoreNote = "Gitignore check: `doc/server/arch.txt` is not ignored: no line matches it."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Gitignore check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a version range note renders it, in both schemes")
     func rangeNote() {
         var bubble = ChatBubble(role: .assistant, text: "With npm, `^0.2.3` allows 0.3.0.")

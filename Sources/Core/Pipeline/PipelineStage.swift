@@ -280,6 +280,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// versions `^0.2.3` admits, what `~=1.4` means, a specifier in a manifest) holds by the package
     /// manager's own rules.
     case rangeCheck
+    /// See `PostModelPipeline+IgnoreCheck.swift`: whether what the answer says about .gitignore rules (which
+    /// paths a pattern ignores, whether a `!` line brings a file back, whether listing a committed file
+    /// untracks it) holds by git's own matching.
+    case ignoreCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

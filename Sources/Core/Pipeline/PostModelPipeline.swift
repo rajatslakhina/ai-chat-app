@@ -69,6 +69,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about a version range (which versions it admits, what it means,
     /// whether a specifier is valid) does not hold by the package manager's rules. Shown like `sqlNote`.
     var rangeNote: String?
+    /// Set when something the answer says about .gitignore rules (which paths are ignored, whether a `!` line
+    /// works, whether listing a file untracks it) does not hold by git's matching. Shown like `rangeNote`.
+    var ignoreNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -176,8 +179,9 @@ actor PostModelPipeline {
         let configured = await Self.checkTOML(loaded, messages: messages, trace: &trace)
         let queried = await Self.checkSQL(configured, messages: messages, trace: &trace)
         let ranged = await Self.checkRanges(queried, messages: messages, trace: &trace)
+        let ignored = await Self.checkIgnoreRules(ranged, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return ranged
+        return ignored
     }
 
     private func verify(

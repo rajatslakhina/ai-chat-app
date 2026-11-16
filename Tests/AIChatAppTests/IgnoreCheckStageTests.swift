@@ -100,6 +100,11 @@ struct IgnoreCheckStageTests {
         let (unasked, unaskedTrace) = await review(docs, messages: [user("Where do the docs go?")])
         #expect(unasked.ignoreNote == nil)
         #expect(unaskedTrace.outcome(for: .ignoreCheck) == .noOp(reason: "no claims about ignore rules"))
+        let later = [user(question), LLMMessage(role: .assistant, content: docs),
+                     user("Unrelated: what does `[a-z]+` match?")]
+        let (moved, movedTrace) = await review("`[a-z]+` matches `abc`.", messages: later)
+        #expect(moved.ignoreNote == nil, "a chat that once mentioned .gitignore does not make a regex a gitignore claim")
+        #expect(movedTrace.outcome(for: .ignoreCheck) == .noOp(reason: "no claims about ignore rules"))
     }
 
     @Test("a withheld answer is not checked")

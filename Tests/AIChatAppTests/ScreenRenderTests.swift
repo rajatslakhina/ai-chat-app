@@ -499,6 +499,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Gitignore check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a dockerignore note renders it, in both schemes")
+    func dockerignoreNote() {
+        var bubble = ChatBubble(role: .assistant, text: "In `.dockerignore`, `*.log` matches `logs/app.log`.")
+        bubble.dockerignoreNote = "Dockerignore check: `logs/app.log` is sent: no line matches it."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Dockerignore check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a version range note renders it, in both schemes")
     func rangeNote() {
         var bubble = ChatBubble(role: .assistant, text: "With npm, `^0.2.3` allows 0.3.0.")

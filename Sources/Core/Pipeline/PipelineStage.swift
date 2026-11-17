@@ -284,6 +284,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// paths a pattern ignores, whether a `!` line brings a file back, whether listing a committed file
     /// untracks it) holds by git's own matching.
     case ignoreCheck
+    /// See `PostModelPipeline+DockerignoreCheck.swift`: whether what the answer says about .dockerignore
+    /// rules (which paths are left out of the build context, whether a `!` line brings a file back, where the
+    /// file is read) holds by Docker's own matching.
+    case dockerignoreCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

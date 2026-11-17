@@ -72,6 +72,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about .gitignore rules (which paths are ignored, whether a `!` line
     /// works, whether listing a file untracks it) does not hold by git's matching. Shown like `rangeNote`.
     var ignoreNote: String?
+    /// Set when something the answer says about .dockerignore rules (which paths are left out of the build
+    /// context, where the file is read, what listing the Dockerfile does) does not hold by Docker's matching.
+    var dockerignoreNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -180,8 +183,9 @@ actor PostModelPipeline {
         let queried = await Self.checkSQL(configured, messages: messages, trace: &trace)
         let ranged = await Self.checkRanges(queried, messages: messages, trace: &trace)
         let ignored = await Self.checkIgnoreRules(ranged, messages: messages, trace: &trace)
+        let contexted = await Self.checkDockerignoreRules(ignored, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return ignored
+        return contexted
     }
 
     private func verify(

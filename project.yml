@@ -348,6 +348,9 @@ packages:
   GitignoreClaimKit:
     url: https://github.com/rajatslakhina/gitignore-claim-kit
     from: 1.0.2
+  DockerignoreClaimKit:
+    url: https://github.com/rajatslakhina/dockerignore-claim-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -626,6 +629,8 @@ targets:
         product: VersionRangeClaimKit
       - package: GitignoreClaimKit
         product: GitignoreClaimKit
+      - package: DockerignoreClaimKit
+        product: DockerignoreClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

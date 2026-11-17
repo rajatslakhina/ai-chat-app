@@ -86,6 +86,9 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var rangeNote: String?
     /// A note from `ignoreCheck`: things this answer says about .gitignore rules that git does not do.
     var ignoreNote: String?
+    /// A note from `dockerignoreCheck`: things this answer says about .dockerignore rules that Docker does
+    /// not do.
+    var dockerignoreNote: String?
 
     init(
         id: UUID = UUID(),
@@ -139,6 +142,7 @@ extension ChatBubble {
         sqlNote = review.sqlNote
         rangeNote = review.rangeNote
         ignoreNote = review.ignoreNote
+        dockerignoreNote = review.dockerignoreNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -149,7 +153,8 @@ extension ChatBubble {
             ("calendarNote", calendarNote), ("languageNote", languageNote), ("packageNote", packageNote),
             ("arithmeticNote", arithmeticNote), ("unitNote", unitNote), ("regexNote", regexNote),
             ("stringNote", stringNote), ("jsonNote", jsonNote), ("yamlNote", yamlNote),
-            ("tomlNote", tomlNote), ("sqlNote", sqlNote), ("rangeNote", rangeNote), ("ignoreNote", ignoreNote)
+            ("tomlNote", tomlNote), ("sqlNote", sqlNote), ("rangeNote", rangeNote),
+            ("ignoreNote", ignoreNote), ("dockerignoreNote", dockerignoreNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

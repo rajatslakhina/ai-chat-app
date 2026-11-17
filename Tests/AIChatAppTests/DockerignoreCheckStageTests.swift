@@ -109,6 +109,10 @@ struct DockerignoreCheckStageTests {
         let (moved, movedTrace) = await review("`[a-z]+` matches `abc`.", messages: later)
         #expect(moved.dockerignoreNote == nil)
         #expect(movedTrace.outcome(for: .dockerignoreCheck) == .noOp(reason: "no claims about .dockerignore rules"))
+        let gitQuestion = [user("For my .gitignore, not the .dockerignore: does *.log cover nested logs?")]
+        let (git, gitTrace) = await review("Yes, `*.log` matches `logs/a.log`.", messages: gitQuestion)
+        #expect(git.dockerignoreNote == nil, "a question about .gitignore keeps a sentence naming neither file out")
+        #expect(gitTrace.outcome(for: .dockerignoreCheck) == .noOp(reason: "no claims about .dockerignore rules"))
     }
 
     @Test("a withheld answer is not checked")

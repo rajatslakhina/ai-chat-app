@@ -89,6 +89,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     /// A note from `dockerignoreCheck`: things this answer says about .dockerignore rules that Docker does
     /// not do.
     var dockerignoreNote: String?
+    /// A note from `dockerfileCheck`: things this answer says about a Dockerfile that Docker does not do.
+    var dockerfileNote: String?
 
     init(
         id: UUID = UUID(),
@@ -143,6 +145,7 @@ extension ChatBubble {
         rangeNote = review.rangeNote
         ignoreNote = review.ignoreNote
         dockerignoreNote = review.dockerignoreNote
+        dockerfileNote = review.dockerfileNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -154,7 +157,8 @@ extension ChatBubble {
             ("arithmeticNote", arithmeticNote), ("unitNote", unitNote), ("regexNote", regexNote),
             ("stringNote", stringNote), ("jsonNote", jsonNote), ("yamlNote", yamlNote),
             ("tomlNote", tomlNote), ("sqlNote", sqlNote), ("rangeNote", rangeNote),
-            ("ignoreNote", ignoreNote), ("dockerignoreNote", dockerignoreNote)
+            ("ignoreNote", ignoreNote), ("dockerignoreNote", dockerignoreNote),
+            ("dockerfileNote", dockerfileNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

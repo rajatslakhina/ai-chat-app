@@ -288,6 +288,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// rules (which paths are left out of the build context, whether a `!` line brings a file back, where the
     /// file is read) holds by Docker's own matching.
     case dockerignoreCheck
+    /// See `PostModelPipeline+DockerfileCheck.swift`: whether what the answer says about a Dockerfile
+    /// (where `COPY` puts a file, whether `RUN cd` lasts, which stage sees an `ARG` or `ENV`) holds by
+    /// Docker's rules.
+    case dockerfileCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

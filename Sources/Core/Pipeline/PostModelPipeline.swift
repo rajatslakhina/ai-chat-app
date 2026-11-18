@@ -75,6 +75,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about .dockerignore rules (which paths are left out of the build
     /// context, where the file is read, what listing the Dockerfile does) does not hold by Docker's matching.
     var dockerignoreNote: String?
+    /// Set when something the answer says about a Dockerfile (where `COPY` puts a file, whether `RUN cd`
+    /// lasts, which stage sees an `ARG` or `ENV`) does not hold by Docker's rules.
+    var dockerfileNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -184,8 +187,9 @@ actor PostModelPipeline {
         let ranged = await Self.checkRanges(queried, messages: messages, trace: &trace)
         let ignored = await Self.checkIgnoreRules(ranged, messages: messages, trace: &trace)
         let contexted = await Self.checkDockerignoreRules(ignored, messages: messages, trace: &trace)
+        let built = await Self.checkDockerfile(contexted, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return contexted
+        return built
     }
 
     private func verify(

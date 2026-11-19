@@ -509,6 +509,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Dockerignore check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a container command note renders it, in both schemes")
+    func entrypointNote() {
+        var bubble = ChatBubble(role: .assistant, text: "`docker run api --debug` runs `python app.py --port 80 --debug`.")
+        bubble.entrypointNote = "Container command check: arguments after the image replace CMD."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Container command check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a Dockerfile note renders it, in both schemes")
     func dockerfileNote() {
         var bubble = ChatBubble(role: .assistant, text: "`RUN cd /app` makes later steps run in `/app`.")

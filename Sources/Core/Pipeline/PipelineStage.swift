@@ -292,6 +292,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// (where `COPY` puts a file, whether `RUN cd` lasts, which stage sees an `ARG` or `ENV`) holds by
     /// Docker's rules.
     case dockerfileCheck
+    /// See `PostModelPipeline+EntrypointCheck.swift`: whether what the answer says a container runs (what
+    /// `docker run` arguments and `--entrypoint` do to `CMD` and `ENTRYPOINT`, exec versus shell form) holds
+    /// by Docker's rules.
+    case entrypointCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

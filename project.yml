@@ -354,6 +354,9 @@ packages:
   DockerfileClaimKit:
     url: https://github.com/rajatslakhina/dockerfile-claim-kit
     from: 1.0.0
+  EntrypointClaimKit:
+    url: https://github.com/rajatslakhina/entrypoint-claim-kit
+    from: 1.0.1
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -636,6 +639,8 @@ targets:
         product: DockerignoreClaimKit
       - package: DockerfileClaimKit
         product: DockerfileClaimKit
+      - package: EntrypointClaimKit
+        product: EntrypointClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

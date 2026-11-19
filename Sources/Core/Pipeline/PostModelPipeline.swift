@@ -78,6 +78,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about a Dockerfile (where `COPY` puts a file, whether `RUN cd`
     /// lasts, which stage sees an `ARG` or `ENV`) does not hold by Docker's rules.
     var dockerfileNote: String?
+    /// Set when something the answer says a container runs (what `docker run` arguments or `--entrypoint` do
+    /// to `CMD` and `ENTRYPOINT`) does not hold by Docker's rules.
+    var entrypointNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -188,8 +191,9 @@ actor PostModelPipeline {
         let ignored = await Self.checkIgnoreRules(ranged, messages: messages, trace: &trace)
         let contexted = await Self.checkDockerignoreRules(ignored, messages: messages, trace: &trace)
         let built = await Self.checkDockerfile(contexted, messages: messages, trace: &trace)
+        let started = await Self.checkEntrypoints(built, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return built
+        return started
     }
 
     private func verify(

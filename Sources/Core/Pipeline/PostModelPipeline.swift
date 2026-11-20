@@ -81,6 +81,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says a container runs (what `docker run` arguments or `--entrypoint` do
     /// to `CMD` and `ENTRYPOINT`) does not hold by Docker's rules.
     var entrypointNote: String?
+    /// Set when something the answer says about a compose project (a port, an address between services, a
+    /// substitution, `depends_on`) does not hold by compose's and Docker's rules.
+    var composeNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -192,8 +195,9 @@ actor PostModelPipeline {
         let contexted = await Self.checkDockerignoreRules(ignored, messages: messages, trace: &trace)
         let built = await Self.checkDockerfile(contexted, messages: messages, trace: &trace)
         let started = await Self.checkEntrypoints(built, messages: messages, trace: &trace)
+        let composed = await Self.checkCompose(started, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return started
+        return composed
     }
 
     private func verify(

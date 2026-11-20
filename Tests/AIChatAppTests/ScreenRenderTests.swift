@@ -519,6 +519,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Container command check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a compose note renders it, in both schemes")
+    func composeNote() {
+        var bubble = ChatBubble(role: .assistant, text: "The `api` service connects to Postgres at `db:5433`.")
+        bubble.composeNote = "Compose check: containers reach each other on the container port, so use `db:5432`."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Compose check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a Dockerfile note renders it, in both schemes")
     func dockerfileNote() {
         var bubble = ChatBubble(role: .assistant, text: "`RUN cd /app` makes later steps run in `/app`.")

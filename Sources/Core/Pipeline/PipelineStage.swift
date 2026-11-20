@@ -296,6 +296,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// `docker run` arguments and `--entrypoint` do to `CMD` and `ENTRYPOINT`, exec versus shell form) holds
     /// by Docker's rules.
     case entrypointCheck
+    /// See `PostModelPipeline+ComposeCheck.swift`: whether what the answer says about a compose project
+    /// (which port is reachable from where, `localhost` in a container, `${VAR}` substitution, `.env` and
+    /// `env_file` precedence, `depends_on`) holds by compose's and Docker's rules.
+    case composeCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

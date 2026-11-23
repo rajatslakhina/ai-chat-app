@@ -360,6 +360,9 @@ packages:
   ComposeClaimKit:
     url: https://github.com/rajatslakhina/compose-claim-kit
     from: 1.0.1
+  ComposeMergeClaimKit:
+    url: https://github.com/rajatslakhina/compose-merge-claim-kit
+    from: 1.0.1
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -646,6 +649,8 @@ targets:
         product: EntrypointClaimKit
       - package: ComposeClaimKit
         product: ComposeClaimKit
+      - package: ComposeMergeClaimKit
+        product: ComposeMergeClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

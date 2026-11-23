@@ -84,6 +84,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about a compose project (a port, an address between services, a
     /// substitution, `depends_on`) does not hold by compose's and Docker's rules.
     var composeNote: String?
+    /// Set when something the answer says a base compose file and its override do together does not hold by
+    /// compose's merge rules.
+    var mergeNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -196,8 +199,9 @@ actor PostModelPipeline {
         let built = await Self.checkDockerfile(contexted, messages: messages, trace: &trace)
         let started = await Self.checkEntrypoints(built, messages: messages, trace: &trace)
         let composed = await Self.checkCompose(started, messages: messages, trace: &trace)
+        let merged = await Self.checkComposeMerge(composed, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return composed
+        return merged
     }
 
     private func verify(

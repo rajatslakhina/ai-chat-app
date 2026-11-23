@@ -95,6 +95,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var entrypointNote: String?
     /// A note from `composeCheck`: things this answer says about a compose project that compose does not do.
     var composeNote: String?
+    /// A note from `mergeCheck`: things this answer says merged compose files do that compose does not do.
+    var mergeNote: String?
 
     init(
         id: UUID = UUID(),
@@ -152,6 +154,7 @@ extension ChatBubble {
         dockerfileNote = review.dockerfileNote
         entrypointNote = review.entrypointNote
         composeNote = review.composeNote
+        mergeNote = review.mergeNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -165,7 +168,7 @@ extension ChatBubble {
             ("tomlNote", tomlNote), ("sqlNote", sqlNote), ("rangeNote", rangeNote),
             ("ignoreNote", ignoreNote), ("dockerignoreNote", dockerignoreNote),
             ("dockerfileNote", dockerfileNote), ("entrypointNote", entrypointNote),
-            ("composeNote", composeNote)
+            ("composeNote", composeNote), ("mergeNote", mergeNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

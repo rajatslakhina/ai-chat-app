@@ -529,6 +529,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Compose check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a compose merge note renders it, in both schemes")
+    func mergeNote() {
+        var bubble = ChatBubble(role: .assistant, text: "With both files, `api` publishes `8081` instead of `8080`.")
+        bubble.mergeNote = "Compose merge check: a later file's lists are appended, so `api` publishes `8080` and `8081`."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Compose merge check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a Dockerfile note renders it, in both schemes")
     func dockerfileNote() {
         var bubble = ChatBubble(role: .assistant, text: "`RUN cd /app` makes later steps run in `/app`.")

@@ -300,6 +300,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// (which port is reachable from where, `localhost` in a container, `${VAR}` substitution, `.env` and
     /// `env_file` precedence, `depends_on`) holds by compose's and Docker's rules.
     case composeCheck
+    /// See `PostModelPipeline+ComposeMergeCheck.swift`: whether what the answer says a base compose file
+    /// and its override (or a `-f` list) do together (appended `ports`, `environment` merged by key,
+    /// `ports: []`, what `-f` reads) holds by compose's merge rules.
+    case mergeCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

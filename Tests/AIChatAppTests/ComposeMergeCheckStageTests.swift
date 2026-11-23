@@ -42,6 +42,7 @@ services:
 ```yaml
 services:
   api:
+    build: .
     ports:
       - "8081:8000"
     environment:

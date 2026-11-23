@@ -362,7 +362,7 @@ packages:
     from: 1.0.1
   ComposeMergeClaimKit:
     url: https://github.com/rajatslakhina/compose-merge-claim-kit
-    from: 1.0.1
+    from: 1.0.2
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0

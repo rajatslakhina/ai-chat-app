@@ -304,6 +304,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// and its override (or a `-f` list) do together (appended `ports`, `environment` merged by key,
     /// `ports: []`, what `-f` reads) holds by compose's merge rules.
     case mergeCheck
+    /// See `PostModelPipeline+ComposeCommandCheck.swift`: whether what the answer says a compose service runs
+    /// (a `command:` string read as run through a shell, `$VAR` read from `environment:`, an `entrypoint:`
+    /// read as keeping the image's `CMD`) holds by compose's reading of `command:` and `entrypoint:`.
+    case commandCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

@@ -87,6 +87,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says a base compose file and its override do together does not hold by
     /// compose's merge rules.
     var mergeNote: String?
+    /// Set when something the answer says a compose service runs does not hold by compose's reading of
+    /// `command:` and `entrypoint:`.
+    var commandNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -200,8 +203,9 @@ actor PostModelPipeline {
         let started = await Self.checkEntrypoints(built, messages: messages, trace: &trace)
         let composed = await Self.checkCompose(started, messages: messages, trace: &trace)
         let merged = await Self.checkComposeMerge(composed, messages: messages, trace: &trace)
+        let commanded = await Self.checkComposeCommands(merged, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return merged
+        return commanded
     }
 
     private func verify(

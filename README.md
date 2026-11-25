@@ -1223,7 +1223,12 @@ misconception that", "use the shell form", "the default `timeout` of 30s is long
 passthrough `${POSTGRES_USER}`) and 19 were flagged. Before wiring a claim checker into this app, have someone (or a
 second pass) write correct answers by reading the reader's code, and run them first. A second trap: an API that
 reports "the effective healthcheck" for a service whose image is unseen must say unknown, because the unseen image
-fills every field compose leaves unset; 1.0.1 returns `nil` there.
+fills every field compose leaves unset; 1.0.1 returns `nil` there. A third: the new stage's own tests found that the
+existing `commandCheck` (ComposeCommandClaimKit 1.0.1) puts a wrong note under correct healthcheck answers: "the `||`
+reached it as an argument" (true for a healthcheck exec form) hits its `command:` operator rule, and "`$X` becomes
+`$$X` so it is resolved inside the container" hits its variable rule; 2 of 63 correct healthcheck answers get such a
+note. That kit checks its "elsewhere" words per clause, so the clause after ", so " loses the healthcheck. Open, to be
+fixed as ComposeCommandClaimKit 1.0.2; the `healthcheckCheck` fix test was reworded to test only its own stage.
 
 **A command check must not flag the file the user asked about.** (2026-11-24) Answers quote the
 user's broken compose file to explain it ("Here is your file: ... compose stops at `&&`"), and a stage that

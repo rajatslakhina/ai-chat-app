@@ -549,6 +549,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Compose command check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a healthcheck note renders it, in both schemes")
+    func healthcheckNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Docker restarts unhealthy containers.")
+        bubble.healthcheckNote = "Healthcheck check: Docker does not restart an unhealthy container."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Healthcheck check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a Dockerfile note renders it, in both schemes")
     func dockerfileNote() {
         var bubble = ChatBubble(role: .assistant, text: "`RUN cd /app` makes later steps run in `/app`.")

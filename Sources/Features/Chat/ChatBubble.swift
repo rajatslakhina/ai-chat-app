@@ -99,6 +99,9 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     var mergeNote: String?
     /// A note from `commandCheck`: things this answer says a compose service runs that compose does not run.
     var commandNote: String?
+    /// A note from `healthcheckCheck`: things this answer says about a container healthcheck that Docker does
+    /// not do.
+    var healthcheckNote: String?
 
     init(
         id: UUID = UUID(),
@@ -158,6 +161,7 @@ extension ChatBubble {
         composeNote = review.composeNote
         mergeNote = review.mergeNote
         commandNote = review.commandNote
+        healthcheckNote = review.healthcheckNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -171,7 +175,8 @@ extension ChatBubble {
             ("tomlNote", tomlNote), ("sqlNote", sqlNote), ("rangeNote", rangeNote),
             ("ignoreNote", ignoreNote), ("dockerignoreNote", dockerignoreNote),
             ("dockerfileNote", dockerfileNote), ("entrypointNote", entrypointNote),
-            ("composeNote", composeNote), ("mergeNote", mergeNote), ("commandNote", commandNote)
+            ("composeNote", composeNote), ("mergeNote", mergeNote), ("commandNote", commandNote),
+            ("healthcheckNote", healthcheckNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

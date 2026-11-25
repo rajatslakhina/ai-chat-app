@@ -308,6 +308,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// (a `command:` string read as run through a shell, `$VAR` read from `environment:`, an `entrypoint:`
     /// read as keeping the image's `CMD`) holds by compose's reading of `command:` and `entrypoint:`.
     case commandCheck
+    /// See `PostModelPipeline+HealthcheckCheck.swift`: whether what the answer says about a container
+    /// healthcheck (the exec form read as a shell, an unhealthy container said to be restarted, a `test:`
+    /// variable read from `environment:`, a default) holds by compose's and the engine's rules.
+    case healthcheckCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

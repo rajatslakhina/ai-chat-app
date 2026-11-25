@@ -90,6 +90,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says a compose service runs does not hold by compose's reading of
     /// `command:` and `entrypoint:`.
     var commandNote: String?
+    /// Set when something the answer says about a container healthcheck does not hold by compose's and the
+    /// engine's rules.
+    var healthcheckNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -204,8 +207,9 @@ actor PostModelPipeline {
         let composed = await Self.checkCompose(started, messages: messages, trace: &trace)
         let merged = await Self.checkComposeMerge(composed, messages: messages, trace: &trace)
         let commanded = await Self.checkComposeCommands(merged, messages: messages, trace: &trace)
+        let healthChecked = await Self.checkHealthchecks(commanded, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return commanded
+        return healthChecked
     }
 
     private func verify(

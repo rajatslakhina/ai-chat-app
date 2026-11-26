@@ -369,6 +369,9 @@ packages:
   HealthcheckClaimKit:
     url: https://github.com/rajatslakhina/healthcheck-claim-kit
     from: 1.0.1
+  ComposeVolumeClaimKit:
+    url: https://github.com/rajatslakhina/compose-volume-claim-kit
+    from: 1.0.0
   SnapshotTesting:
     url: https://github.com/pointfreeco/swift-snapshot-testing
     from: 1.17.0
@@ -661,6 +664,8 @@ targets:
         product: ComposeCommandClaimKit
       - package: HealthcheckClaimKit
         product: HealthcheckClaimKit
+      - package: ComposeVolumeClaimKit
+        product: ComposeVolumeClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit

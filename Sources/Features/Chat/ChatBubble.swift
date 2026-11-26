@@ -102,6 +102,8 @@ struct ChatBubble: Identifiable, Equatable, Sendable {
     /// A note from `healthcheckCheck`: things this answer says about a container healthcheck that Docker does
     /// not do.
     var healthcheckNote: String?
+    /// A note from `volumeCheck`: things this answer says about compose volumes that Docker does not do.
+    var volumeNote: String?
 
     init(
         id: UUID = UUID(),
@@ -162,6 +164,7 @@ extension ChatBubble {
         mergeNote = review.mergeNote
         commandNote = review.commandNote
         healthcheckNote = review.healthcheckNote
+        volumeNote = review.volumeNote
     }
 
     /// The notes the post-model stages left on this answer, in pipeline order, each with the accessibility
@@ -176,7 +179,7 @@ extension ChatBubble {
             ("ignoreNote", ignoreNote), ("dockerignoreNote", dockerignoreNote),
             ("dockerfileNote", dockerfileNote), ("entrypointNote", entrypointNote),
             ("composeNote", composeNote), ("mergeNote", mergeNote), ("commandNote", commandNote),
-            ("healthcheckNote", healthcheckNote)
+            ("healthcheckNote", healthcheckNote), ("volumeNote", volumeNote)
         ]
         return notes.compactMap { identifier, text in text.map { ReviewNote(id: identifier, text: $0) } }
     }

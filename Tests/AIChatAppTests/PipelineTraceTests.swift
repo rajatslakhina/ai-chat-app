@@ -56,9 +56,9 @@ struct PipelineStageTests {
             "StringClaimKit", "JSONClaimKit", "YAMLClaimKit", "TOMLClaimKit", "SQLClaimKit",
             "VersionRangeClaimKit", "GitignoreClaimKit", "DockerignoreClaimKit", "DockerfileClaimKit",
             "EntrypointClaimKit", "ComposeClaimKit", "ComposeMergeClaimKit",
-            "ComposeCommandClaimKit", "HealthcheckClaimKit"
+            "ComposeCommandClaimKit", "HealthcheckClaimKit", "ComposeVolumeClaimKit"
         ]
-        #expect(expected.count == 116)
+        #expect(expected.count == 117)
         let missing = expected.subtracting(packages)
         let unexpected = packages.subtracting(expected)
         #expect(packages == expected, "missing: \(missing); unexpected: \(unexpected)")

@@ -93,6 +93,9 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about a container healthcheck does not hold by compose's and the
     /// engine's rules.
     var healthcheckNote: String?
+    /// Set when something the answer says about compose volumes or bind mounts does not hold by compose's and
+    /// the engine's rules.
+    var volumeNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -208,8 +211,9 @@ actor PostModelPipeline {
         let merged = await Self.checkComposeMerge(composed, messages: messages, trace: &trace)
         let commanded = await Self.checkComposeCommands(merged, messages: messages, trace: &trace)
         let healthChecked = await Self.checkHealthchecks(commanded, messages: messages, trace: &trace)
+        let volumeChecked = await Self.checkVolumes(healthChecked, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return healthChecked
+        return volumeChecked
     }
 
     private func verify(

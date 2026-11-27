@@ -559,6 +559,16 @@ struct AnswerRowRenderTests {
         #expect(!bubble.text.contains("Volume check"), "the note is never part of the answer text")
     }
 
+    @Test("a delivered answer with a secret note renders it, in both schemes")
+    func secretNote() {
+        var bubble = ChatBubble(role: .assistant, text: "Compose exposes the secret as an environment variable.")
+        bubble.secretNote = "Secret check: a compose secret reaches the container as a file."
+        let row = BubbleRow(bubble: bubble, actions: BubbleActions())
+        render(row)
+        render(row, scheme: .dark)
+        #expect(!bubble.text.contains("Secret check"), "the note is never part of the answer text")
+    }
+
     @Test("a delivered answer with a healthcheck note renders it, in both schemes")
     func healthcheckNote() {
         var bubble = ChatBubble(role: .assistant, text: "Docker restarts unhealthy containers.")

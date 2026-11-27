@@ -96,6 +96,8 @@ struct AnswerReview: Sendable, Equatable {
     /// Set when something the answer says about compose volumes or bind mounts does not hold by compose's and
     /// the engine's rules.
     var volumeNote: String?
+    /// Set when something the answer says about compose secrets or configs does not hold by plain compose.
+    var secretNote: String?
 }
 
 /// Runs everything that happens after the model answers.
@@ -212,8 +214,9 @@ actor PostModelPipeline {
         let commanded = await Self.checkComposeCommands(merged, messages: messages, trace: &trace)
         let healthChecked = await Self.checkHealthchecks(commanded, messages: messages, trace: &trace)
         let volumeChecked = await Self.checkVolumes(healthChecked, messages: messages, trace: &trace)
+        let secretChecked = await Self.checkSecrets(volumeChecked, messages: messages, trace: &trace)
         await label(trace: &trace)
-        return volumeChecked
+        return secretChecked
     }
 
     private func verify(

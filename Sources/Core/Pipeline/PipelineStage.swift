@@ -316,6 +316,10 @@ enum PipelineStage: String, CaseIterable, Sendable, Identifiable {
     /// mounts (`down` said to delete named volumes, a rebuild said to refresh a volume, a bare name read as a
     /// folder, a volume's real name) holds by compose's and the engine's rules.
     case volumeCheck
+    /// See `PostModelPipeline+SecretCheck.swift`: whether what the answer says about compose secrets and
+    /// configs (a secret said to be an environment variable, Swarm said to be needed, a path compose does
+    /// not use, `mode` said to restrict a bind-mounted file) holds by what plain `docker compose` does.
+    case secretCheck
     case metering
     /// See `LiveUsageRecovery.swift`: a call that streamed and never reported its usage, bounded,
     /// held at the upper bound, and settled from OpenRouter's billing record.

@@ -365,10 +365,13 @@ packages:
     from: 1.0.2
   ComposeCommandClaimKit:
     url: https://github.com/rajatslakhina/compose-command-claim-kit
-    from: 1.0.1
+    from: 1.0.2
   HealthcheckClaimKit:
     url: https://github.com/rajatslakhina/healthcheck-claim-kit
     from: 1.0.1
+  ComposeSecretClaimKit:
+    url: https://github.com/rajatslakhina/compose-secret-claim-kit
+    from: 1.0.0
   ComposeVolumeClaimKit:
     url: https://github.com/rajatslakhina/compose-volume-claim-kit
     from: 1.0.1
@@ -666,6 +669,8 @@ targets:
         product: HealthcheckClaimKit
       - package: ComposeVolumeClaimKit
         product: ComposeVolumeClaimKit
+      - package: ComposeSecretClaimKit
+        product: ComposeSecretClaimKit
       - package: DelayCurveKit
         product: DelayCurveShape
       - package: SpotlightRAGKit
